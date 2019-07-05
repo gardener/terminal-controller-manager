@@ -1,0 +1,6 @@
+resources:
+- admission_configurations.yaml
+- ../webhook
+
+patches:
+- admission_configurations_ca_patch.yaml

@@ -1,0 +1,8 @@
+resources:
+- ../../../../default # provided by kubebuilder, we try to leave most of the generated resources by kubebuilder untouched if possible
+- ../../../../webhook # we only need the service
+- kubeconfig-secret.yaml
+
+patches:
+- manager_kubeconfig_patch.yaml
+- manager_auth_proxy_kubeconfig_patch.yaml

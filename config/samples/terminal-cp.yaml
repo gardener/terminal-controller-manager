@@ -1,0 +1,41 @@
+apiVersion: extensions.gardener.cloud/v1alpha1
+kind: Terminal
+metadata:
+  labels:
+    garden.sapcloud.io/targetType: cp
+    garden.sapcloud.io/targetNamespace: 21k822kwsikzr
+    garden.sapcloud.io/createdBy: 2g0wqo4r75tbd
+    component: terminal-controller-manager
+  annotations:
+    garden.sapcloud.io/targetNamespace: shoot--core--mycluster
+    garden.sapcloud.io/operation: keepalive
+  namespace: garden-coretmp
+  name: term-lukas-hib-cp
+spec:
+  identifier: testabc
+  ingress:
+    credentials:
+      serviceAccountRef:
+        name: seed-myseed
+        namespace: gardentmp
+    namespace: shoot--garden--myseed
+    kubeApiServer:
+      serviceName: kube-apiserver
+      host: api.os-eu-de-200.garden.ingress.gcp.soil.dev.k8s.ondemand.com
+  host:
+    credentials:
+      serviceAccountRef:
+        name: seed-myseed
+        namespace: gardentmp
+    namespace: shoot--core--mycluster
+    pod:
+      containerImage: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.1.0
+  target:
+    credentials:
+      serviceAccountRef:
+        name: seed-myseed
+        namespace: gardentmp
+    kubeconfigContextNamespace: shoot--core--mycluster
+    namespace: shoot--core--mycluster
+    bindingKind: RoleBinding
+    roleName: cluster-admin

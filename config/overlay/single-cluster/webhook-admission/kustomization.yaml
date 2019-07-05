@@ -1,0 +1,18 @@
+resources:
+- ../../../webhook-admission
+
+configurations:
+- kustomizeconfig.yaml
+
+patches:
+- admission_configurations_service_patch.yaml
+
+vars:
+  # remove NAMESPACE var once fixed https://github.com/kubernetes-sigs/kustomize/issues/987
+  - name: NAMESPACE # namespace of the service and the certificate CR
+    objref:
+      kind: Service
+      version: v1
+      name: webhook-service
+    fieldref:
+      fieldpath: metadata.namespace

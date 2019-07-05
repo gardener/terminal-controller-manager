@@ -1,0 +1,13 @@
+# Adds namespace to all resources.
+namespace: terminal-system
+
+namePrefix: terminal- # must match with namePrefix defined in ../../default/kustomization.yaml
+
+commonLabels:
+  component: terminal-manager
+
+resources:
+- ../../default
+- ../../crd
+- ../../rbac
+- webhook-admission

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: seed-myseed
+spec: ~
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gardentmp
+spec: ~
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: garden-coretmp
+spec: ~
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shoot--core--mycluster
+spec: ~

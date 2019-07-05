@@ -1,0 +1,7 @@
+version: "2"
+domain: gardener.cloud
+repo: github.com/gardener/terminal-controller-manager
+resources:
+- group: extensions
+  version: v1alpha1
+  kind: Terminal
