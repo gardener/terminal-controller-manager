@@ -49,10 +49,7 @@ func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Te
 		// TODO validate that there is no other terminal with this identifier (search for label terminal.dashboard.gardener.cloud/identifier in all namespaces)
 		// TODO write a test that if the namespace is temporary, also a temporary namespace is generated
 
-		if t.Spec.Target.TemporaryNamespace {
-			ns := "term-" + terminalIdentifier
-			t.Spec.Target.Namespace = &ns
-		}
+		h.mutateNamespaceIfTemporary(t, terminalIdentifier)
 
 		t.ObjectMeta.Annotations[v1alpha1.GardenLastHeartBeat] = time.Now().UTC().Format(time.RFC3339)
 	}
@@ -63,6 +60,17 @@ func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Te
 	}
 
 	return nil
+}
+
+func (h *TerminalMutator) mutateNamespaceIfTemporary(t *v1alpha1.Terminal, terminalIdentifier string) {
+	if t.Spec.Host.TemporaryNamespace {
+		ns := "term-host-" + terminalIdentifier
+		t.Spec.Host.Namespace = &ns
+	}
+	if t.Spec.Target.TemporaryNamespace {
+		ns := "term-target-" + terminalIdentifier
+		t.Spec.Target.Namespace = &ns
+	}
 }
 
 var _ admission.Handler = &TerminalMutator{}

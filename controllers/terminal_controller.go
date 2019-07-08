@@ -248,9 +248,13 @@ func (r *TerminalReconciler) deleteHostClusterDepencies(ctx context.Context, hos
 		if err := deleteTerminalPod(ctx, hostClientSet, t); err != nil {
 			return formatError("Failed to delete terminal pod", err)
 		}
-
 		if err := deleteKubeconfig(ctx, hostClientSet, t); err != nil {
 			return formatError("failed to delete kubeconfig for target cluster", err)
+		}
+		if t.Spec.Host.TemporaryNamespace {
+			if err := deleteNamespace(ctx, hostClientSet, *t.Spec.Host.Namespace); err != nil {
+				return formatError("failed to delete temporary namespace on host cluster", err)
+			}
 		}
 	} else {
 		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in host cluster for terminal identifier: %s", t.Spec.Identifier)
@@ -288,13 +292,13 @@ func deleteAccessToken(ctx context.Context, targetClientSet *ClientSet, t *exten
 }
 
 func deleteAttachPodSecret(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
-	if err := deleteRoleBinding(ctx, hostClientSet, t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier); err != nil {
+	if err := deleteRoleBinding(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier); err != nil {
 		return err
 	}
-	if err := deleteServiceAccount(ctx, hostClientSet, t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier); err != nil {
+	if err := deleteServiceAccount(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier); err != nil {
 		return err
 	}
-	return deleteRole(ctx, hostClientSet, t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier)
+	return deleteRole(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier)
 }
 
 func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
@@ -320,7 +324,13 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 }
 
 func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set) error {
-	attachPodServiceAccount, err := createOrUpdateServiceAccount(ctx, hostClientSet, t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier, labelsSet)
+	if t.Spec.Host.TemporaryNamespace {
+		if _, err := createOrUpdateNamespace(ctx, hostClientSet, *t.Spec.Host.Namespace, labelsSet); err != nil {
+			return err
+		}
+	}
+
+	attachPodServiceAccount, err := createOrUpdateServiceAccount(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier, labelsSet)
 	if err != nil {
 		return err
 	}
@@ -346,7 +356,7 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 			ResourceNames: []string{podResourceName},
 		},
 	}
-	attachRole, err := createOrUpdateAttachRole(ctx, hostClientSet, t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier, rules)
+	attachRole, err := createOrUpdateAttachRole(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier, rules)
 	if err != nil {
 		return err
 	}
@@ -361,7 +371,7 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 		Kind:     "Role",
 		Name:     attachRole.Name,
 	}
-	_, err = createOrUpdateRoleBinding(ctx, hostClientSet, t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier, subject, roleRef, labelsSet)
+	_, err = createOrUpdateRoleBinding(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier, subject, roleRef, labelsSet)
 	if err != nil {
 		return err
 	}
@@ -581,12 +591,12 @@ func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, h
 		"kubeconfig": kubeconfig,
 	}
 
-	return createOrUpdateSecretData(ctx, hostClientSet, t.Spec.Host.Namespace, kubeconfigSecretName, data, labelsSet)
+	return createOrUpdateSecretData(ctx, hostClientSet, *t.Spec.Host.Namespace, kubeconfigSecretName, data, labelsSet)
 }
 
 func deleteKubeconfig(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
 	kubeconfigSecretName := extensionsv1alpha1.KubeconfigSecretResourceNamePrefix + t.Spec.Identifier
-	return deleteSecret(ctx, hostClientSet, t.Spec.Host.Namespace, kubeconfigSecretName)
+	return deleteSecret(ctx, hostClientSet, *t.Spec.Host.Namespace, kubeconfigSecretName)
 }
 
 func createOrUpdateSecretData(ctx context.Context, cs *ClientSet, namespace string, name string, data map[string][]byte, labelsSet *labels.Set) (*corev1.Secret, error) {
@@ -663,7 +673,7 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 }
 
 func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *ClientSet, t *extensionsv1alpha1.Terminal, kubeconfigSecretName string, labelsSet *labels.Set) (*corev1.Pod, error) {
-	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
 	t.Status.PodName = pod.Name
 	err := r.Status().Update(ctx, t)
@@ -791,7 +801,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 }
 
 func deleteTerminalPod(ctx context.Context, cs *ClientSet, t *extensionsv1alpha1.Terminal) error {
-	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
 	return delete(ctx, cs, pod)
 }

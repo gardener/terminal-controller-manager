@@ -449,6 +449,7 @@ spec:
                   type: object
                 namespace:
                   description: Namespace is the namespace where the pod resides in
+                    This field should not be set if TemporaryNamespace is set to true
                   type: string
                 pod:
                   properties:
@@ -477,9 +478,17 @@ spec:
                   required:
                   - containerImage
                   type: object
+                temporaryNamespace:
+                  description: TemporaryNamespace is a flag to indicate if the namespace
+                    should be ephemeral. If true, the namespace will be created and
+                    when the terminal is deleted, the namespace is also deleted. If
+                    true, the mutating webhook makes sure that a temporary namespace
+                    is set; in this case you cannot choose the namespace This field
+                    should be false if Namespace is set. You cannot define the name
+                    of the temporary namespace.
+                  type: boolean
               required:
               - credentials
-              - namespace
               - pod
               type: object
             identifier:

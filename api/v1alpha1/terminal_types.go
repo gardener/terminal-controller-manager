@@ -73,8 +73,17 @@ type HostCluster struct {
 	Credentials ClusterCredentials `json:"credentials"`
 
 	// Namespace is the namespace where the pod resides in
-	Namespace string `json:"namespace"`
-	Pod       Pod    `json:"pod"`
+	// This field should not be set if TemporaryNamespace is set to true
+	// +optional
+	Namespace *string `json:"namespace,omitempty"`
+
+	// TemporaryNamespace is a flag to indicate if the namespace should be ephemeral. If true, the namespace will be created and when the terminal is deleted, the namespace is also deleted.
+	// If true, the mutating webhook makes sure that a temporary namespace is set; in this case you cannot choose the namespace
+	// This field should be false if Namespace is set. You cannot define the name of the temporary namespace.
+	// +optional
+	TemporaryNamespace bool `json:"temporaryNamespace,omitempty"`
+
+	Pod Pod `json:"pod"`
 }
 
 // TargetCluster defines the desired state of the resources related to the target cluster
