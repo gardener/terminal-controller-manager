@@ -46,7 +46,7 @@ func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Te
 		terminalIdentifier := utils.ToFnvHash(uuidString)
 		t.Spec.Identifier = terminalIdentifier
 
-		// TODO validate that there is no other terminal with this identifier (search for label terminal.extensions.gardener.cloud/identifier in all namespaces)
+		// TODO validate that there is no other terminal with this identifier (search for label terminal.dashboard.gardener.cloud/identifier in all namespaces)
 		// TODO write a test that if the namespace is temporary, also a temporary namespace is generated
 
 		if t.Spec.Target.TemporaryNamespace {

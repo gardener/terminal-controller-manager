@@ -30,7 +30,7 @@ rules:
   - create
   - patch
 - apiGroups:
-  - extensions.gardener.cloud
+  - dashboard.gardener.cloud
   resources:
   - terminals
   verbs:
@@ -42,7 +42,7 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - extensions.gardener.cloud
+  - dashboard.gardener.cloud
   resources:
   - terminals/status
   verbs:

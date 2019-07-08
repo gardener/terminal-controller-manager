@@ -3,7 +3,7 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  name: terminals.extensions.gardener.cloud
+  name: terminals.dashboard.gardener.cloud
 spec:
   conversion:
     strategy: Webhook

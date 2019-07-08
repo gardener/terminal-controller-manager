@@ -160,9 +160,9 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 
 	return &labels.Set{
 		Component: TerminalComponent,
-		"terminal.extensions.gardener.cloud/identifier":   t.Spec.Identifier,
-		"terminal.extensions.gardener.cloud/targetNsHash": utils.ToFnvHash(*t.Spec.Target.Namespace),
-		"terminal.extensions.gardener.cloud/createdBy":    utils.ToFnvHash(t.ObjectMeta.Annotations["garden.sapcloud.io/createdBy"]),
+		"terminal.dashboard.gardener.cloud/identifier":   t.Spec.Identifier,
+		"terminal.dashboard.gardener.cloud/targetNsHash": utils.ToFnvHash(*t.Spec.Target.Namespace),
+		"terminal.dashboard.gardener.cloud/createdBy":    utils.ToFnvHash(t.ObjectMeta.Annotations["garden.sapcloud.io/createdBy"]),
 	}, nil
 }
 

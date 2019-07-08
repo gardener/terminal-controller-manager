@@ -10,7 +10,7 @@ webhooks:
     name: mutating-create-update-terminal.gardener.cloud
     rules:
       - apiGroups:
-          - extensions.gardener.cloud
+          - dashboard.gardener.cloud
         apiVersions:
           - v1alpha1
         operations:
@@ -32,7 +32,7 @@ webhooks:
     name: validating-create-update-terminal.gardener.cloud
     rules:
       - apiGroups:
-          - extensions.gardener.cloud
+          - dashboard.gardener.cloud
         apiVersions:
           - v1alpha1
         operations:
