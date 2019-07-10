@@ -16,7 +16,7 @@ terminal-controller-manager:
             registry: 'gcr-readwrite'
             image: 'eu.gcr.io/gardener-project/gardener/terminal-controller-manager'
     steps: ~
-  variants:
+  jobs:
     head-update:
       traits:
         draft_release: ~
