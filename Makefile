@@ -27,13 +27,17 @@ bootstrap-dev: install
 	kubectl apply -f config/samples/bootstrap/01_namespaces.yaml
 	kubectl apply -f config/samples/bootstrap/02_rbac.yaml
 
-# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
+# Multi-cluster use case: Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy-rt: manifests
-	kustomize build config/overlay/runtime | kubectl apply -f -
+	kustomize build config/overlay/multi-cluster/runtime | kubectl apply -f -
 
-# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
+# Multi-cluster use case: Deploy crd, admission configurations etc. in the configured Kubernetes cluster
 deploy-virtual: manifests
-	kustomize build config/overlay/virtual-garden | kubectl apply -f -
+	kustomize build config/overlay/multi-cluster/virtual-garden | kubectl apply -f -
+
+# Single-cluster use case: Deploy crd, admission configurations, controller etc. in the configured Kubernetes cluster
+deploy-singlecluster: manifests
+	kustomize build config/overlay/single-cluster | kubectl apply -f -
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
