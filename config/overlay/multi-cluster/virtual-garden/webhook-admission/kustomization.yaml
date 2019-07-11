@@ -4,7 +4,7 @@ resources:
 configurations:
 - kustomizeconfig.yaml
 
-patches:
+patchesStrategicMerge:
 - admission_configurations_url_patch.yaml
 
 # the following config is for teaching kustomize how to do var substitution

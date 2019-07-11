@@ -2,5 +2,5 @@ resources:
 - admission_configurations.yaml
 - ../webhook
 
-patches:
+patchesStrategicMerge:
 - admission_configurations_ca_patch.yaml

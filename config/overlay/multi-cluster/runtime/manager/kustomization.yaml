@@ -3,6 +3,6 @@ resources:
 - ../../../../webhook # we only need the service
 - kubeconfig-secret.yaml
 
-patches:
+patchesStrategicMerge:
 - manager_kubeconfig_patch.yaml
 - manager_auth_proxy_kubeconfig_patch.yaml

@@ -5,7 +5,7 @@ resources:
 - bases/dashboard.gardener.cloud_terminals.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
-patches:
+patchesStrategicMerge:
 # [WEBHOOK] patches here are for enabling the conversion webhook for each CRD
 #- patches/webhook_in_terminals.yaml
 # +kubebuilder:scaffold:crdkustomizewebhookpatch

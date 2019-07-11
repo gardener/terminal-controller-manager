@@ -4,7 +4,7 @@ resources:
 configurations:
 - kustomizeconfig.yaml
 
-patches:
+patchesStrategicMerge:
 - admission_configurations_service_patch.yaml
 
 vars:
