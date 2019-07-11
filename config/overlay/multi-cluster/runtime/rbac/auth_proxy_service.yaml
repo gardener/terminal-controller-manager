@@ -1,4 +1,4 @@
-# copied from ../../../../rbac
+# copied from config/rbac
 
 apiVersion: v1
 kind: Service

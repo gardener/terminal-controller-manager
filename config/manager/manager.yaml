@@ -1,4 +1,4 @@
-# Namespace needed also for virtual-garden, hence it needed to be copied also to ../overlay/virtual-garden/namespace.yaml
+# Namespace needed also for virtual-garden, hence it needed to be copied to config/overlay/multi-cluster/virtual-garden/namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:

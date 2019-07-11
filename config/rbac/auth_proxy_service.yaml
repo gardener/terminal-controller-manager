@@ -1,4 +1,4 @@
-# copied to ../overlay/runtime/rbac/auth_proxy_service.yaml
+# copied to config/overlay/multi-cluster/runtime/rbac/auth_proxy_service.yaml
 
 apiVersion: v1
 kind: Service

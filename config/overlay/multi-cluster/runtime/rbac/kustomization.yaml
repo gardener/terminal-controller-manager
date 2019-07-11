@@ -1,2 +1,2 @@
 resources:
-- auth_proxy_service.yaml # copied from ../../../rbac
+- auth_proxy_service.yaml # copied from config/rbac
