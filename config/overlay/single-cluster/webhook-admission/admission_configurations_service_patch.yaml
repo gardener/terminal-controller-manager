@@ -19,9 +19,7 @@ webhooks:
   - clientConfig:
       service:
         name: webhook-service
-        # namespace substitution currently does not work, see https://github.com/kubernetes-sigs/kustomize/issues/987
-        # namespace: system
-        namespace: $(NAMESPACE)
+        namespace: system
         path: /validate-terminal
       url: null
     name: validating-create-update-terminal.gardener.cloud
