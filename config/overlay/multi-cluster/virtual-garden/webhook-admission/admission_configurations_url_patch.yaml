@@ -4,7 +4,6 @@ metadata:
   name: mutating-webhook-configuration
 webhooks:
   - clientConfig:
-      service: null
       url: https://$(SERVICENAME).$(NAMESPACE).svc/mutate-terminal
     name: mutating-create-update-terminal.gardener.cloud
 ---
@@ -14,6 +13,5 @@ metadata:
   name: validating-webhook-configuration
 webhooks:
   - clientConfig:
-      service: null
       url: https://$(SERVICENAME).$(NAMESPACE).svc/validate-terminal
     name: validating-create-update-terminal.gardener.cloud
