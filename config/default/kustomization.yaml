@@ -21,7 +21,6 @@ resources:
 #- ../webhook
 # [CERTMANAGER] To enable cert-manager, uncomment next line. 'WEBHOOK' components are required.
 #- ../certmanager
-- webhook-secret.yaml
 
 patchesStrategicMerge:
 - manager_image_patch.yaml

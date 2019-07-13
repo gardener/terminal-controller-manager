@@ -1,4 +1,5 @@
 resources:
+- ../../../../secret
 - ../../../../default # provided by kubebuilder, we try to leave most of the generated resources by kubebuilder untouched if possible
 - ../../../../webhook # we only need the service
 - kubeconfig-secret.yaml

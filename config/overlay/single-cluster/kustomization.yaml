@@ -10,4 +10,14 @@ resources:
 - ../../default
 - ../../crd
 - ../../rbac
+- ../../secret
 - webhook-admission
+
+vars:
+  - name: TLSCERT # somehow this var cannot be defined in the config/webhook-admission/kustomization.yaml
+    objref:
+      kind: Secret
+      version: v1
+      name: webhook-server-cert
+    fieldref:
+      fieldpath: data[tls.crt]

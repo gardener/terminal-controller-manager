@@ -9,5 +9,15 @@ commonLabels:
 resources:
 - ../../../crd
 - ../../../rbac
+- ../../../secret # secret needs to be included because of TLSCERT var. The secret itself does not necessarily be applied to the virtual garden
 - webhook-admission
 - namespace.yaml
+
+vars:
+  - name: TLSCERT # somehow this var cannot be defined in the config/webhook-admission/kustomization.yaml
+    objref:
+      kind: Secret
+      version: v1
+      name: webhook-server-cert
+    fieldref:
+      fieldpath: data[tls.crt]

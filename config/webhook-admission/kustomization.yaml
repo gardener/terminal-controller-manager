@@ -4,3 +4,6 @@ resources:
 
 patchesStrategicMerge:
 - admission_configurations_ca_patch.yaml
+
+configurations:
+  - kustomizeconfig.yaml

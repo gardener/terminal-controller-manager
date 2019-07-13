@@ -27,3 +27,9 @@ bin
 *.swo
 .vscode
 *~
+
+# Ignore all cert related files
+*.pem
+*.crt
+*.key
+*.csr
