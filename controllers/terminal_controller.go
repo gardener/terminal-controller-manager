@@ -685,6 +685,9 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		pod.Labels = labels.Merge(pod.Labels, t.Spec.Host.Pod.Labels)
 		pod.Labels = labels.Merge(pod.Labels, *labelsSet)
 
+		automountServiceAccountToken := false
+		pod.Spec.AutomountServiceAccountToken = &automountServiceAccountToken
+
 		volumeExists := func(name string) bool {
 			for _, volume := range pod.Spec.Volumes {
 				if volume.Name == name {
