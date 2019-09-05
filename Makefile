@@ -1,8 +1,19 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= eu.gcr.io/gardener-project/gardener/terminal-controller-manager:latest
+
+# Kube RBAC Proxy image to use
+IMG_RBAC_PROXY ?= gcr.io/kubebuilder/kube-rbac-proxy:v0.4.0
+
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
+
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
 
 all: manager
 
@@ -27,16 +38,20 @@ bootstrap-dev: install
 	kubectl apply -f config/samples/bootstrap/01_namespaces.yaml
 	kubectl apply -f config/samples/bootstrap/02_rbac.yaml
 
+apply-image: manifests
+	cd config/manager && kustomize edit set image "controller=${IMG}" "gcr.io/kubebuilder/kube-rbac-proxy=${IMG_RBAC_PROXY}"
+	cd config/default && kustomize edit set image "gcr.io/kubebuilder/kube-rbac-proxy=${IMG_RBAC_PROXY}"
+
 # Multi-cluster use case: Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-deploy-rt: manifests
+deploy-rt: apply-image
 	kustomize build config/overlay/multi-cluster/runtime | kubectl apply -f -
 
 # Multi-cluster use case: Deploy crd, admission configurations etc. in the configured Kubernetes cluster
-deploy-virtual: manifests
+deploy-virtual: apply-image
 	kustomize build config/overlay/multi-cluster/virtual-garden | kubectl apply -f -
 
 # Single-cluster use case: Deploy crd, admission configurations, controller etc. in the configured Kubernetes cluster
-deploy-singlecluster: manifests
+deploy-singlecluster: apply-image
 	kustomize build config/overlay/single-cluster | kubectl apply -f -
 
 # Generate manifests e.g. CRD, RBAC etc.
@@ -53,13 +68,11 @@ vet:
 
 # Generate code
 generate: controller-gen
-	$(CONTROLLER_GEN) object:headerFile=./hack/boilerplate.go.txt paths=./api/...
+	$(CONTROLLER_GEN) object:headerFile=./hack/boilerplate.go.txt paths="./..."
 
 # Build the docker image
 docker-build: test
 	docker build . -t ${IMG}
-	@echo "updating kustomize image patch file for manager resource"
-	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
 
 # Push the docker image
 docker-push:
@@ -69,8 +82,8 @@ docker-push:
 # download controller-gen if necessary
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.0-beta.2
-CONTROLLER_GEN=$(shell go env GOPATH)/bin/controller-gen
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.0
+CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
 endif

@@ -37,7 +37,9 @@ export KUBECONFIG="$(kind get kubeconfig-path --name="kind")"
 
 ```
 
-Run `deploy-singlecluster` make target
+Run `deploy-singlecluster` make target. 
+
+Optionally specify the `IMG` in case you built your own image, otherwise the default `eu.gcr.io/gardener-project/gardener/terminal-controller-manager:latest` is used.
 
 ```bash
 make deploy-singlecluster
