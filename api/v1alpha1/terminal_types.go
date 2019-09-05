@@ -192,10 +192,10 @@ const (
 
 	// GardenCreatedBy is the key for an annotation of a terminal resource whose value contains the username
 	// of the user that created the resource.
-	GardenLastHeartBeat = "garden.sapcloud.io/lastHeartbeatAt"
+	TerminalLastHeartBeat = "dashboard.gardener.cloud/lastHeartbeatAt"
 
 	// ShootOperation is a constant for an annotation on a Shoot in a failed state indicating that an operation shall be performed.
-	TerminalOperation = "terminal.garden.sapcloud.io/operation"
+	TerminalOperation = "dashboard.gardener.cloud/operation"
 
 	// ShootOperationMaintain is a constant for an annotation on a Shoot indicating that the Shoot maintenance shall be executed as soon as
 	// possible.
@@ -232,5 +232,5 @@ const (
 	TerminalPodResourceNamePrefix = "term-"
 
 	// TerminalAttachRoleResourceNamePrefix is a name prefix for the role allowing to attach to the terminal pod
-	TerminalAttachRoleResourceNamePrefix = "garden.sapcloud.io:term-attach-"
+	TerminalAttachRoleResourceNamePrefix = "dashboard.gardener.cloud:term-attach-"
 )
