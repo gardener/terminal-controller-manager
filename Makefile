@@ -39,7 +39,7 @@ bootstrap-dev: install
 	kubectl apply -f config/samples/bootstrap/02_rbac.yaml
 
 apply-image: manifests
-	cd config/manager && kustomize edit set image "controller=${IMG}" "gcr.io/kubebuilder/kube-rbac-proxy=${IMG_RBAC_PROXY}"
+	cd config/manager && kustomize edit set image "controller=${IMG}"
 	cd config/default && kustomize edit set image "gcr.io/kubebuilder/kube-rbac-proxy=${IMG_RBAC_PROXY}"
 
 # Multi-cluster use case: Deploy controller in the configured Kubernetes cluster in ~/.kube/config

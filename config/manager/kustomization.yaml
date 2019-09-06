@@ -8,9 +8,3 @@ images:
 - name: controller
   newName: eu.gcr.io/gardener-project/gardener/terminal-controller-manager
   newTag: latest
-- name: gcr.io/kubebuilder/kube-rbac-proxy
-  newName: gcr.io/kubebuilder/kube-rbac-proxy
-  newTag: v0.4.0
-- name: kuberbacproxy
-  newName: rbacproxy
-  newTag: "0.1"
