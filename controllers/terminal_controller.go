@@ -688,6 +688,11 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		automountServiceAccountToken := false
 		pod.Spec.AutomountServiceAccountToken = &automountServiceAccountToken
 
+		pod.Spec.HostPID = t.Spec.Host.Pod.HostPID
+		pod.Spec.HostNetwork = t.Spec.Host.Pod.HostNetwork
+
+		mountHostRootFs := t.Spec.Host.Pod.Privileged || t.Spec.Host.Pod.HostPID || t.Spec.Host.Pod.HostNetwork
+
 		volumeExists := func(name string) bool {
 			for _, volume := range pod.Spec.Volumes {
 				if volume.Name == name {
@@ -721,7 +726,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 					Value: "/mnt/.kube/config",
 				},
 			}
-			if t.Spec.Host.Pod.Privileged {
+			if mountHostRootFs {
 				rootVolumeName := "root-volume"
 				container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
 					Name:      rootVolumeName,

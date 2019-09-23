@@ -119,13 +119,21 @@ type Pod struct {
 	// (scope and select) objects. Will be set as labels of the pod
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
-	// Docker image name.
+	// ContainerImage defines the image used for the container.
 	ContainerImage string `json:"containerImage"`
 	// Run container in privileged mode.
 	// Processes in privileged containers are essentially equivalent to root on the host.
 	// Defaults to false.
 	// +optional
 	Privileged bool `json:"privileged,omitempty"`
+	// Host networking requested for this pod. Use the host's network namespace.
+	// Default to false.
+	// +optional
+	HostNetwork bool `json:"hostNetwork,omitempty"`
+	// Use the host's pid namespace.
+	// Default to false.
+	// +optional
+	HostPID bool `json:"hostPID,omitempty"`
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	// +optional
