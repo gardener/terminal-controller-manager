@@ -9,6 +9,13 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
   - secrets
   verbs:
   - get
@@ -23,36 +30,29 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ""
+  - admissionregistration.k8s.io
   resources:
-  - events
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
   verbs:
-  - create
-  - patch
+  - list
 - apiGroups:
   - dashboard.gardener.cloud
   resources:
   - terminals
   verbs:
+  - create
+  - delete
   - get
   - list
-  - watch
-  - create
-  - update
   - patch
-  - delete
+  - update
+  - watch
 - apiGroups:
   - dashboard.gardener.cloud
   resources:
   - terminals/status
   verbs:
   - get
-  - update
   - patch
-- apiGroups:
-  - admissionregistration.k8s.io
-  resources:
-  - validatingwebhookconfigurations
-  - mutatingwebhookconfigurations
-  verbs:
-  - list
+  - update
