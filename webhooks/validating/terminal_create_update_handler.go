@@ -254,9 +254,12 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	err = h.decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj)
-	if err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
+
+	if req.AdmissionRequest.Operation != v1beta1.Create {
+		err = h.decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj)
+		if err != nil {
+			return admission.Errored(http.StatusBadRequest, err)
+		}
 	}
 
 	allowed, reason, err := h.validatingTerminalFn(ctx, obj, oldObj, req.AdmissionRequest)
