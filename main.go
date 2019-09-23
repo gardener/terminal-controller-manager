@@ -50,9 +50,11 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var certDir string
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&certDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "CertDir is the directory that contains the server key and certificate.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.Logger(true))
@@ -98,7 +100,8 @@ func main() {
 	// Setup webhooks
 	setupLog.Info("setting up webhook server")
 	hookServer := &webhook.Server{
-		Port: 443,
+		Port:    443,
+		CertDir: certDir,
 	}
 	if err := mgr.Add(hookServer); err != nil {
 		setupLog.Error(err, "unable register webhook server with manager")
