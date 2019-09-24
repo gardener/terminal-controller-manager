@@ -100,7 +100,7 @@ func main() {
 	// Setup webhooks
 	setupLog.Info("setting up webhook server")
 	hookServer := &webhook.Server{
-		Port:    443,
+		Port:    9443,
 		CertDir: certDir,
 	}
 	if err := mgr.Add(hookServer); err != nil {
