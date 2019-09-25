@@ -9,7 +9,9 @@ spec:
   group: dashboard.gardener.cloud
   names:
     kind: Terminal
+    listKind: TerminalList
     plural: terminals
+    singular: terminal
   scope: ""
   subresources:
     status: {}
