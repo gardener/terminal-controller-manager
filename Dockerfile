@@ -26,6 +26,6 @@ WORKDIR /
 COPY --from=builder /workspace/manager .
 
 # nonroot user https://github.com/GoogleContainerTools/distroless/blob/18b2d2c5ebfa58fe3e0e4ee3ffe0e2651ec0f7f6/base/base.bzl#L8
-USER 65532:65532
+USER 65532
 
 ENTRYPOINT ["/manager"]
