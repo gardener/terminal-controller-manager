@@ -203,7 +203,7 @@ const (
 
 	// GardenCreatedBy is the key for an annotation of a terminal resource whose value contains the username
 	// of the user that created the resource.
-	TerminalLastHeartBeat = "dashboard.gardener.cloud/lastHeartbeatAt"
+	TerminalLastHeartbeat = "dashboard.gardener.cloud/lastHeartbeatAt"
 
 	// ShootOperation is a constant for an annotation on a Shoot in a failed state indicating that an operation shall be performed.
 	TerminalOperation = "dashboard.gardener.cloud/operation"

@@ -1,14 +1,8 @@
 apiVersion: dashboard.gardener.cloud/v1alpha1
 kind: Terminal
 metadata:
-  labels:
-    garden.sapcloud.io/targetType: cp
-    garden.sapcloud.io/targetNamespace: 21k822kwsikzr
-    garden.sapcloud.io/createdBy: 2g0wqo4r75tbd
-    component: terminal-controller-manager
   annotations:
-    garden.sapcloud.io/targetNamespace: shoot--core--mycluster
-    garden.sapcloud.io/operation: keepalive
+    dashboard.gardener.cloud/operation: keepalive
   namespace: garden-coretmp
   name: term-lukas-hib-cp
 spec:

@@ -64,13 +64,13 @@ func (r *TerminalHeartbeatReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 		return ctrl.Result{}, nil
 	}
 
-	lastHeartBeat := t.ObjectMeta.Annotations[extensionsv1alpha1.TerminalLastHeartBeat]
-	if len(lastHeartBeat) == 0 {
+	lastHeartbeat := t.ObjectMeta.Annotations[extensionsv1alpha1.TerminalLastHeartbeat]
+	if len(lastHeartbeat) == 0 {
 		// if there is no heartbeat set, delete right away
 		return ctrl.Result{}, r.deleteTerminal(ctx, t)
 	}
 
-	lastHeartBeatParsed, err := time.Parse(time.RFC3339, lastHeartBeat)
+	lastHeartBeatParsed, err := time.Parse(time.RFC3339, lastHeartbeat)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

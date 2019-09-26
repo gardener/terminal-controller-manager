@@ -51,12 +51,12 @@ func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Te
 
 		h.mutateNamespaceIfTemporary(t, terminalIdentifier)
 
-		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartBeat] = time.Now().UTC().Format(time.RFC3339)
+		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	if t.ObjectMeta.Annotations[v1alpha1.TerminalOperation] == v1alpha1.TerminalOperationKeepalive {
 		delete(t.ObjectMeta.Annotations, v1alpha1.TerminalOperation)
-		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartBeat] = time.Now().UTC().Format(time.RFC3339)
+		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	return nil
