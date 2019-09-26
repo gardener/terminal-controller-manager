@@ -13,15 +13,6 @@ metadata:
   name: term-lukas-hib-cp
 spec:
   identifier: testabc
-  ingress:
-    credentials:
-      serviceAccountRef:
-        name: seed-myseed
-        namespace: gardentmp
-    namespace: shoot--garden--myseed
-    kubeApiServer:
-      serviceName: kube-apiserver
-      host: api.os-eu-de-200.garden.ingress.gcp.soil.dev.k8s.ondemand.com
   host:
     credentials:
       serviceAccountRef:
