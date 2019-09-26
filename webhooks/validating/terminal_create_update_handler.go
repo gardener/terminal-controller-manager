@@ -85,6 +85,18 @@ func getFieldValidations(t *v1alpha1.Terminal) *[]fldValidation {
 			value:   t.Spec.Target.Namespace, // The mutating webhook ensures that a target namespace is always set
 			fldPath: field.NewPath("spec", "target", "namespace"),
 		},
+		{
+			value:   &t.Spec.Target.RoleName,
+			fldPath: field.NewPath("spec", "target", "roleName"),
+		},
+		{
+			value:   &t.Spec.Target.KubeconfigContextNamespace,
+			fldPath: field.NewPath("spec", "target", "kubeconfigContextNamespace"),
+		},
+		{
+			value:   &t.Spec.Host.Pod.ContainerImage,
+			fldPath: field.NewPath("spec", "host", "pod", "containerImage"),
+		},
 	}
 	return fldValidations
 }
