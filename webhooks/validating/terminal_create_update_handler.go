@@ -41,6 +41,7 @@ type TerminalValidator struct {
 }
 
 func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha1.Terminal, oldT *v1alpha1.Terminal, admissionReq v1beta1.AdmissionRequest) (bool, string, error) {
+	userInfo := admissionReq.UserInfo
 	if admissionReq.Operation != v1beta1.Create {
 		// TODO write unit tests where we explicitly check that the identifier and the secretRefs cannot be changed
 		specFldPath := field.NewPath("spec")
@@ -51,6 +52,12 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		createdByFldPath := field.NewPath("metadata", "annotations", v1alpha1.GardenCreatedBy)
 		if err := validateImmutableField(t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy], oldT.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy], createdByFldPath); err != nil {
 			return false, err.Error(), nil
+		}
+
+		// only same user is allowed to keep terminal session alive
+		changedBySameUser := t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy] == admissionReq.UserInfo.Username
+		if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] != oldT.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] && !changedBySameUser {
+			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "You are not allowed to change this field").Error(), nil
 		}
 	}
 
@@ -63,7 +70,6 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	userInfo := admissionReq.UserInfo
 	if allowed, err := h.canGetCredential(ctx, userInfo, t.Spec.Target.Credentials); err != nil {
 		return false, err.Error(), nil
 	} else if !allowed {
