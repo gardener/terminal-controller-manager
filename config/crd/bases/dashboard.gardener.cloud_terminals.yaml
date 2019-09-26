@@ -231,6 +231,8 @@ spec:
                     should not be set if TemporaryNamespace is set to true
                   type: string
                 roleName:
+                  description: RoleName is the name of the ClusterRole the "access"
+                    service account is bound to.
                   type: string
                 temporaryNamespace:
                   description: TemporaryNamespace is a flag to indicate if the namespace

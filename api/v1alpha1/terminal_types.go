@@ -104,7 +104,10 @@ type TargetCluster struct {
 
 	// KubeconfigContextNamespace is a reference to the namespace within the host cluster that should be used as default in the kubeconfig context
 	KubeconfigContextNamespace string `json:"kubeconfigContextNamespace"`
-	RoleName                   string `json:"roleName"`
+
+	// RoleName is the name of the ClusterRole the "access" service account is bound to.
+	RoleName string `json:"roleName"`
+
 	// BindingKind defines the desired role binding. ClusterRoleBinding will result in a ClusterRoleBinding. RoleBinding will result in a RoleBinding.
 	BindingKind BindingKind `json:"bindingKind"`
 }
