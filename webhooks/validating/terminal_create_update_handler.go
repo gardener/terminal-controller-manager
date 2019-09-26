@@ -73,13 +73,13 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	if allowed, err := h.canGetCredential(ctx, userInfo, t.Spec.Target.Credentials); err != nil {
 		return false, err.Error(), nil
 	} else if !allowed {
-		return false, "You are not allowed to read target credential", nil
+		return false, field.Forbidden(field.NewPath("spec", "target", "credentials"), "You are not allowed to read target credential").Error(), nil
 	}
 
 	if allowed, err := h.canGetCredential(ctx, userInfo, t.Spec.Host.Credentials); err != nil {
 		return false, err.Error(), nil
 	} else if !allowed {
-		return false, "You are not allowed to read host credential", nil
+		return false, field.Forbidden(field.NewPath("spec", "host", "credentials"), "You are not allowed to read host credential").Error(), nil
 	}
 
 	return true, "allowed to be admitted", nil
