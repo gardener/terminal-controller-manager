@@ -10,6 +10,7 @@ resources:
 - ../../default
 - ../../crd
 - ../../rbac
+- ../../rbac-rt
 - ../../secret
 - webhook-admission
 

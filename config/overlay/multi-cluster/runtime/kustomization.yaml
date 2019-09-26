@@ -8,4 +8,4 @@ commonLabels:
 
 resources:
 - manager
-- rbac
+- ../../../rbac-rt
