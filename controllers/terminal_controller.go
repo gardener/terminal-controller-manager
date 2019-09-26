@@ -68,6 +68,7 @@ type ClientSet struct {
 func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionsv1alpha1.Terminal{}).
+		Named("main").
 		Complete(r)
 }
 

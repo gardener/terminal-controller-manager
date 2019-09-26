@@ -39,6 +39,7 @@ type TerminalHeartbeatReconciler struct {
 func (r *TerminalHeartbeatReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionsv1alpha1.Terminal{}).
+		Named("heartbeat").
 		Complete(r)
 }
 
