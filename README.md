@@ -1,5 +1,5 @@
 # Gardener Terminal Controller Manager
-![gardener-terminal](https://user-images.githubusercontent.com/5526658/65954528-77302b80-e446-11e9-9dc5-1bd4c580a556.png)
+<img src="https://user-images.githubusercontent.com/5526658/65954528-77302b80-e446-11e9-9dc5-1bd4c580a556.png" alt="Terminal Controller Manager" width="180"/>
 
 ## Development Setup
 
