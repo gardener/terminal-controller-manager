@@ -1,5 +1,5 @@
 # Gardener Terminal Controller Manager
-<img src="https://user-images.githubusercontent.com/5526658/65956146-ff640000-e449-11e9-9048-37dfd48a49f3.png" width="180"/>
+<img src="https://user-images.githubusercontent.com/5526658/65957453-2a9c1e80-e44d-11e9-8f11-99ac34d21251.png" width="180"/>
 
 ## Development Setup
 
