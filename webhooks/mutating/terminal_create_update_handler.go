@@ -18,11 +18,12 @@ package mutating
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"time"
+
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/utils"
 	"k8s.io/api/admission/v1beta1"
-	"net/http"
-	"time"
 
 	uuid "github.com/satori/go.uuid"
 	"sigs.k8s.io/controller-runtime/pkg/client"

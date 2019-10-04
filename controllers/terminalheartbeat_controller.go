@@ -17,9 +17,10 @@ package controllers
 
 import (
 	"context"
+	"time"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
-	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
