@@ -25,4 +25,4 @@ patchesStrategicMerge:
 images:
 - name: gcr.io/kubebuilder/kube-rbac-proxy
   newName: gcr.io/kubebuilder/kube-rbac-proxy
-  newTag: v0.4.0
+  newTag: v0.4.1

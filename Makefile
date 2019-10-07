@@ -3,7 +3,7 @@
 IMG ?= eu.gcr.io/gardener-project/gardener/terminal-controller-manager:latest
 
 # Kube RBAC Proxy image to use
-IMG_RBAC_PROXY ?= gcr.io/kubebuilder/kube-rbac-proxy:v0.4.0
+IMG_RBAC_PROXY ?= gcr.io/kubebuilder/kube-rbac-proxy:v0.4.1
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
