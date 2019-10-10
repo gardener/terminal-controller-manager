@@ -40,6 +40,9 @@ type TerminalMutator struct {
 }
 
 func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Terminal, admissionReq v1beta1.AdmissionRequest) error {
+	if t.ObjectMeta.Annotations == nil {
+		t.ObjectMeta.Annotations = map[string]string{}
+	}
 	if admissionReq.Operation == v1beta1.Create {
 		t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy] = admissionReq.UserInfo.Username
 
