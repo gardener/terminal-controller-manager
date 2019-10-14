@@ -63,8 +63,16 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		}
 	}
 
-	if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] > time.Now().UTC().Format(time.RFC3339) {
-		return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "time must not be in the future").Error(), nil
+	lastHeartbeat := t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat]
+	if len(lastHeartbeat) > 0 {
+		lastHeartBeatParsed, err := time.Parse(time.RFC3339, lastHeartbeat)
+		if err != nil {
+			return false, field.Invalid(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat], "Failed to parse time").Error(), nil
+		}
+
+		if lastHeartBeatParsed.After(time.Now().UTC()) {
+			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "Time must not be in the future").Error(), nil
+		}
 	}
 
 	fldValidations := getFieldValidations(t)
