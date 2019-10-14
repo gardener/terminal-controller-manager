@@ -18,6 +18,7 @@ package validating
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"k8s.io/api/admission/v1beta1"
@@ -60,6 +61,10 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] != oldT.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] && !changedBySameUser {
 			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "You are not allowed to change this field").Error(), nil
 		}
+	}
+
+	if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] > time.Now().UTC().Format(time.RFC3339) {
+		return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "time must not be in the future").Error(), nil
 	}
 
 	fldValidations := getFieldValidations(t)
