@@ -150,7 +150,7 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, targetClientSetErr
 	}
 
-	err = r.deleteTerminalInCaseWebhookNotConfigured(ctx, gardenClientSet, t)
+	err = r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t)
 	if err != nil {
 		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
 		return ctrl.Result{}, err
@@ -177,7 +177,7 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-func (r *TerminalReconciler) deleteTerminalInCaseWebhookNotConfigured(ctx context.Context, gardenClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
+func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Context, gardenClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
 	webhookConfigurationOptions := metav1.ListOptions{}
 	webhookConfigurationOptions.LabelSelector = labels.SelectorFromSet(map[string]string{
 		"terminal": "admission-configuration",

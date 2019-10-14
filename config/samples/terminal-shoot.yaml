@@ -1,7 +1,8 @@
 apiVersion: dashboard.gardener.cloud/v1alpha1
 kind: Terminal
 metadata:
-  dashboard.gardener.cloud/operation: keepalive
+  annotations:
+    dashboard.gardener.cloud/operation: keepalive
   namespace: garden-coretmp
   name: term-lukas-hib
 spec:
