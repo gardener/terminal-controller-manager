@@ -73,7 +73,7 @@ func (r *TerminalHeartbeatReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 
 	lastHeartBeatParsed, err := time.Parse(time.RFC3339, lastHeartbeat)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, r.deleteTerminal(ctx, t)
 	}
 
 	ttl := 5 * time.Minute // TODO make TTL configurable
