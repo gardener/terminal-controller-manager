@@ -1,6 +1,6 @@
 module github.com/gardener/terminal-controller-manager
 
-go 1.13
+go 1.13.1
 
 require (
 	github.com/go-logr/logr v0.1.0
@@ -24,3 +24,5 @@ require (
 	sigs.k8s.io/controller-runtime v0.2.2
 	sigs.k8s.io/yaml v1.1.0
 )
+
+replace gopkg.in/yaml.v2 => gopkg.in/yaml.v2 v2.2.4
