@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -65,9 +67,12 @@ type ClientSet struct {
 }
 
 func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	maxConcurrentReconciles := 5 // TODO read from config
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionsv1alpha1.Terminal{}).
 		Named("main").
+		WithOptions(controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}).
 		Complete(r)
 }
 
