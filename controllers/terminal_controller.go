@@ -16,14 +16,11 @@ limitations under the License.
 package controllers
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -897,47 +894,6 @@ func formatError(message string, err error) *extensionsv1alpha1.LastError {
 	return &extensionsv1alpha1.LastError{
 		Description: fmt.Sprintf("%s (%s)", message, err.Error()),
 	}
-}
-
-// FormatLastErrDescription formats the error message string for the last occurred error.
-func FormatLastErrDescription(err error) string {
-	errString := err.Error()
-	if len(errString) > 0 {
-		errString = strings.ToUpper(string(errString[0])) + errString[1:]
-	}
-	return errString
-}
-
-// EncodeBase64 takes a byte slice and returns the Base64-encoded string.
-func EncodeBase64(in []byte) string {
-	encodedLength := base64.StdEncoding.EncodedLen(len(in))
-	buffer := make([]byte, encodedLength)
-	out := buffer[0:encodedLength]
-	base64.StdEncoding.Encode(out, in)
-	return string(out)
-}
-
-// RenderLocalTemplate uses a template <tpl> given as a string and renders it. Thus, the template does not
-// necessarily need to be stored as a file.
-func RenderLocalTemplate(tpl string, values interface{}) ([]byte, error) {
-	templateObj, err := template.
-		New("tpl").
-		Parse(tpl)
-	if err != nil {
-		return nil, err
-	}
-	return render(templateObj, values)
-}
-
-// render takes a text/template.Template object <temp> and an interface of <values> which are used to render the
-// template. It returns the rendered result as byte slice, or an error if something went wrong.
-func render(tpl *template.Template, values interface{}) ([]byte, error) {
-	var result bytes.Buffer
-	err := tpl.Execute(&result, values)
-	if err != nil {
-		return nil, err
-	}
-	return result.Bytes(), nil
 }
 
 // KubeConfig is the key for the kubeconfig
