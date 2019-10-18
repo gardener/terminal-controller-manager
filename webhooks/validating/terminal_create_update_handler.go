@@ -60,7 +60,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		// only same user is allowed to keep terminal session alive
 		changedBySameUser := t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy] == admissionReq.UserInfo.Username
 		if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] != oldT.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] && !changedBySameUser {
-			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "You are not allowed to change this field").Error(), nil
+			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "you are not allowed to change this field").Error(), nil
 		}
 	}
 
@@ -68,11 +68,11 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	if len(lastHeartbeat) > 0 {
 		lastHeartBeatParsed, err := time.Parse(time.RFC3339, lastHeartbeat)
 		if err != nil {
-			return false, field.Invalid(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat], "Failed to parse time").Error(), nil
+			return false, field.Invalid(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat], "failed to parse time").Error(), nil
 		}
 
 		if lastHeartBeatParsed.After(time.Now().UTC()) {
-			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "Time must not be in the future").Error(), nil
+			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "time must not be in the future").Error(), nil
 		}
 	}
 
@@ -88,13 +88,13 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	if allowed, err := h.canGetCredential(ctx, userInfo, t.Spec.Target.Credentials); err != nil {
 		return false, err.Error(), nil
 	} else if !allowed {
-		return false, field.Forbidden(field.NewPath("spec", "target", "credentials"), "You are not allowed to read target credential").Error(), nil
+		return false, field.Forbidden(field.NewPath("spec", "target", "credentials"), "you are not allowed to read target credential").Error(), nil
 	}
 
 	if allowed, err := h.canGetCredential(ctx, userInfo, t.Spec.Host.Credentials); err != nil {
 		return false, err.Error(), nil
 	} else if !allowed {
-		return false, field.Forbidden(field.NewPath("spec", "host", "credentials"), "You are not allowed to read host credential").Error(), nil
+		return false, field.Forbidden(field.NewPath("spec", "host", "credentials"), "you are not allowed to read host credential").Error(), nil
 	}
 
 	return true, "allowed to be admitted", nil
