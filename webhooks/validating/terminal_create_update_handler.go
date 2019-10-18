@@ -17,6 +17,7 @@ package validating
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -281,6 +282,11 @@ var _ admission.Handler = &TerminalValidator{}
 func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
 	obj := &v1alpha1.Terminal{}
 	oldObj := &v1alpha1.Terminal{}
+
+	maxObjSize := 10 * 1024 // TODO read from config
+	if len(req.Object.Raw) > maxObjSize {
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("resource must not have more than %d bytes", maxObjSize))
+	}
 
 	err := h.decoder.Decode(req, obj)
 	if err != nil {
