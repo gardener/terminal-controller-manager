@@ -43,6 +43,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 	watchtools "k8s.io/client-go/tools/watch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -944,10 +945,25 @@ const KubeConfig = "kubeconfig"
 
 // NewClientSetFromBytes creates a new controller ClientSet struct for a given kubeconfig byte slice.
 func NewClientSetFromBytes(kubeconfig []byte, opts client.Options) (*ClientSet, error) {
-	config, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
+	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
+
+	// Validate that the given kubeconfig doesn't have fields in its auth-info that are not acceptable.
+	rawConfig, err := clientConfig.RawConfig()
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateClientConfig(rawConfig); err != nil {
+		return nil, err
+	}
+
+	config, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	return NewClientSetForConfig(config, opts)
 }
 
@@ -964,4 +980,28 @@ func NewClientSetForConfig(config *rest.Config, opts client.Options) (*ClientSet
 	}
 
 	return &ClientSet{config, client, kube}, err
+}
+
+// ValidateClientConfig validates that the auth info of a given kubeconfig doesn't have unsupported fields.
+func ValidateClientConfig(config clientcmdapi.Config) error {
+	validFields := []string{"client-certificate-data", "client-key-data", "token", "username", "password"}
+
+	for user, authInfo := range config.AuthInfos {
+		switch {
+		case authInfo.ClientCertificate != "":
+			return fmt.Errorf("client certificate files are not supported (user %q), these are the valid fields: %+v", user, validFields)
+		case authInfo.ClientKey != "":
+			return fmt.Errorf("client key files are not supported (user %q), these are the valid fields: %+v", user, validFields)
+		case authInfo.TokenFile != "":
+			return fmt.Errorf("token files are not supported (user %q), these are the valid fields: %+v", user, validFields)
+		case authInfo.Impersonate != "" || len(authInfo.ImpersonateGroups) > 0:
+			return fmt.Errorf("impersonation is not supported, these are the valid fields: %+v", validFields)
+		case authInfo.AuthProvider != nil && len(authInfo.AuthProvider.Config) > 0:
+			return fmt.Errorf("auth provider configurations are not supported (user %q), these are the valid fields: %+v", user, validFields)
+		case authInfo.Exec != nil:
+			return fmt.Errorf("exec configurations are not supported (user %q), these are the valid fields: %+v", user, validFields)
+		}
+	}
+
+	return nil
 }
