@@ -9,7 +9,7 @@ terminal-controller-manager:
         inject_effective_version: true
       publish:
         dockerimages:
-          dashboard:
+          terminal:
             inputs:
               repos:
                 source: ~ # default
@@ -38,5 +38,5 @@ terminal-controller-manager:
         component_descriptor: ~
         publish:
           dockerimages:
-            dashboard:
+            terminal:
               tag_as_latest: true
