@@ -32,11 +32,11 @@ spec:
         name: manager
         resources:
           limits:
-            cpu: 100m
-            memory: 60Mi
+            cpu: 200m
+            memory: 200Mi
           requests:
             cpu: 100m
-            memory: 40Mi
+            memory: 80Mi
         securityContext:
           runAsNonRoot: true
       terminationGracePeriodSeconds: 10
