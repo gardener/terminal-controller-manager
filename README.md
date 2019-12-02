@@ -1,6 +1,12 @@
 # Gardener Terminal Controller Manager
 <img src="https://user-images.githubusercontent.com/5526658/65958014-a64a9b00-e44e-11e9-9b0a-166247582b05.png" width="180"/>
 
+The `terminal-controller-manager` is used for the [webterminal feature](https://github.com/gardener/dashboard/blob/master/docs/Webterminals.md) of the [gardener/dashboard](https://github.com/gardener/dashboard) but is in general independant of the gardener and it's resource kinds like `Shoots`, `Seeds` etc.
+
+
+The `terminal-controller-manager` watches `Terminal` resources under the `dashboard.gardener.cloud/v1alpha1` API group and ensures the desired state on the host and target cluster.
+Host and target cluster can also be the same. For more details and a usage scenario [see docs here](https://github.com/gardener/dashboard/blob/master/docs/Webterminals.md).
+
 ## Development Setup
 
 Prerequisites:
