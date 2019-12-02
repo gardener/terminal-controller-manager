@@ -15,7 +15,9 @@ terminal-controller-manager:
                 source: ~ # default
             registry: 'gcr-readwrite'
             image: 'eu.gcr.io/gardener-project/gardener/terminal-controller-manager'
-    steps: ~
+    steps:
+      check:
+        image: 'golang:1.13.3'
   jobs:
     head-update:
       traits:
