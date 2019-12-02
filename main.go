@@ -17,10 +17,11 @@ package main
 
 import (
 	"flag"
+	"os"
+
 	"github.com/gardener/terminal-controller-manager/webhooks/mutating"
 	"github.com/gardener/terminal-controller-manager/webhooks/validating"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
@@ -42,15 +43,17 @@ var (
 )
 
 func init() {
-
-	v1alpha1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
+	_ = v1alpha1.AddToScheme(scheme)
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var certDir string
+	var (
+		metricsAddr          string
+		enableLeaderElection bool
+		certDir              string
+	)
+
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
@@ -71,10 +74,12 @@ func main() {
 	}
 
 	config := mgr.GetConfig()
+
 	kube, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic("could not create kubernetes client")
 	}
+
 	recorder := CreateRecorder(kube)
 
 	err = (&controllers.TerminalReconciler{
@@ -86,6 +91,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Terminal")
 		os.Exit(1)
 	}
+
 	err = (&controllers.TerminalHeartbeatReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("TerminalHeartbeat"),
@@ -99,6 +105,7 @@ func main() {
 
 	// Setup webhooks
 	setupLog.Info("setting up webhook server")
+
 	hookServer := &webhook.Server{
 		Port:    9443,
 		CertDir: certDir,
@@ -113,6 +120,7 @@ func main() {
 	hookServer.Register("/validate-terminal", &webhook.Admission{Handler: &validating.TerminalValidator{}})
 
 	setupLog.Info("starting manager")
+
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
@@ -123,5 +131,6 @@ func CreateRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
 	eventBroadcaster := record.NewBroadcaster()
 	//eventBroadcaster.StartLogging(log.Logger.Debugf)
 	eventBroadcaster.StartRecordingToSink(&v1.EventSinkImpl{Interface: v1.New(kubeClient.CoreV1().RESTClient()).Events("")})
+
 	return eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: v1alpha1.TerminalComponent})
 }

@@ -43,11 +43,17 @@ func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Te
 	if t.ObjectMeta.Annotations == nil {
 		t.ObjectMeta.Annotations = map[string]string{}
 	}
+
 	if admissionReq.Operation == v1beta1.Create {
 		t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy] = admissionReq.UserInfo.Username
 
 		uuidString := uuid.NewV4().String()
-		terminalIdentifier := utils.ToFnvHash(uuidString)
+
+		terminalIdentifier, err := utils.ToFnvHash(uuidString)
+		if err != nil {
+			return err
+		}
+
 		t.Spec.Identifier = terminalIdentifier
 
 		// TODO validate that there is no other terminal with this identifier (search for label terminal.dashboard.gardener.cloud/identifier in all namespaces)
@@ -71,6 +77,7 @@ func (h *TerminalMutator) mutateNamespaceIfTemporary(t *v1alpha1.Terminal, termi
 		ns := "term-host-" + terminalIdentifier
 		t.Spec.Host.Namespace = &ns
 	}
+
 	if t.Spec.Target.TemporaryNamespace {
 		ns := "term-target-" + terminalIdentifier
 		t.Spec.Target.Namespace = &ns
@@ -87,6 +94,7 @@ func (h *TerminalMutator) Handle(ctx context.Context, req admission.Request) adm
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
+
 	copy := obj.DeepCopy()
 
 	err = h.mutatingTerminalFn(ctx, copy, req.AdmissionRequest)
@@ -107,8 +115,8 @@ var _ inject.Client = &TerminalMutator{}
 // A client will be automatically injected.
 
 // InjectClient injects the client.
-func (a *TerminalMutator) InjectClient(c client.Client) error {
-	a.client = c
+func (h *TerminalMutator) InjectClient(c client.Client) error {
+	h.client = c
 	return nil
 }
 
@@ -116,7 +124,7 @@ func (a *TerminalMutator) InjectClient(c client.Client) error {
 // A decoder will be automatically injected.
 
 // InjectDecoder injects the decoder.
-func (a *TerminalMutator) InjectDecoder(d *admission.Decoder) error {
-	a.decoder = d
+func (h *TerminalMutator) InjectDecoder(d *admission.Decoder) error {
+	h.decoder = d
 	return nil
 }

@@ -17,6 +17,7 @@ package v1alpha1
 
 import (
 	"errors"
+
 	"github.com/gardener/terminal-controller-manager/utils"
 
 	corev1 "k8s.io/api/core/v1"
@@ -171,18 +172,30 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 	if len(t.Spec.Identifier) == 0 {
 		return nil, errors.New("identifier not set")
 	}
+
 	if t.Spec.Target.Namespace == nil {
 		return nil, errors.New("target namespace not set")
 	}
+
 	if len(t.ObjectMeta.Annotations[GardenCreatedBy]) == 0 {
 		return nil, errors.New("createdBy annotation not set")
 	}
 
+	targetNamespace, err := utils.ToFnvHash(*t.Spec.Target.Namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	createdByHash, err := utils.ToFnvHash(t.ObjectMeta.Annotations["garden.sapcloud.io/createdBy"])
+	if err != nil {
+		return nil, err
+	}
+
 	return &labels.Set{
 		Component: TerminalComponent,
-		"terminal.dashboard.gardener.cloud/identifier":   t.Spec.Identifier,
-		"terminal.dashboard.gardener.cloud/targetNsHash": utils.ToFnvHash(*t.Spec.Target.Namespace),
-		"terminal.dashboard.gardener.cloud/createdBy":    utils.ToFnvHash(t.ObjectMeta.Annotations["garden.sapcloud.io/createdBy"]),
+		"terminal.dashboard.gardener.cloud/identifier":    t.Spec.Identifier,
+		"terminal.dashboard.gardener.cloud/targetNsHash":  targetNamespace,
+		"terminal.dashboard.gardener.cloud/createdByHash": createdByHash,
 	}, nil
 }
 

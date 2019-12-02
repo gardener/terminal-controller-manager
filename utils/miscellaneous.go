@@ -20,8 +20,13 @@ import (
 	"hash/fnv"
 )
 
-func ToFnvHash(value string) string {
+func ToFnvHash(value string) (string, error) {
 	fnvHash := fnv.New64a()
-	fnvHash.Write([]byte(value))
-	return fmt.Sprint(fnvHash.Sum64())
+
+	_, err := fnvHash.Write([]byte(value))
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprint(fnvHash.Sum64()), nil
 }
