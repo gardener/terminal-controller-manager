@@ -49,6 +49,7 @@ func (r *TerminalHeartbeatReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 
 	// Fetch the TerminalHeartbeat instance
 	t := &extensionsv1alpha1.Terminal{}
+
 	err := r.Get(ctx, req.NamespacedName, t)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -78,11 +79,13 @@ func (r *TerminalHeartbeatReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 
 	ttl := 5 * time.Minute // TODO make TTL configurable
 	expiration := lastHeartBeatParsed.Add(time.Duration(ttl))
+
 	if time.Now().UTC().After(expiration) {
 		return ctrl.Result{}, r.deleteTerminal(ctx, t)
 	}
 
 	syncPeriod := int64(1 * time.Minute) // TODO make syncPeriod configurable
+
 	return ctrl.Result{RequeueAfter: time.Duration(syncPeriod)}, nil
 }
 
@@ -91,9 +94,12 @@ func (r *TerminalHeartbeatReconciler) deleteTerminal(ctx context.Context, t *ext
 
 	deleteCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(30*time.Second)) // TODO make timeout configurable
 	defer cancelFunc()
+
 	if err := r.Delete(deleteCtx, t); err != nil {
 		return err
 	}
+
 	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted terminal resource")
+
 	return nil
 }

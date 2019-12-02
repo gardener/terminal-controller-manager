@@ -85,11 +85,11 @@ func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// TODO introduce unique reconcile identifier that is used for logging
-
 	ctx := context.Background()
 
 	// Fetch the Terminal t
 	t := &extensionsv1alpha1.Terminal{}
+
 	err := r.Get(ctx, req.NamespacedName, t)
 	if err != nil {
 		if kErros.IsNotFound(err) {
@@ -115,28 +115,32 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			if hostClientSetErr != nil && !kErros.IsNotFound(hostClientSetErr) {
 				return ctrl.Result{}, hostClientSetErr
 			}
+
 			if targetClientSetErr != nil && !kErros.IsNotFound(targetClientSetErr) {
 				return ctrl.Result{}, targetClientSetErr
 			}
+
 			r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
 			// our finalizer is present, so lets handle our external dependency
 
-			var errStrings []string
 			if deletionErrors := r.deleteExternalDependency(ctx, targetClientSet, hostClientSet, t); deletionErrors != nil {
+				var errStrings []string
 				// if fail to delete the external dependency here, return with error
 				// so that it can be retried
 				for _, deletionErr := range deletionErrors {
 					r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Description)
 					errStrings = append(errStrings, deletionErr.Description)
 				}
+
 				return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
-			} else {
-				r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
 			}
+
+			r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
 
 			// remove our finalizer from the list and update it.
 			finalizers.Delete(extensionsv1alpha1.TerminalName)
 			t.Finalizers = finalizers.List()
+
 			if err := r.Update(context.Background(), t); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -149,6 +153,7 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if hostClientSetErr != nil {
 		return ctrl.Result{}, hostClientSetErr
 	}
+
 	if targetClientSetErr != nil {
 		return ctrl.Result{}, targetClientSetErr
 	}
@@ -165,16 +170,19 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if !finalizers.Has(extensionsv1alpha1.TerminalName) {
 		finalizers.Insert(extensionsv1alpha1.TerminalName)
 		t.Finalizers = finalizers.UnsortedList()
+
 		if err := r.Update(context.Background(), t); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
 	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
+
 	if err := r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t); err != nil {
 		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
 		return ctrl.Result{}, errors.New(err.Description)
 	}
+
 	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
 
 	return ctrl.Result{}, nil
@@ -190,29 +198,50 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 	if err != nil {
 		return errors.New(err.Error())
 	}
+
 	if len(mutatingWebhookConfigurations.Items) != 1 {
-		delete(ctx, gardenClientSet, t)
-		return errors.New(fmt.Sprintf("Expected 1 MutatingWebhookConfiguration for terminals but found %d with label 'terminal=admission-configuration'. Deleting terminal resource", len(mutatingWebhookConfigurations.Items)))
+		err := delete(ctx, gardenClientSet, t)
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("expected 1 MutatingWebhookConfiguration for terminals but found %d with label 'terminal=admission-configuration'. Deleting terminal resource", len(mutatingWebhookConfigurations.Items))
 	}
+
 	mutatingWebhookConfiguration := mutatingWebhookConfigurations.Items[0]
 	if mutatingWebhookConfiguration.ObjectMeta.CreationTimestamp.After(t.ObjectMeta.CreationTimestamp.Time) {
-		delete(ctx, gardenClientSet, t)
-		return errors.New(fmt.Sprintf("Terminal %s has been created before mutating webhook was configured. Deleting resource", t.ObjectMeta.Name))
+		err := delete(ctx, gardenClientSet, t)
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("terminal %s has been created before mutating webhook was configured. Deleting resource", t.ObjectMeta.Name)
 	}
 
 	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().List(webhookConfigurationOptions)
 	if err != nil {
 		return errors.New(err.Error())
 	}
+
 	if len(validatingWebhookConfigurations.Items) != 1 {
-		delete(ctx, gardenClientSet, t)
-		return errors.New(fmt.Sprintf("Expected 1 ValidatingWebhookConfiguration for terminals but found %d with label 'terminal=admission-configuration'. Deleting terminal resource", len(validatingWebhookConfigurations.Items)))
+		err := delete(ctx, gardenClientSet, t)
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("expected 1 ValidatingWebhookConfiguration for terminals but found %d with label 'terminal=admission-configuration'. Deleting terminal resource", len(validatingWebhookConfigurations.Items))
 	}
+
 	validatingWebhookConfiguration := validatingWebhookConfigurations.Items[0]
 	if validatingWebhookConfiguration.ObjectMeta.CreationTimestamp.After(t.ObjectMeta.CreationTimestamp.Time) {
-		delete(ctx, gardenClientSet, t)
-		return errors.New(fmt.Sprintf("Terminal %s has been created before validating webhook was configured. Deleting resource", t.ObjectMeta.Name))
+		err := delete(ctx, gardenClientSet, t)
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("terminal %s has been created before validating webhook was configured. Deleting resource", t.ObjectMeta.Name)
 	}
+
 	return nil
 }
 
@@ -223,6 +252,7 @@ func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targe
 	if targetErr := r.deleteTargetClusterDepencies(ctx, targetClientSet, t); targetErr != nil {
 		lastErrors = append(lastErrors, targetErr)
 	}
+
 	if hostErr := r.deleteHostClusterDepencies(ctx, hostClientSet, t); hostErr != nil {
 		lastErrors = append(lastErrors, hostErr)
 	}
@@ -242,6 +272,7 @@ func (r *TerminalReconciler) deleteTargetClusterDepencies(ctx context.Context, t
 	} else {
 		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
 	}
+
 	return nil
 }
 
@@ -250,12 +281,15 @@ func (r *TerminalReconciler) deleteHostClusterDepencies(ctx context.Context, hos
 		if err := deleteAttachPodSecret(ctx, hostClientSet, t); err != nil {
 			return formatError("Failed to delete attach pod secret", err)
 		}
+
 		if err := deleteTerminalPod(ctx, hostClientSet, t); err != nil {
 			return formatError("Failed to delete terminal pod", err)
 		}
+
 		if err := deleteKubeconfig(ctx, hostClientSet, t); err != nil {
 			return formatError("failed to delete kubeconfig for target cluster", err)
 		}
+
 		if t.Spec.Host.TemporaryNamespace {
 			if err := deleteNamespace(ctx, hostClientSet, *t.Spec.Host.Namespace); err != nil {
 				return formatError("failed to delete temporary namespace on host cluster", err)
@@ -264,6 +298,7 @@ func (r *TerminalReconciler) deleteHostClusterDepencies(ctx context.Context, hos
 	} else {
 		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in host cluster for terminal identifier: %s", t.Spec.Identifier)
 	}
+
 	return nil
 }
 
@@ -271,6 +306,7 @@ func deleteAccessToken(ctx context.Context, targetClientSet *ClientSet, t *exten
 	var err error
 
 	bindingName := extensionsv1alpha1.TerminalAccessResourceNamePrefix + t.Spec.Identifier
+
 	switch t.Spec.Target.BindingKind {
 	case extensionsv1alpha1.BindingKindClusterRoleBinding:
 		err = deleteClusterRoleBinding(ctx, targetClientSet, bindingName)
@@ -279,6 +315,7 @@ func deleteAccessToken(ctx context.Context, targetClientSet *ClientSet, t *exten
 	default:
 		panic("unknown BindingKind")
 	}
+
 	if err != nil {
 		return err
 	}
@@ -300,9 +337,11 @@ func deleteAttachPodSecret(ctx context.Context, hostClientSet *ClientSet, t *ext
 	if err := deleteRoleBinding(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier); err != nil {
 		return err
 	}
+
 	if err := deleteServiceAccount(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier); err != nil {
 		return err
 	}
+
 	return deleteRole(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier)
 }
 
@@ -341,6 +380,7 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 	}
 
 	t.Status.AttachServiceAccountName = attachPodServiceAccount.Name
+
 	err = r.Status().Update(ctx, t)
 	if err != nil {
 		return err
@@ -361,6 +401,7 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 			ResourceNames: []string{podResourceName},
 		},
 	}
+
 	attachRole, err := createOrUpdateAttachRole(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier, rules)
 	if err != nil {
 		return err
@@ -376,6 +417,7 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 		Kind:     "Role",
 		Name:     attachRole.Name,
 	}
+
 	_, err = createOrUpdateRoleBinding(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier, subject, roleRef, labelsSet)
 	if err != nil {
 		return err
@@ -510,18 +552,19 @@ func createAccessToken(ctx context.Context, targetClientSet *ClientSet, t *exten
 	default:
 		panic("unknown BindingKind")
 	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+
 	return WaitUntilTokenAvailable(childCtx, targetClientSet, accessServiceAccount)
 }
 
-// WaitUntilTokenAvailable waits until the secret that is referenced .
+// WaitUntilTokenAvailable waits until the secret that is referenced in the service account exists and returns it.
 func WaitUntilTokenAvailable(ctx context.Context, cs *ClientSet, serviceAccount *corev1.ServiceAccount) (*corev1.Secret, error) {
-
 	fieldSelector := fields.SelectorFromSet(map[string]string{
 		"metadata.name": serviceAccount.Name,
 	}).String()
@@ -536,6 +579,7 @@ func WaitUntilTokenAvailable(ctx context.Context, cs *ClientSet, serviceAccount 
 			return cs.Kubernetes.CoreV1().ServiceAccounts(serviceAccount.Namespace).Watch(options)
 		},
 	}
+
 	event, err := watchtools.UntilWithSync(ctx, lw, &corev1.ServiceAccount{}, nil,
 		func(event watch.Event) (bool, error) {
 			switch event.Type {
@@ -558,13 +602,16 @@ func WaitUntilTokenAvailable(ctx context.Context, cs *ClientSet, serviceAccount 
 				return false, fmt.Errorf("unexpected event type: %v", event.Type)
 			}
 		})
+
 	if err != nil {
 		return nil, fmt.Errorf("unable to read secret from service account: %v", err)
 	}
+
 	watchedSa, _ := event.Object.(*corev1.ServiceAccount)
 	secretRef := watchedSa.Secrets[0]
 
 	secret := &corev1.Secret{}
+
 	return secret, cs.Get(ctx, client.ObjectKey{Namespace: serviceAccount.Namespace, Name: secretRef.Name}, secret)
 }
 
@@ -583,8 +630,10 @@ func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, h
 	if err != nil {
 		return nil, err
 	}
+
 	contextNamespace := t.Spec.Target.KubeconfigContextNamespace
 	apiServerHost := targetClientSet.Host
+
 	kubeconfig, err := GenerateKubeconfigFromTokenSecret(clusterName, contextNamespace, apiServerHost, accessSecret, labelsSet)
 	if err != nil {
 		return nil, err
@@ -633,6 +682,7 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 	if matched {
 		apiServerHost = "https://kubernetes.default.svc.cluster.local"
 	}
+
 	token, ok := secret.Data[corev1.ServiceAccountTokenKey]
 	if !ok {
 		return nil, errors.New("no " + corev1.ServiceAccountTokenKey + " found on secret")
@@ -674,6 +724,7 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 		},
 		CurrentContext: clusterName,
 	}
+
 	return yaml.Marshal(kubeConfig)
 }
 
@@ -681,6 +732,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
 	t.Status.PodName = pod.Name
+
 	err := r.Status().Update(ctx, t)
 	if err != nil {
 		return nil, err
@@ -824,6 +876,7 @@ func delete(ctx context.Context, cs *ClientSet, obj runtime.Object) error {
 	if kErros.IsNotFound(err) {
 		return nil
 	}
+
 	return err
 }
 
@@ -849,6 +902,7 @@ func NewClientSetFromServiceAccountRef(ctx context.Context, cs *ClientSet, ref *
 
 	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+
 	secret, err := WaitUntilTokenAvailable(childCtx, cs, serviceAccount)
 	if err != nil {
 		return nil, err
@@ -872,6 +926,7 @@ func NewClientSetFromSecret(config *rest.Config, secret *corev1.Secret, opts cli
 	if kubeconfig, ok := secret.Data[KubeConfig]; ok {
 		return NewClientSetFromBytes(kubeconfig, opts)
 	}
+
 	if token, ok := secret.Data[corev1.ServiceAccountTokenKey]; ok {
 		// client from token
 		secretConfig := &rest.Config{
@@ -881,10 +936,11 @@ func NewClientSetFromSecret(config *rest.Config, secret *corev1.Secret, opts cli
 			},
 			BearerToken: string(token),
 		}
+
 		return NewClientSetForConfig(secretConfig, opts)
 	}
-	return nil, errors.New("no valid kubeconfig found")
 
+	return nil, errors.New("no valid kubeconfig found")
 }
 
 func CreateOrUpdateDiscardResult(ctx context.Context, cs *ClientSet, obj runtime.Object, f controllerutil.MutateFn) error {
@@ -916,6 +972,7 @@ func NewClientSetFromBytes(kubeconfig []byte, opts client.Options) (*ClientSet, 
 	if err != nil {
 		return nil, err
 	}
+
 	if err := ValidateClientConfig(rawConfig); err != nil {
 		return nil, err
 	}

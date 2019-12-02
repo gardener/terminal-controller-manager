@@ -45,6 +45,7 @@ type TerminalValidator struct {
 
 func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha1.Terminal, oldT *v1alpha1.Terminal, admissionReq v1beta1.AdmissionRequest) (bool, string, error) {
 	userInfo := admissionReq.UserInfo
+
 	if admissionReq.Operation != v1beta1.Create {
 		// TODO write unit tests where we explicitly check that the identifier and the secretRefs cannot be changed
 		specFldPath := field.NewPath("spec")
@@ -119,6 +120,7 @@ func getFieldValidations(t *v1alpha1.Terminal) *[]fldValidation {
 			fldPath: field.NewPath("spec", "host", "pod", "containerImage"),
 		},
 	}
+
 	return fldValidations
 }
 
@@ -133,6 +135,7 @@ func validateRequiredFields(fldValidations *[]fldValidation) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -140,6 +143,7 @@ func validateRequiredField(val *string, fldPath *field.Path) error {
 	if val == nil || len(*val) == 0 {
 		return field.Required(fldPath, "field is required")
 	}
+
 	return nil
 }
 
@@ -147,6 +151,7 @@ func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) err
 	if !equality.Semantic.DeepEqual(oldVal, newVal) {
 		return field.Invalid(fldPath, newVal, validation.FieldImmutableErrorMsg)
 	}
+
 	return nil
 }
 
@@ -154,6 +159,7 @@ func validateRequiredCredentials(t *v1alpha1.Terminal) error {
 	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials")); err != nil {
 		return err
 	}
+
 	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"))
 }
 
@@ -193,6 +199,7 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -211,6 +218,7 @@ func (h *TerminalValidator) canGetSecretAccessReview(ctx context.Context, userIn
 	if ref == nil {
 		return true, nil
 	}
+
 	subjectAccessReview := &authv1.SubjectAccessReview{
 		Spec: authv1.SubjectAccessReviewSpec{
 			ResourceAttributes: &authv1.ResourceAttributes{
@@ -227,6 +235,7 @@ func (h *TerminalValidator) canGetSecretAccessReview(ctx context.Context, userIn
 		},
 	}
 	err := h.client.Create(ctx, subjectAccessReview)
+
 	return subjectAccessReview.Status.Allowed, err
 }
 
@@ -234,6 +243,7 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 	if serviceAccountRef == nil {
 		return true, nil
 	}
+
 	accesReviewServiceAccount := &authv1.SubjectAccessReview{
 		Spec: authv1.SubjectAccessReviewSpec{
 			ResourceAttributes: &authv1.ResourceAttributes{
@@ -249,11 +259,13 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 			// Extra:  userInfo.Extra, // TODO convert / cast
 		},
 	}
+
 	err := h.client.Create(ctx, accesReviewServiceAccount)
 	if err != nil {
 		return false, err
 	}
-	if accesReviewServiceAccount.Status.Allowed == false {
+
+	if !accesReviewServiceAccount.Status.Allowed {
 		return false, nil
 	}
 
@@ -273,6 +285,7 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 		},
 	}
 	err = h.client.Create(ctx, accessReviewSecret)
+
 	return accessReviewSecret.Status.Allowed, err
 }
 
@@ -304,6 +317,7 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
+
 	return admission.ValidationResponse(allowed, reason)
 }
 
