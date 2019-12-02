@@ -60,7 +60,7 @@ manifests: controller-gen
 
 # Run golangci-lint against code
 lint: $(GOPATH)/bin/golangci-lint
-	golangci-lint run -E golint,whitespace,wsl --skip-files "zz_generated.*" ./...
+	golangci-lint run ./... -E golint,whitespace,wsl --skip-files "zz_generated.*"
 
 $(GOPATH)/bin/golangci-lint:
 	go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
