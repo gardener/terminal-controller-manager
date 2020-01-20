@@ -19,31 +19,34 @@ import (
 	"flag"
 	"os"
 
-	"github.com/gardener/terminal-controller-manager/webhooks/mutating"
-	"github.com/gardener/terminal-controller-manager/webhooks/validating"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/controllers"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/record"
+
+	v1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/controllers"
+	"github.com/gardener/terminal-controller-manager/webhooks/mutating"
+	"github.com/gardener/terminal-controller-manager/webhooks/validating"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	// +kubebuilder:scaffold:imports
 )
 
 var (
-	// TODO build own scheme and register needed types https://github.com/kubernetes-sigs/controller-runtime/blob/master/FAQ.md#q-what-are-these-errors-about-no-kind-being-registered-for-a-type
-	scheme   = clientgoscheme.Scheme
+	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
 
 func init() {
 	// +kubebuilder:scaffold:scheme
+	_ = clientgoscheme.AddToScheme(scheme)
+
 	_ = v1alpha1.AddToScheme(scheme)
 }
 
@@ -82,22 +85,21 @@ func main() {
 
 	recorder := CreateRecorder(kube)
 
-	err = (&controllers.TerminalReconciler{
+	if err = (&controllers.TerminalReconciler{
 		ClientSet: controllers.NewClientSet(config, mgr.GetClient(), kube),
 		Log:       ctrl.Log.WithName("controllers").WithName("Terminal"),
+		Scheme:    mgr.GetScheme(),
 		Recorder:  recorder,
-	}).SetupWithManager(mgr)
-	if err != nil {
+	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Terminal")
 		os.Exit(1)
 	}
 
-	err = (&controllers.TerminalHeartbeatReconciler{
+	if err = (&controllers.TerminalHeartbeatReconciler{
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("TerminalHeartbeat"),
 		Recorder: recorder,
-	}).SetupWithManager(mgr)
-	if err != nil {
+	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TerminalHeartbeat")
 		os.Exit(1)
 	}
@@ -129,7 +131,6 @@ func main() {
 
 func CreateRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
 	eventBroadcaster := record.NewBroadcaster()
-	//eventBroadcaster.StartLogging(log.Logger.Debugf)
 	eventBroadcaster.StartRecordingToSink(&v1.EventSinkImpl{Interface: v1.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	return eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: v1alpha1.TerminalComponent})
