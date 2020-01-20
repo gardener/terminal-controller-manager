@@ -168,6 +168,46 @@ type LastError struct {
 // ErrorCode is a string alias.
 type ErrorCode string
 
+// ControllerManagerConfiguration defines the configuration for the Gardener controller manager.
+type ControllerManagerConfiguration struct {
+	// +optional
+	Kind string `yaml:"kind"`
+	// +optional
+	APIVersion string `yaml:"apiVersion"`
+
+	// Controllers defines the configuration of the controllers.
+	Controllers ControllerManagerControllerConfiguration `yaml:"controllers"`
+	Logger      ControllerManagerLoggerConfiguration     `yaml:"logger"`
+}
+
+// ControllerManagerLogger defines the configuration of the zap Logger.
+type ControllerManagerLoggerConfiguration struct {
+	// If Development is true, a Zap development config will be used
+	// (stacktraces on warnings, no sampling), otherwise a Zap production
+	// config will be used (stacktraces on errors, sampling).
+	Development bool `yaml:"development"`
+}
+
+// ControllerManagerControllerConfiguration defines the configuration of the controllers.
+type ControllerManagerControllerConfiguration struct {
+	// Terminal defines the configuration of the Terminal controller.
+	Terminal TerminalControllerConfiguration `yaml:"terminal"`
+	// TerminalHeartbeat defines the configuration of the TerminalHeartbeat controller.
+	TerminalHeartbeat TerminalHeartbeatControllerConfiguration `yaml:"terminalHeartbeat"`
+}
+
+// TerminalControllerConfiguration defines the configuration of the Terminal controller.
+type TerminalControllerConfiguration struct {
+	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
+	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+}
+
+// TerminalHeartbeatControllerConfiguration defines the configuration of the TerminalHeartbeat controller.
+type TerminalHeartbeatControllerConfiguration struct {
+	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
+	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+}
+
 func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 	if len(t.Spec.Identifier) == 0 {
 		return nil, errors.New("identifier not set")

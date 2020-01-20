@@ -17,7 +17,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
+
+	"gopkg.in/yaml.v2"
 
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
@@ -55,15 +58,21 @@ func main() {
 		metricsAddr          string
 		enableLeaderElection bool
 		certDir              string
+		configFile           string
 	)
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&certDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "CertDir is the directory that contains the server key and certificate.")
+	flag.StringVar(&configFile, "config-file", "/etc/terminal-controller-manager/config.yaml", "The path to the configuration file.")
 	flag.Parse()
 
-	ctrl.SetLogger(zap.Logger(true))
+	cmConfig := readControllerManagerConfiguration(configFile)
+
+	ctrl.SetLogger(zap.New(func(o *zap.Options) {
+		o.Development = cmConfig.Logger.Development
+	}))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -90,7 +99,7 @@ func main() {
 		Log:       ctrl.Log.WithName("controllers").WithName("Terminal"),
 		Scheme:    mgr.GetScheme(),
 		Recorder:  recorder,
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, cmConfig.Controllers.Terminal); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Terminal")
 		os.Exit(1)
 	}
@@ -99,7 +108,7 @@ func main() {
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("TerminalHeartbeat"),
 		Recorder: recorder,
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, cmConfig.Controllers.TerminalHeartbeat); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TerminalHeartbeat")
 		os.Exit(1)
 	}
@@ -134,4 +143,45 @@ func CreateRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
 	eventBroadcaster.StartRecordingToSink(&v1.EventSinkImpl{Interface: v1.New(kubeClient.CoreV1().RESTClient()).Events("")})
 
 	return eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: v1alpha1.TerminalComponent})
+}
+
+func readControllerManagerConfiguration(configFile string) *v1alpha1.ControllerManagerConfiguration {
+	// Default configuration
+	cfg := v1alpha1.ControllerManagerConfiguration{
+		Controllers: v1alpha1.ControllerManagerControllerConfiguration{
+			Terminal: v1alpha1.TerminalControllerConfiguration{
+				MaxConcurrentReconciles: 5,
+			},
+			TerminalHeartbeat: v1alpha1.TerminalHeartbeatControllerConfiguration{
+				MaxConcurrentReconciles: 1,
+			},
+		},
+		Logger: v1alpha1.ControllerManagerLoggerConfiguration{
+			Development: true,
+		},
+	}
+
+	readFile(configFile, &cfg)
+
+	return &cfg
+}
+
+func readFile(configFile string, cfg *v1alpha1.ControllerManagerConfiguration) {
+	f, err := os.Open(configFile)
+	if err != nil {
+		processError(err)
+	}
+	defer f.Close()
+
+	decoder := yaml.NewDecoder(f)
+
+	err = decoder.Decode(cfg)
+	if err != nil {
+		processError(err)
+	}
+}
+
+func processError(err error) {
+	fmt.Println(err)
+	os.Exit(2)
 }

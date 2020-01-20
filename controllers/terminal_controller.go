@@ -66,13 +66,13 @@ type ClientSet struct {
 	Kubernetes kubernetes.Interface
 }
 
-func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	maxConcurrentReconciles := 5 // TODO read from config
-
+func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager, config extensionsv1alpha1.TerminalControllerConfiguration) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionsv1alpha1.Terminal{}).
 		Named("main").
-		WithOptions(controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: config.MaxConcurrentReconciles,
+		}).
 		Complete(r)
 }
 

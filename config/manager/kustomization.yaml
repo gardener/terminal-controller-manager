@@ -8,3 +8,8 @@ images:
 - name: controller
   newName: eu.gcr.io/gardener-project/gardener/terminal-controller-manager
   newTag: latest
+
+configMapGenerator:
+- files:
+  - config.yaml
+  name: controller-manager-configmap

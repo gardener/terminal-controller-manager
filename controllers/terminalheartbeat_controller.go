@@ -19,6 +19,8 @@ import (
 	"context"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
 
@@ -37,10 +39,13 @@ type TerminalHeartbeatReconciler struct {
 	Recorder record.EventRecorder
 }
 
-func (r *TerminalHeartbeatReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *TerminalHeartbeatReconciler) SetupWithManager(mgr ctrl.Manager, config extensionsv1alpha1.TerminalHeartbeatControllerConfiguration) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionsv1alpha1.Terminal{}).
 		Named("heartbeat").
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: config.MaxConcurrentReconciles,
+		}).
 		Complete(r)
 }
 

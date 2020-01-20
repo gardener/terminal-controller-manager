@@ -1,0 +1,9 @@
+kind: ControllerManagerConfiguration
+apiVersion: v1alpha1
+controllers:
+  terminal:
+    maxConcurrentReconciles: 5
+  terminalHeartbeat:
+    maxConcurrentReconciles: 1
+logger:
+  development: false
