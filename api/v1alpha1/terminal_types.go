@@ -198,14 +198,23 @@ type ControllerManagerControllerConfiguration struct {
 
 // TerminalControllerConfiguration defines the configuration of the Terminal controller.
 type TerminalControllerConfiguration struct {
-	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
+	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 15.
 	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+
+	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run per Namespace (independent of the user who created the Terminal resource). Defaults to 3.
+	MaxConcurrentReconcilesPerNamespace int `yaml:"maxConcurrentReconcilesPerNamespace"`
 }
 
 // TerminalHeartbeatControllerConfiguration defines the configuration of the TerminalHeartbeat controller.
 type TerminalHeartbeatControllerConfiguration struct {
 	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
 	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+}
+
+// Operation contains all data required to perform an operation on a Terminal.
+type Operation struct {
+	Config                      *ControllerManagerConfiguration
+	ReconcilerCountPerNamespace map[string]int
 }
 
 func (t *Terminal) NewLabelsSet() (*labels.Set, error) {

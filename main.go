@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"os"
 
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
 	"gopkg.in/yaml.v2"
 
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -68,7 +70,11 @@ func main() {
 	flag.StringVar(&configFile, "config-file", "/etc/terminal-controller-manager/config.yaml", "The path to the configuration file.")
 	flag.Parse()
 
-	cmConfig := readControllerManagerConfiguration(configFile)
+	cmConfig, err := readControllerManagerConfiguration(configFile)
+	if err != nil {
+		fmt.Printf("error reading config: %s", err.Error()) // Logger not yet set up
+		os.Exit(1)
+	}
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
 		o.Development = cmConfig.Logger.Development
@@ -89,7 +95,8 @@ func main() {
 
 	kube, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic("could not create kubernetes client")
+		setupLog.Error(err, "could not create kubernetes client")
+		os.Exit(1)
 	}
 
 	recorder := CreateRecorder(kube)
@@ -97,8 +104,12 @@ func main() {
 	if err = (&controllers.TerminalReconciler{
 		ClientSet: controllers.NewClientSet(config, mgr.GetClient(), kube),
 		Log:       ctrl.Log.WithName("controllers").WithName("Terminal"),
-		Scheme:    mgr.GetScheme(),
-		Recorder:  recorder,
+		Operation: &v1alpha1.Operation{
+			Config:                      cmConfig,
+			ReconcilerCountPerNamespace: map[string]int{},
+		},
+		Scheme:   mgr.GetScheme(),
+		Recorder: recorder,
 	}).SetupWithManager(mgr, cmConfig.Controllers.Terminal); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Terminal")
 		os.Exit(1)
@@ -145,12 +156,13 @@ func CreateRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
 	return eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: v1alpha1.TerminalComponent})
 }
 
-func readControllerManagerConfiguration(configFile string) *v1alpha1.ControllerManagerConfiguration {
+func readControllerManagerConfiguration(configFile string) (*v1alpha1.ControllerManagerConfiguration, error) {
 	// Default configuration
 	cfg := v1alpha1.ControllerManagerConfiguration{
 		Controllers: v1alpha1.ControllerManagerControllerConfiguration{
 			Terminal: v1alpha1.TerminalControllerConfiguration{
-				MaxConcurrentReconciles: 5,
+				MaxConcurrentReconciles:             15,
+				MaxConcurrentReconcilesPerNamespace: 3,
 			},
 			TerminalHeartbeat: v1alpha1.TerminalHeartbeatControllerConfiguration{
 				MaxConcurrentReconciles: 1,
@@ -161,27 +173,44 @@ func readControllerManagerConfiguration(configFile string) *v1alpha1.ControllerM
 		},
 	}
 
-	readFile(configFile, &cfg)
+	if err := readFile(configFile, &cfg); err != nil {
+		return nil, err
+	}
 
-	return &cfg
+	if err := validateConfig(&cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
 }
 
-func readFile(configFile string, cfg *v1alpha1.ControllerManagerConfiguration) {
+func readFile(configFile string, cfg *v1alpha1.ControllerManagerConfiguration) error {
 	f, err := os.Open(configFile)
 	if err != nil {
-		processError(err)
+		return err
 	}
 	defer f.Close()
 
 	decoder := yaml.NewDecoder(f)
 
-	err = decoder.Decode(cfg)
-	if err != nil {
-		processError(err)
-	}
+	return decoder.Decode(cfg)
 }
 
-func processError(err error) {
-	fmt.Println(err)
-	os.Exit(2)
+func validateConfig(cfg *v1alpha1.ControllerManagerConfiguration) error {
+	if cfg.Controllers.Terminal.MaxConcurrentReconciles < 1 {
+		fldPath := field.NewPath("controllers", "terminal", "maxConcurrentReconciles")
+		return field.Invalid(fldPath, cfg.Controllers.Terminal.MaxConcurrentReconciles, "must be 1 or greater")
+	}
+
+	if cfg.Controllers.TerminalHeartbeat.MaxConcurrentReconciles < 1 {
+		fldPath := field.NewPath("controllers", "terminalHeartbeat", "maxConcurrentReconciles")
+		return field.Invalid(fldPath, cfg.Controllers.TerminalHeartbeat.MaxConcurrentReconciles, "must be 1 or greater")
+	}
+
+	if cfg.Controllers.Terminal.MaxConcurrentReconcilesPerNamespace > cfg.Controllers.Terminal.MaxConcurrentReconciles {
+		fldPath := field.NewPath("controllers", "terminal", "maxConcurrentReconcilesPerNamespace")
+		return field.Invalid(fldPath, cfg.Controllers.Terminal.MaxConcurrentReconcilesPerNamespace, "must not be greater than maxConcurrentReconciles")
+	}
+
+	return nil
 }
