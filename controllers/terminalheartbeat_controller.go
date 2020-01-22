@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -95,7 +96,7 @@ func (r *TerminalHeartbeatReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 }
 
 func (r *TerminalHeartbeatReconciler) deleteTerminal(ctx context.Context, t *extensionsv1alpha1.Terminal) error {
-	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting terminal resource due to missing heartbeat")
+	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting terminal resource due to missing heartbeat")
 
 	deleteCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(30*time.Second)) // TODO make timeout configurable
 	defer cancelFunc()
@@ -104,7 +105,12 @@ func (r *TerminalHeartbeatReconciler) deleteTerminal(ctx context.Context, t *ext
 		return err
 	}
 
-	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted terminal resource")
+	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted terminal resource")
 
 	return nil
+}
+
+func (r *TerminalHeartbeatReconciler) recordEventAndLog(t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
+	r.Recorder.Eventf(t, eventType, reason, messageFmt, args)
+	r.Log.Info(fmt.Sprintf(messageFmt, args...), "namespace", t.Namespace, "name", t.Name)
 }

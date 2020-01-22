@@ -181,7 +181,7 @@ func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error
 				return ctrl.Result{}, targetClientSetErr
 			}
 
-			r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
+			r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
 			// our finalizer is present, so lets handle our external dependency
 
 			if deletionErrors := r.deleteExternalDependency(ctx, targetClientSet, hostClientSet, t); deletionErrors != nil {
@@ -189,14 +189,14 @@ func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error
 				// if fail to delete the external dependency here, return with error
 				// so that it can be retried
 				for _, deletionErr := range deletionErrors {
-					r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Description)
+					r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Description)
 					errStrings = append(errStrings, deletionErr.Description)
 				}
 
 				return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
 			}
 
-			r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
+			r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
 
 			// remove our finalizer from the list and update it.
 			finalizers.Delete(extensionsv1alpha1.TerminalName)
@@ -221,7 +221,7 @@ func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error
 
 	err = r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t)
 	if err != nil {
-		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -237,16 +237,21 @@ func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error
 		}
 	}
 
-	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
+	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
 
 	if err := r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t); err != nil {
-		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
 		return ctrl.Result{}, errors.New(err.Description)
 	}
 
-	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
+	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
 
 	return ctrl.Result{}, nil
+}
+
+func (r *TerminalReconciler) recordEventAndLog(t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
+	r.Recorder.Eventf(t, eventType, reason, messageFmt, args)
+	r.Log.Info(fmt.Sprintf(messageFmt, args...), "namespace", t.Namespace, "name", t.Name)
 }
 
 func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Context, gardenClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
@@ -331,7 +336,7 @@ func (r *TerminalReconciler) deleteTargetClusterDepencies(ctx context.Context, t
 			return formatError("Failed to delete access token", err)
 		}
 	} else {
-		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
 	}
 
 	return nil
@@ -357,7 +362,7 @@ func (r *TerminalReconciler) deleteHostClusterDepencies(ctx context.Context, hos
 			}
 		}
 	} else {
-		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in host cluster for terminal identifier: %s", t.Spec.Identifier)
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in host cluster for terminal identifier: %s", t.Spec.Identifier)
 	}
 
 	return nil
