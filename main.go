@@ -19,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -102,14 +103,12 @@ func main() {
 	recorder := CreateRecorder(kube)
 
 	if err = (&controllers.TerminalReconciler{
-		ClientSet: controllers.NewClientSet(config, mgr.GetClient(), kube),
-		Log:       ctrl.Log.WithName("controllers").WithName("Terminal"),
-		Operation: &v1alpha1.Operation{
-			Config:                      cmConfig,
-			ReconcilerCountPerNamespace: map[string]int{},
-		},
-		Scheme:   mgr.GetScheme(),
-		Recorder: recorder,
+		ClientSet:                   controllers.NewClientSet(config, mgr.GetClient(), kube),
+		Log:                         ctrl.Log.WithName("controllers").WithName("Terminal"),
+		Scheme:                      mgr.GetScheme(),
+		Recorder:                    recorder,
+		Config:                      cmConfig,
+		ReconcilerCountPerNamespace: map[string]int{},
 	}).SetupWithManager(mgr, cmConfig.Controllers.Terminal); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Terminal")
 		os.Exit(1)
@@ -119,6 +118,7 @@ func main() {
 		Client:   mgr.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("TerminalHeartbeat"),
 		Recorder: recorder,
+		Config:   cmConfig,
 	}).SetupWithManager(mgr, cmConfig.Controllers.TerminalHeartbeat); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TerminalHeartbeat")
 		os.Exit(1)
@@ -138,8 +138,14 @@ func main() {
 	}
 
 	setupLog.Info("registering webhooks to the webhook server")
-	hookServer.Register("/mutate-terminal", &webhook.Admission{Handler: &mutating.TerminalMutator{}})
-	hookServer.Register("/validate-terminal", &webhook.Admission{Handler: &validating.TerminalValidator{}})
+	hookServer.Register("/mutate-terminal", &webhook.Admission{Handler: &mutating.TerminalMutator{
+		Log:    ctrl.Log.WithName("webhooks").WithName("TerminalMutation"),
+		Config: cmConfig,
+	}})
+	hookServer.Register("/validate-terminal", &webhook.Admission{Handler: &validating.TerminalValidator{
+		Log:    ctrl.Log.WithName("webhooks").WithName("TerminalValidation"),
+		Config: cmConfig,
+	}})
 
 	setupLog.Info("starting manager")
 
@@ -166,6 +172,12 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 			},
 			TerminalHeartbeat: v1alpha1.TerminalHeartbeatControllerConfiguration{
 				MaxConcurrentReconciles: 1,
+				TimeToLive:              v1alpha1.Duration{Duration: time.Duration(5) * time.Minute},
+			},
+		},
+		Webhooks: v1alpha1.ControllerManagerWebhookConfiguration{
+			TerminalValidation: v1alpha1.TerminalValidatingWebhookConfiguration{
+				MaxObjectSize: 10 * 1024,
 			},
 		},
 		Logger: v1alpha1.ControllerManagerLoggerConfiguration{

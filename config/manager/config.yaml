@@ -1,10 +1,5 @@
+# overwrites defaults
 kind: ControllerManagerConfiguration
 apiVersion: v1alpha1
-controllers:
-  terminal:
-    maxConcurrentReconciles: 15
-    maxConcurrentReconcilesPerNamespace: 3
-  terminalHeartbeat:
-    maxConcurrentReconciles: 1
 logger:
   development: false

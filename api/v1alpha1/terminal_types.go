@@ -17,6 +17,8 @@ package v1alpha1
 
 import (
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/gardener/terminal-controller-manager/utils"
 
@@ -177,14 +179,17 @@ type ControllerManagerConfiguration struct {
 
 	// Controllers defines the configuration of the controllers.
 	Controllers ControllerManagerControllerConfiguration `yaml:"controllers"`
-	Logger      ControllerManagerLoggerConfiguration     `yaml:"logger"`
+	// Webhooks defines the configuration of the admission webhooks.
+	Webhooks ControllerManagerWebhookConfiguration `yaml:"webhooks"`
+	// Logger defines the configuration of the zap logging module.
+	Logger ControllerManagerLoggerConfiguration `yaml:"logger"`
 }
 
-// ControllerManagerLogger defines the configuration of the zap Logger.
+// ControllerManagerLogger defines the configuration of the Zap Logger.
 type ControllerManagerLoggerConfiguration struct {
 	// If Development is true, a Zap development config will be used
 	// (stacktraces on warnings, no sampling), otherwise a Zap production
-	// config will be used (stacktraces on errors, sampling).
+	// config will be used (stacktraces on errors, sampling). Defaults to true.
 	Development bool `yaml:"development"`
 }
 
@@ -209,12 +214,45 @@ type TerminalControllerConfiguration struct {
 type TerminalHeartbeatControllerConfiguration struct {
 	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
 	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+
+	// TimeToLive is the duration a Terminal resource can live without receiving a heartbeat with the "dashboard.gardener.cloud/operation=keepalive" annotation. Defaults to 5m.
+	TimeToLive Duration `yaml:"timeToLive"`
 }
 
-// Operation contains all data required to perform an operation on a Terminal.
-type Operation struct {
-	Config                      *ControllerManagerConfiguration
-	ReconcilerCountPerNamespace map[string]int
+// Duration is a wrapper around time.Duration which supports correct
+// marshaling to YAML. In particular, it marshals into strings, which
+// can be used as map keys in json.
+type Duration struct {
+	time.Duration
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaller interface.
+func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	t, err := time.ParseDuration(str)
+	if err != nil {
+		return fmt.Errorf("failed to parse '%s' to time.Duration: %v", str, err)
+	}
+
+	d.Duration = t
+
+	return nil
+}
+
+// ControllerManagerWebhookConfiguration defines the configuration of the admission webhooks.
+type ControllerManagerWebhookConfiguration struct {
+	// TerminalValidation defines the configuration of the validating webhook.
+	TerminalValidation TerminalValidatingWebhookConfiguration `yaml:"terminalValidation"`
+}
+
+// TerminalValidatingWebhookConfiguration defines the configuration of the validating webhook.
+type TerminalValidatingWebhookConfiguration struct {
+	// MaxObjectSize is the maximum size of a terminal resource in bytes. Defaults to 10240.
+	MaxObjectSize int `yaml:"maxObjectSize"`
 }
 
 func (t *Terminal) NewLabelsSet() (*labels.Set, error) {

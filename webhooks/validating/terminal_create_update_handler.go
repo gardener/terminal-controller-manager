@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"k8s.io/api/admission/v1beta1"
 	v1 "k8s.io/api/authentication/v1"
@@ -38,6 +40,8 @@ import (
 // TerminalValidator handles Terminal
 type TerminalValidator struct {
 	client client.Client
+	Log    logr.Logger
+	Config *v1alpha1.ControllerManagerConfiguration
 
 	// Decoder decodes objects
 	decoder *admission.Decoder
@@ -296,9 +300,14 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 	obj := &v1alpha1.Terminal{}
 	oldObj := &v1alpha1.Terminal{}
 
-	maxObjSize := 10 * 1024 // TODO read from config
-	if len(req.Object.Raw) > maxObjSize {
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("resource must not have more than %d bytes", maxObjSize))
+	maxObjSize := h.Config.Webhooks.TerminalValidation.MaxObjectSize
+	objSize := len(req.Object.Raw)
+
+	if objSize > maxObjSize {
+		err := fmt.Errorf("resource must not have more than %d bytes", maxObjSize)
+		h.Log.Error(err, "maxObjectSize exceeded", "objSize", objSize, "maxObjSize", maxObjSize)
+
+		return admission.Errored(http.StatusBadRequest, err)
 	}
 
 	err := h.decoder.Decode(req, obj)
@@ -315,7 +324,12 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 
 	allowed, reason, err := h.validatingTerminalFn(ctx, obj, oldObj, req.AdmissionRequest)
 	if err != nil {
+		h.Log.Error(err, reason)
 		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
+	if !allowed {
+		h.Log.Info("admission request denied", "reason", reason)
 	}
 
 	return admission.ValidationResponse(allowed, reason)

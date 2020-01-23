@@ -60,10 +60,11 @@ import (
 type TerminalReconciler struct {
 	Scheme *runtime.Scheme
 	*ClientSet
-	Recorder record.EventRecorder
-	Log      logr.Logger
-	*extensionsv1alpha1.Operation
-	mutex sync.RWMutex
+	Recorder                    record.EventRecorder
+	Log                         logr.Logger
+	Config                      *extensionsv1alpha1.ControllerManagerConfiguration
+	ReconcilerCountPerNamespace map[string]int
+	mutex                       sync.RWMutex
 }
 
 type ClientSet struct {
@@ -93,7 +94,7 @@ func (r *TerminalReconciler) increaseCounterForNamespace(namespace string) error
 		counter = c + 1
 	}
 
-	if counter > r.Operation.Config.Controllers.Terminal.MaxConcurrentReconcilesPerNamespace {
+	if counter > r.Config.Controllers.Terminal.MaxConcurrentReconcilesPerNamespace {
 		return fmt.Errorf("max count reached")
 	}
 
