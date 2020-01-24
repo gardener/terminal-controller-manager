@@ -14,6 +14,7 @@ Host and target cluster can also be the same. For more details and a usage scena
 ## Development Setup
 
 Prerequisites:
+- [golang](https://golang.org/dl/) 
 - [kind](https://github.com/kubernetes-sigs/kind)
 - [kustomize](https://github.com/kubernetes-sigs/kustomize)
 - [kubectl](https://kubernetes.io/de/docs/tasks/tools/install-kubectl/)
@@ -30,8 +31,6 @@ There are two options to deploy the `terminal-controller-manager` into your clus
 - multi-cluster setup
   - The `terminal-controller-manager` is deployed in a hosting cluster, which is called `runtime` cluster (see `config/overlay/multi-cluster/runtime`) but watches the terminal resources in another/target cluster, called `virtual-garden` (see `config/overlay/multi-cluster/virtual-garden`).
   - The admission webhook configurations of course are created in the virtual-garden.
-
-
 
 ## Single-Cluster Setup with `Kind`
 
@@ -80,7 +79,7 @@ kubectl apply -f config/samples/terminal-cp.yaml
 ```
 
 ```bash
-kubectl apply -f config/samples/terminal-shoot.yaml 
+kubectl apply -f config/samples/terminal-shoot.yaml --validate=false
 ```
 
 Check if the terminal resources were created. Note that the terminal resources get cleaned if they don't receive a heartbeat.
@@ -113,4 +112,3 @@ $ k get po
 NAME                      READY   STATUS    RESTARTS   AGE
 term-627737417320032009   1/1     Running   0          25s
 ```
-
