@@ -1,6 +1,6 @@
 module github.com/gardener/terminal-controller-manager
 
-go 1.13.6
+go 1.13.7
 
 require (
 	github.com/go-logr/logr v0.1.0
