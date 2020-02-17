@@ -60,7 +60,8 @@ manifests: controller-gen
 
 # Run golangci-lint against code
 lint: $(GOPATH)/bin/golangci-lint
-	golangci-lint run ./... -E golint,whitespace,wsl --skip-files "zz_generated.*"
+# TODO remove exlusion "deprecated" checks in Makefile and .ci/check once deprecated fields GardenCreatedByDeprecated and TerminalLastHeartbeatDeprecated are removed
+	golangci-lint run ./... -E golint,whitespace,wsl --skip-files "zz_generated.*" --exclude ".*deprecated.*"
 
 $(GOPATH)/bin/golangci-lint:
 	go get -u github.com/golangci/golangci-lint/cmd/golangci-lint

@@ -58,10 +58,24 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 			return false, err.Error(), nil
 		}
 
+		createdByFldPath = field.NewPath("metadata", "annotations", v1alpha1.GardenCreatedByDeprecated)
+		if err := validateImmutableField(t.ObjectMeta.Annotations[v1alpha1.GardenCreatedByDeprecated], oldT.ObjectMeta.Annotations[v1alpha1.GardenCreatedByDeprecated], createdByFldPath); err != nil {
+			return false, err.Error(), nil
+		}
+
 		// only same user is allowed to keep terminal session alive
-		changedBySameUser := t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy] == admissionReq.UserInfo.Username
+		userFromAnnotations := t.ObjectMeta.Annotations[v1alpha1.GardenCreatedByDeprecated]
+		if len(userFromAnnotations) == 0 {
+			userFromAnnotations = t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy]
+		}
+
+		changedBySameUser := userFromAnnotations == admissionReq.UserInfo.Username
 		if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] != oldT.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] && !changedBySameUser {
 			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "you are not allowed to change this field").Error(), nil
+		}
+
+		if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeatDeprecated] != oldT.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeatDeprecated] && !changedBySameUser {
+			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeatDeprecated), "you are not allowed to change this field").Error(), nil
 		}
 	}
 
@@ -69,11 +83,23 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	if len(lastHeartbeat) > 0 {
 		lastHeartBeatParsed, err := time.Parse(time.RFC3339, lastHeartbeat)
 		if err != nil {
-			return false, field.Invalid(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat], "failed to parse time").Error(), nil
+			return false, field.Invalid(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), lastHeartbeat, "failed to parse time").Error(), nil
 		}
 
 		if lastHeartBeatParsed.After(time.Now().UTC()) {
 			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "time must not be in the future").Error(), nil
+		}
+	}
+
+	lastHeartbeat = t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeatDeprecated]
+	if len(lastHeartbeat) > 0 {
+		lastHeartBeatParsed, err := time.Parse(time.RFC3339, lastHeartbeat)
+		if err != nil {
+			return false, field.Invalid(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeatDeprecated), lastHeartbeat, "failed to parse time").Error(), nil
+		}
+
+		if lastHeartBeatParsed.After(time.Now().UTC()) {
+			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeatDeprecated), "time must not be in the future").Error(), nil
 		}
 	}
 

@@ -30,4 +30,5 @@ go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
 
 cd "$SOURCE_PATH"
 
-golangci-lint run ./... -E golint,whitespace,wsl --skip-files "zz_generated.*" --verbose --timeout 2m
+# TODO remove exlusion "deprecated" checks in Makefile and .ci/check once deprecated fields GardenCreatedByDeprecated and TerminalLastHeartbeatDeprecated are removed
+golangci-lint run ./... -E golint,whitespace,wsl --skip-files "zz_generated.*"  --exclude ".*deprecated.*" --verbose --timeout 2m
