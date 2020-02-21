@@ -79,6 +79,7 @@ func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
 // +kubebuilder:rbac:groups=dashboard.gardener.cloud,resources=terminals,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=dashboard.gardener.cloud,resources=terminals/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations;mutatingwebhookconfigurations,verbs=list
