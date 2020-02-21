@@ -21,11 +21,15 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/go-logr/logr"
 
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 
-	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -56,8 +60,11 @@ import (
 type TerminalReconciler struct {
 	Scheme *runtime.Scheme
 	*ClientSet
-	Recorder record.EventRecorder
-	Log      logr.Logger
+	Recorder                    record.EventRecorder
+	Log                         logr.Logger
+	Config                      *extensionsv1alpha1.ControllerManagerConfiguration
+	ReconcilerCountPerNamespace map[string]int
+	mutex                       sync.RWMutex
 }
 
 type ClientSet struct {
@@ -66,14 +73,53 @@ type ClientSet struct {
 	Kubernetes kubernetes.Interface
 }
 
-func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	maxConcurrentReconciles := 5 // TODO read from config
-
+func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager, config extensionsv1alpha1.TerminalControllerConfiguration) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionsv1alpha1.Terminal{}).
 		Named("main").
-		WithOptions(controller.Options{MaxConcurrentReconciles: maxConcurrentReconciles}).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: config.MaxConcurrentReconciles,
+		}).
 		Complete(r)
+}
+
+func (r *TerminalReconciler) increaseCounterForNamespace(namespace string) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	var counter int
+	if c, exists := r.ReconcilerCountPerNamespace[namespace]; !exists {
+		counter = 1
+	} else {
+		counter = c + 1
+	}
+
+	if counter > r.Config.Controllers.Terminal.MaxConcurrentReconcilesPerNamespace {
+		return fmt.Errorf("max count reached")
+	}
+
+	r.ReconcilerCountPerNamespace[namespace] = counter
+
+	return nil
+}
+
+func (r *TerminalReconciler) decreaseCounterForNamespace(namespace string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	var counter int
+
+	c, exists := r.ReconcilerCountPerNamespace[namespace]
+	if !exists {
+		panic("entry expected!")
+	}
+
+	counter = c - 1
+	if counter == 0 {
+		delete(r.ReconcilerCountPerNamespace, namespace)
+	} else {
+		r.ReconcilerCountPerNamespace[namespace] = counter
+	}
 }
 
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;
@@ -85,6 +131,22 @@ func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations;mutatingwebhookconfigurations,verbs=list
 
 func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	if err := r.increaseCounterForNamespace(req.Namespace); err != nil {
+		r.Log.Info("maximum parallel reconciles reached for namespace - requeuing the req", "namespace", req.Namespace, "name", req.Name)
+
+		return ctrl.Result{
+			RequeueAfter: wait.Jitter(time.Duration(int64(100*time.Millisecond)), 50), // requeue after 100ms - 5s
+		}, nil
+	}
+
+	res, err := r.handleRequest(req)
+
+	r.decreaseCounterForNamespace(req.Namespace)
+
+	return res, err
+}
+
+func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error) {
 	// TODO introduce unique reconcile identifier that is used for logging
 	ctx := context.Background()
 
@@ -121,7 +183,7 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				return ctrl.Result{}, targetClientSetErr
 			}
 
-			r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
+			r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
 			// our finalizer is present, so lets handle our external dependency
 
 			if deletionErrors := r.deleteExternalDependency(ctx, targetClientSet, hostClientSet, t); deletionErrors != nil {
@@ -129,14 +191,14 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				// if fail to delete the external dependency here, return with error
 				// so that it can be retried
 				for _, deletionErr := range deletionErrors {
-					r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Description)
+					r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Description)
 					errStrings = append(errStrings, deletionErr.Description)
 				}
 
 				return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
 			}
 
-			r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
+			r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
 
 			// remove our finalizer from the list and update it.
 			finalizers.Delete(extensionsv1alpha1.TerminalName)
@@ -161,7 +223,7 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	err = r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t)
 	if err != nil {
-		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -177,16 +239,21 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 
-	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
+	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
 
 	if err := r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t); err != nil {
-		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
 		return ctrl.Result{}, errors.New(err.Description)
 	}
 
-	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
+	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
 
 	return ctrl.Result{}, nil
+}
+
+func (r *TerminalReconciler) recordEventAndLog(t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
+	r.Recorder.Eventf(t, eventType, reason, messageFmt, args)
+	r.Log.Info(fmt.Sprintf(messageFmt, args...), "namespace", t.Namespace, "name", t.Name)
 }
 
 func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Context, gardenClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
@@ -201,7 +268,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 	}
 
 	if len(mutatingWebhookConfigurations.Items) != 1 {
-		err := delete(ctx, gardenClientSet, t)
+		err := deleteObj(ctx, gardenClientSet, t)
 		if err != nil {
 			return err
 		}
@@ -211,7 +278,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 
 	mutatingWebhookConfiguration := mutatingWebhookConfigurations.Items[0]
 	if mutatingWebhookConfiguration.ObjectMeta.CreationTimestamp.After(t.ObjectMeta.CreationTimestamp.Time) {
-		err := delete(ctx, gardenClientSet, t)
+		err := deleteObj(ctx, gardenClientSet, t)
 		if err != nil {
 			return err
 		}
@@ -225,7 +292,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 	}
 
 	if len(validatingWebhookConfigurations.Items) != 1 {
-		err := delete(ctx, gardenClientSet, t)
+		err := deleteObj(ctx, gardenClientSet, t)
 		if err != nil {
 			return err
 		}
@@ -235,7 +302,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 
 	validatingWebhookConfiguration := validatingWebhookConfigurations.Items[0]
 	if validatingWebhookConfiguration.ObjectMeta.CreationTimestamp.After(t.ObjectMeta.CreationTimestamp.Time) {
-		err := delete(ctx, gardenClientSet, t)
+		err := deleteObj(ctx, gardenClientSet, t)
 		if err != nil {
 			return err
 		}
@@ -271,7 +338,7 @@ func (r *TerminalReconciler) deleteTargetClusterDepencies(ctx context.Context, t
 			return formatError("Failed to delete access token", err)
 		}
 	} else {
-		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
 	}
 
 	return nil
@@ -297,7 +364,7 @@ func (r *TerminalReconciler) deleteHostClusterDepencies(ctx context.Context, hos
 			}
 		}
 	} else {
-		r.Recorder.Eventf(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in host cluster for terminal identifier: %s", t.Spec.Identifier)
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in host cluster for terminal identifier: %s", t.Spec.Identifier)
 	}
 
 	return nil
@@ -314,7 +381,7 @@ func deleteAccessToken(ctx context.Context, targetClientSet *ClientSet, t *exten
 	case extensionsv1alpha1.BindingKindRoleBinding:
 		err = deleteRoleBinding(ctx, targetClientSet, *t.Spec.Target.Namespace, bindingName)
 	default:
-		panic("unknown BindingKind")
+		panic("unknown BindingKind") // TODO validate in webhook
 	}
 
 	if err != nil {
@@ -441,7 +508,7 @@ func createOrUpdateAttachRole(ctx context.Context, hostClientSet *ClientSet, nam
 func deleteRole(ctx context.Context, cs *ClientSet, namespace string, name string) error {
 	role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
-	return delete(ctx, cs, role)
+	return deleteObj(ctx, cs, role)
 }
 
 func createOrUpdateNamespace(ctx context.Context, cs *ClientSet, namespaceName string, labelsSet *labels.Set) (*corev1.Namespace, error) {
@@ -456,7 +523,7 @@ func createOrUpdateNamespace(ctx context.Context, cs *ClientSet, namespaceName s
 func deleteNamespace(ctx context.Context, cs *ClientSet, namespaceName string) error {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespaceName}}
 
-	return delete(ctx, cs, ns)
+	return deleteObj(ctx, cs, ns)
 }
 
 func createOrUpdateServiceAccount(ctx context.Context, cs *ClientSet, namespace string, name string, labelsSet *labels.Set) (*corev1.ServiceAccount, error) {
@@ -471,7 +538,7 @@ func createOrUpdateServiceAccount(ctx context.Context, cs *ClientSet, namespace 
 func deleteServiceAccount(ctx context.Context, cs *ClientSet, namespace string, name string) error {
 	serviceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
-	return delete(ctx, cs, serviceAccount)
+	return deleteObj(ctx, cs, serviceAccount)
 }
 
 func createOrUpdateRoleBinding(ctx context.Context, cs *ClientSet, namespace string, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelsSet *labels.Set) (*rbacv1.RoleBinding, error) {
@@ -490,7 +557,7 @@ func createOrUpdateRoleBinding(ctx context.Context, cs *ClientSet, namespace str
 func deleteRoleBinding(ctx context.Context, cs *ClientSet, namespace string, name string) error {
 	roleBinding := &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
-	return delete(ctx, cs, roleBinding)
+	return deleteObj(ctx, cs, roleBinding)
 }
 
 func createOrUpdateClusterRoleBinding(ctx context.Context, cs *ClientSet, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelsSet *labels.Set) (*rbacv1.ClusterRoleBinding, error) {
@@ -509,7 +576,7 @@ func createOrUpdateClusterRoleBinding(ctx context.Context, cs *ClientSet, name s
 func deleteClusterRoleBinding(ctx context.Context, cs *ClientSet, name string) error {
 	clusterRoleBinding := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: name}}
 
-	return delete(ctx, cs, clusterRoleBinding)
+	return deleteObj(ctx, cs, clusterRoleBinding)
 }
 
 func createOrUpdateAdminKubeconfig(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set) (*corev1.Secret, error) {
@@ -551,7 +618,7 @@ func createAccessToken(ctx context.Context, targetClientSet *ClientSet, t *exten
 	case extensionsv1alpha1.BindingKindRoleBinding:
 		_, err = createOrUpdateRoleBinding(ctx, targetClientSet, *t.Spec.Target.Namespace, bindingName, subject, roleRef, labelsSet)
 	default:
-		panic("unknown BindingKind")
+		panic("unknown BindingKind") // TODO validate in webhook
 	}
 
 	if err != nil {
@@ -670,7 +737,7 @@ func createOrUpdateSecretData(ctx context.Context, cs *ClientSet, namespace stri
 func deleteSecret(ctx context.Context, cs *ClientSet, namespace string, name string) error {
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
-	return delete(ctx, cs, secret)
+	return deleteObj(ctx, cs, secret)
 }
 
 // GenerateKubeconfigFromTokenSecret generates a kubeconfig using the provided
@@ -869,10 +936,10 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 func deleteTerminalPod(ctx context.Context, cs *ClientSet, t *extensionsv1alpha1.Terminal) error {
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
-	return delete(ctx, cs, pod)
+	return deleteObj(ctx, cs, pod)
 }
 
-func delete(ctx context.Context, cs *ClientSet, obj runtime.Object) error {
+func deleteObj(ctx context.Context, cs *ClientSet, obj runtime.Object) error {
 	err := cs.Delete(ctx, obj)
 	if kErros.IsNotFound(err) {
 		return nil

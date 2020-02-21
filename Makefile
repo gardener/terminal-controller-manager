@@ -19,7 +19,7 @@ all: manager
 
 # Run tests
 test: generate lint manifests
-	go test ./api/... ./controllers/... -coverprofile cover.out
+	go test ./... -coverprofile cover.out
 
 # Build manager binary
 manager: generate lint
@@ -31,7 +31,11 @@ run: generate lint
 
 # Install CRDs into a cluster
 install: manifests
-	kubectl apply -f config/crd/bases
+	kustomize build config/crd | kubectl apply -f -
+
+# Uninstall CRDs from a cluster
+uninstall: manifests
+	kustomize build config/crd | kubectl delete -f -
 
 # Install resources into a dev cluster
 bootstrap-dev: install
@@ -82,7 +86,14 @@ docker-push:
 # download controller-gen if necessary
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.1
+	@{ \
+	set -e ;\
+	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
+	cd $$CONTROLLER_GEN_TMP_DIR ;\
+	go mod init tmp ;\
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.5 ;\
+	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
+	}
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)

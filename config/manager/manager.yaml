@@ -27,7 +27,8 @@ spec:
       - command:
         - /manager
         args:
-        - --enable-leader-election
+        - "--enable-leader-election"
+        - "--config-file=/etc/terminal-controller-manager/config.yaml"
         image: controller:latest
         name: manager
         resources:
@@ -39,4 +40,15 @@ spec:
             memory: 80Mi
         securityContext:
           runAsNonRoot: true
+        volumeMounts:
+          - mountPath: /etc/terminal-controller-manager
+            name: manager-config
       terminationGracePeriodSeconds: 10
+      volumes:
+        - configMap:
+            defaultMode: 420
+            items:
+              - key: config.yaml
+                path: config.yaml
+            name: controller-manager-configmap
+          name: manager-config

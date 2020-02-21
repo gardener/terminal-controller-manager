@@ -17,7 +17,10 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
@@ -35,12 +38,16 @@ type TerminalHeartbeatReconciler struct {
 	client.Client
 	Log      logr.Logger
 	Recorder record.EventRecorder
+	Config   *extensionsv1alpha1.ControllerManagerConfiguration
 }
 
-func (r *TerminalHeartbeatReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *TerminalHeartbeatReconciler) SetupWithManager(mgr ctrl.Manager, config extensionsv1alpha1.TerminalHeartbeatControllerConfiguration) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionsv1alpha1.Terminal{}).
 		Named("heartbeat").
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: config.MaxConcurrentReconciles,
+		}).
 		Complete(r)
 }
 
@@ -81,29 +88,33 @@ func (r *TerminalHeartbeatReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 		return ctrl.Result{}, r.deleteTerminal(ctx, t)
 	}
 
-	ttl := 5 * time.Minute // TODO make TTL configurable
-	expiration := lastHeartBeatParsed.Add(time.Duration(ttl))
+	ttl := r.Config.Controllers.TerminalHeartbeat.TimeToLive.Duration
+	expiration := lastHeartBeatParsed.Add(ttl)
 
-	if time.Now().UTC().After(expiration) {
+	expiresIn := expiration.Sub(time.Now().UTC())
+	if expiresIn <= 0 {
 		return ctrl.Result{}, r.deleteTerminal(ctx, t)
 	}
 
-	syncPeriod := int64(1 * time.Minute) // TODO make syncPeriod configurable
-
-	return ctrl.Result{RequeueAfter: time.Duration(syncPeriod)}, nil
+	return ctrl.Result{RequeueAfter: expiresIn}, nil
 }
 
 func (r *TerminalHeartbeatReconciler) deleteTerminal(ctx context.Context, t *extensionsv1alpha1.Terminal) error {
-	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting terminal resource due to missing heartbeat")
+	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting terminal resource due to missing heartbeat")
 
-	deleteCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(30*time.Second)) // TODO make timeout configurable
+	deleteCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(30*time.Second))
 	defer cancelFunc()
 
 	if err := r.Delete(deleteCtx, t); err != nil {
 		return err
 	}
 
-	r.Recorder.Eventf(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted terminal resource")
+	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted terminal resource")
 
 	return nil
+}
+
+func (r *TerminalHeartbeatReconciler) recordEventAndLog(t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
+	r.Recorder.Eventf(t, eventType, reason, messageFmt, args)
+	r.Log.Info(fmt.Sprintf(messageFmt, args...), "namespace", t.Namespace, "name", t.Name)
 }

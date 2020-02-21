@@ -4,7 +4,7 @@ metadata:
   name: mutating-webhook-configuration
 webhooks:
   - clientConfig:
-      url: https://$(SERVICENAME).$(NAMESPACE).svc/mutate-terminal
+      url: https://$(SERVICE_NAME).$(SERVICE_NAMESPACE).svc/mutate-terminal
     name: mutating-create-update-terminal.gardener.cloud
 ---
 apiVersion: admissionregistration.k8s.io/v1beta1
@@ -13,5 +13,5 @@ metadata:
   name: validating-webhook-configuration
 webhooks:
   - clientConfig:
-      url: https://$(SERVICENAME).$(NAMESPACE).svc/validate-terminal
+      url: https://$(SERVICE_NAME).$(SERVICE_NAMESPACE).svc/validate-terminal
     name: validating-create-update-terminal.gardener.cloud

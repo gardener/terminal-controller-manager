@@ -1,3 +1,5 @@
+
+---
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -5,8 +7,7 @@ metadata:
   labels:
     terminal: admission-configuration # must match with label selector used in controller reconcile
 webhooks:
-  - clientConfig:
-    failurePolicy: Fail
+  - failurePolicy: Fail
     name: mutating-create-update-terminal.gardener.cloud
     rules:
       - apiGroups:
@@ -27,8 +28,7 @@ metadata:
   labels:
    terminal: admission-configuration # must match with label selector used in controller reconcile
 webhooks:
-  - clientConfig:
-    failurePolicy: Fail
+  - failurePolicy: Fail
     name: validating-create-update-terminal.gardener.cloud
     rules:
       - apiGroups:

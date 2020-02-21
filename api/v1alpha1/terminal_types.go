@@ -17,6 +17,8 @@ package v1alpha1
 
 import (
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/gardener/terminal-controller-manager/utils"
 
@@ -167,6 +169,91 @@ type LastError struct {
 
 // ErrorCode is a string alias.
 type ErrorCode string
+
+// ControllerManagerConfiguration defines the configuration for the Gardener controller manager.
+type ControllerManagerConfiguration struct {
+	// +optional
+	Kind string `yaml:"kind"`
+	// +optional
+	APIVersion string `yaml:"apiVersion"`
+
+	// Controllers defines the configuration of the controllers.
+	Controllers ControllerManagerControllerConfiguration `yaml:"controllers"`
+	// Webhooks defines the configuration of the admission webhooks.
+	Webhooks ControllerManagerWebhookConfiguration `yaml:"webhooks"`
+	// Logger defines the configuration of the zap logging module.
+	Logger ControllerManagerLoggerConfiguration `yaml:"logger"`
+}
+
+// ControllerManagerLogger defines the configuration of the Zap Logger.
+type ControllerManagerLoggerConfiguration struct {
+	// If Development is true, a Zap development config will be used
+	// (stacktraces on warnings, no sampling), otherwise a Zap production
+	// config will be used (stacktraces on errors, sampling). Defaults to true.
+	Development bool `yaml:"development"`
+}
+
+// ControllerManagerControllerConfiguration defines the configuration of the controllers.
+type ControllerManagerControllerConfiguration struct {
+	// Terminal defines the configuration of the Terminal controller.
+	Terminal TerminalControllerConfiguration `yaml:"terminal"`
+	// TerminalHeartbeat defines the configuration of the TerminalHeartbeat controller.
+	TerminalHeartbeat TerminalHeartbeatControllerConfiguration `yaml:"terminalHeartbeat"`
+}
+
+// TerminalControllerConfiguration defines the configuration of the Terminal controller.
+type TerminalControllerConfiguration struct {
+	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 15.
+	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+
+	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run per Namespace (independent of the user who created the Terminal resource). Defaults to 3.
+	MaxConcurrentReconcilesPerNamespace int `yaml:"maxConcurrentReconcilesPerNamespace"`
+}
+
+// TerminalHeartbeatControllerConfiguration defines the configuration of the TerminalHeartbeat controller.
+type TerminalHeartbeatControllerConfiguration struct {
+	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
+	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+
+	// TimeToLive is the duration a Terminal resource can live without receiving a heartbeat with the "dashboard.gardener.cloud/operation=keepalive" annotation. Defaults to 5m.
+	TimeToLive Duration `yaml:"timeToLive"`
+}
+
+// Duration is a wrapper around time.Duration which supports correct
+// marshaling to YAML. In particular, it marshals into strings, which
+// can be used as map keys in json.
+type Duration struct {
+	time.Duration
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaller interface.
+func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	t, err := time.ParseDuration(str)
+	if err != nil {
+		return fmt.Errorf("failed to parse '%s' to time.Duration: %v", str, err)
+	}
+
+	d.Duration = t
+
+	return nil
+}
+
+// ControllerManagerWebhookConfiguration defines the configuration of the admission webhooks.
+type ControllerManagerWebhookConfiguration struct {
+	// TerminalValidation defines the configuration of the validating webhook.
+	TerminalValidation TerminalValidatingWebhookConfiguration `yaml:"terminalValidation"`
+}
+
+// TerminalValidatingWebhookConfiguration defines the configuration of the validating webhook.
+type TerminalValidatingWebhookConfiguration struct {
+	// MaxObjectSize is the maximum size of a terminal resource in bytes. Defaults to 10240.
+	MaxObjectSize int `yaml:"maxObjectSize"`
+}
 
 func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 	if len(t.Spec.Identifier) == 0 {

@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-logr/logr"
+
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/utils"
 	"k8s.io/api/admission/v1beta1"
@@ -34,6 +36,8 @@ import (
 // TerminalMutator handles Terminal
 type TerminalMutator struct {
 	client client.Client
+	Log    logr.Logger
+	Config *v1alpha1.ControllerManagerConfiguration
 
 	// Decoder decodes objects
 	decoder *admission.Decoder
