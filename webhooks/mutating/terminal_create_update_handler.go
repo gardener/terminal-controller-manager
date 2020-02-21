@@ -46,6 +46,7 @@ func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Te
 
 	if admissionReq.Operation == v1beta1.Create {
 		t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy] = admissionReq.UserInfo.Username
+		t.ObjectMeta.Annotations[v1alpha1.GardenCreatedByDeprecated] = admissionReq.UserInfo.Username
 
 		uuidString := uuid.NewV4().String()
 
@@ -62,11 +63,13 @@ func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Te
 		h.mutateNamespaceIfTemporary(t, terminalIdentifier)
 
 		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
+		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeatDeprecated] = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	if t.ObjectMeta.Annotations[v1alpha1.TerminalOperation] == v1alpha1.TerminalOperationKeepalive {
 		delete(t.ObjectMeta.Annotations, v1alpha1.TerminalOperation)
 		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
+		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeatDeprecated] = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	return nil
