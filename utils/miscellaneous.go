@@ -20,6 +20,9 @@ import (
 	"hash/fnv"
 )
 
+// Set is a map of label:value. It implements Labels.
+type Set map[string]string
+
 func ToFnvHash(value string) (string, error) {
 	fnvHash := fnv.New64a()
 
@@ -29,4 +32,28 @@ func ToFnvHash(value string) (string, error) {
 	}
 
 	return fmt.Sprint(fnvHash.Sum64()), nil
+}
+
+// MergeStringMap combines given maps, and does not check for any conflicts
+// between the maps. In case of conflicts, second map (map2) wins
+func MergeStringMap(oldMap Set, newMap Set) Set {
+	var out map[string]string
+
+	if oldMap != nil {
+		out = make(map[string]string)
+	}
+
+	for k, v := range oldMap {
+		out[k] = v
+	}
+
+	if newMap != nil && out == nil {
+		out = make(map[string]string)
+	}
+
+	for k, v := range newMap {
+		out[k] = v
+	}
+
+	return out
 }

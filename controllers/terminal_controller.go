@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gardener/terminal-controller-manager/utils"
+
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/go-logr/logr"
@@ -419,30 +421,35 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 		return formatError("Failed to reconcile terminal", err)
 	}
 
-	if err = r.createOrUpdateAttachPodSecret(ctx, hostClientSet, t, labelsSet); err != nil {
+	annotationsSet, err := t.NewAnnotationsSet()
+	if err != nil {
+		return formatError("Failed to reconcile terminal", err)
+	}
+
+	if err = r.createOrUpdateAttachPodSecret(ctx, hostClientSet, t, labelsSet, annotationsSet); err != nil {
 		return formatError("Failed to create or update resources needed for attaching to a pod", err)
 	}
 
-	kubeconfigSecret, err := createOrUpdateAdminKubeconfig(ctx, targetClientSet, hostClientSet, t, labelsSet)
+	kubeconfigSecret, err := createOrUpdateAdminKubeconfig(ctx, targetClientSet, hostClientSet, t, labelsSet, annotationsSet)
 	if err != nil {
 		return formatError("Failed to create or update admin kubeconfig", err)
 	}
 
-	if _, err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, kubeconfigSecret.Name, labelsSet); err != nil {
+	if _, err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, kubeconfigSecret.Name, labelsSet, annotationsSet); err != nil {
 		return formatError("Failed to create or update terminal pod", err)
 	}
 
 	return nil
 }
 
-func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set) error {
+func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set, annotationsSet *utils.Set) error {
 	if t.Spec.Host.TemporaryNamespace {
-		if _, err := createOrUpdateNamespace(ctx, hostClientSet, *t.Spec.Host.Namespace, labelsSet); err != nil {
+		if _, err := createOrUpdateNamespace(ctx, hostClientSet, *t.Spec.Host.Namespace, labelsSet, annotationsSet); err != nil {
 			return err
 		}
 	}
 
-	attachPodServiceAccount, err := createOrUpdateServiceAccount(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier, labelsSet)
+	attachPodServiceAccount, err := createOrUpdateServiceAccount(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier, labelsSet, annotationsSet)
 	if err != nil {
 		return err
 	}
@@ -486,7 +493,7 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 		Name:     attachRole.Name,
 	}
 
-	_, err = createOrUpdateRoleBinding(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier, subject, roleRef, labelsSet)
+	_, err = createOrUpdateRoleBinding(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier, subject, roleRef, labelsSet, annotationsSet)
 	if err != nil {
 		return err
 	}
@@ -511,11 +518,12 @@ func deleteRole(ctx context.Context, cs *ClientSet, namespace string, name strin
 	return deleteObj(ctx, cs, role)
 }
 
-func createOrUpdateNamespace(ctx context.Context, cs *ClientSet, namespaceName string, labelsSet *labels.Set) (*corev1.Namespace, error) {
+func createOrUpdateNamespace(ctx context.Context, cs *ClientSet, namespaceName string, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Namespace, error) {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespaceName}}
 
 	return ns, CreateOrUpdateDiscardResult(ctx, cs, ns, func() error {
 		ns.Labels = labels.Merge(ns.Labels, *labelsSet)
+		ns.Annotations = utils.MergeStringMap(ns.Annotations, *annotationsSet)
 		return nil
 	})
 }
@@ -526,11 +534,12 @@ func deleteNamespace(ctx context.Context, cs *ClientSet, namespaceName string) e
 	return deleteObj(ctx, cs, ns)
 }
 
-func createOrUpdateServiceAccount(ctx context.Context, cs *ClientSet, namespace string, name string, labelsSet *labels.Set) (*corev1.ServiceAccount, error) {
+func createOrUpdateServiceAccount(ctx context.Context, cs *ClientSet, namespace string, name string, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.ServiceAccount, error) {
 	serviceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
 	return serviceAccount, CreateOrUpdateDiscardResult(ctx, cs, serviceAccount, func() error {
 		serviceAccount.Labels = labels.Merge(serviceAccount.Labels, *labelsSet)
+		serviceAccount.Annotations = utils.MergeStringMap(serviceAccount.Annotations, *annotationsSet)
 		return nil
 	})
 }
@@ -541,11 +550,12 @@ func deleteServiceAccount(ctx context.Context, cs *ClientSet, namespace string, 
 	return deleteObj(ctx, cs, serviceAccount)
 }
 
-func createOrUpdateRoleBinding(ctx context.Context, cs *ClientSet, namespace string, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelsSet *labels.Set) (*rbacv1.RoleBinding, error) {
+func createOrUpdateRoleBinding(ctx context.Context, cs *ClientSet, namespace string, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelsSet *labels.Set, annotationsSet *utils.Set) (*rbacv1.RoleBinding, error) {
 	roleBinding := &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
 	return roleBinding, CreateOrUpdateDiscardResult(ctx, cs, roleBinding, func() error {
 		roleBinding.Labels = labels.Merge(roleBinding.Labels, *labelsSet)
+		roleBinding.Annotations = utils.MergeStringMap(roleBinding.Annotations, *annotationsSet)
 
 		roleBinding.Subjects = []rbacv1.Subject{subject}
 		roleBinding.RoleRef = roleRef
@@ -560,11 +570,12 @@ func deleteRoleBinding(ctx context.Context, cs *ClientSet, namespace string, nam
 	return deleteObj(ctx, cs, roleBinding)
 }
 
-func createOrUpdateClusterRoleBinding(ctx context.Context, cs *ClientSet, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelsSet *labels.Set) (*rbacv1.ClusterRoleBinding, error) {
+func createOrUpdateClusterRoleBinding(ctx context.Context, cs *ClientSet, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelsSet *labels.Set, annotationsSet *utils.Set) (*rbacv1.ClusterRoleBinding, error) {
 	clusterRoleBinding := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: name}}
 
 	return clusterRoleBinding, CreateOrUpdateDiscardResult(ctx, cs, clusterRoleBinding, func() error {
 		clusterRoleBinding.Labels = labels.Merge(clusterRoleBinding.Labels, *labelsSet)
+		clusterRoleBinding.Annotations = utils.MergeStringMap(clusterRoleBinding.Annotations, *annotationsSet)
 
 		clusterRoleBinding.Subjects = []rbacv1.Subject{subject}
 		clusterRoleBinding.RoleRef = roleRef
@@ -579,23 +590,23 @@ func deleteClusterRoleBinding(ctx context.Context, cs *ClientSet, name string) e
 	return deleteObj(ctx, cs, clusterRoleBinding)
 }
 
-func createOrUpdateAdminKubeconfig(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set) (*corev1.Secret, error) {
-	accessSecret, err := createAccessToken(ctx, targetClientSet, t, labelsSet)
+func createOrUpdateAdminKubeconfig(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Secret, error) {
+	accessSecret, err := createAccessToken(ctx, targetClientSet, t, labelsSet, annotationsSet)
 	if err != nil {
 		return nil, err
 	}
 
-	return createOrUpdateKubeconfig(ctx, targetClientSet, hostClientSet, t, accessSecret, labelsSet)
+	return createOrUpdateKubeconfig(ctx, targetClientSet, hostClientSet, t, accessSecret, labelsSet, annotationsSet)
 }
 
-func createAccessToken(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set) (*corev1.Secret, error) {
+func createAccessToken(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Secret, error) {
 	if t.Spec.Target.TemporaryNamespace {
-		if _, err := createOrUpdateNamespace(ctx, targetClientSet, *t.Spec.Target.Namespace, labelsSet); err != nil {
+		if _, err := createOrUpdateNamespace(ctx, targetClientSet, *t.Spec.Target.Namespace, labelsSet, annotationsSet); err != nil {
 			return nil, err
 		}
 	}
 
-	accessServiceAccount, err := createOrUpdateServiceAccount(ctx, targetClientSet, *t.Spec.Target.Namespace, extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier, labelsSet)
+	accessServiceAccount, err := createOrUpdateServiceAccount(ctx, targetClientSet, *t.Spec.Target.Namespace, extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier, labelsSet, annotationsSet)
 	if err != nil {
 		return nil, err
 	}
@@ -614,9 +625,9 @@ func createAccessToken(ctx context.Context, targetClientSet *ClientSet, t *exten
 
 	switch t.Spec.Target.BindingKind {
 	case extensionsv1alpha1.BindingKindClusterRoleBinding:
-		_, err = createOrUpdateClusterRoleBinding(ctx, targetClientSet, bindingName, subject, roleRef, labelsSet)
+		_, err = createOrUpdateClusterRoleBinding(ctx, targetClientSet, bindingName, subject, roleRef, labelsSet, annotationsSet)
 	case extensionsv1alpha1.BindingKindRoleBinding:
-		_, err = createOrUpdateRoleBinding(ctx, targetClientSet, *t.Spec.Target.Namespace, bindingName, subject, roleRef, labelsSet)
+		_, err = createOrUpdateRoleBinding(ctx, targetClientSet, *t.Spec.Target.Namespace, bindingName, subject, roleRef, labelsSet, annotationsSet)
 	default:
 		panic("unknown BindingKind") // TODO validate in webhook
 	}
@@ -693,7 +704,7 @@ func clusterNameForCredential(cred extensionsv1alpha1.ClusterCredentials) (strin
 	}
 }
 
-func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, accessSecret *corev1.Secret, labelsSet *labels.Set) (*corev1.Secret, error) {
+func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, accessSecret *corev1.Secret, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Secret, error) {
 	clusterName, err := clusterNameForCredential(t.Spec.Target.Credentials)
 	if err != nil {
 		return nil, err
@@ -702,7 +713,7 @@ func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, h
 	contextNamespace := t.Spec.Target.KubeconfigContextNamespace
 	apiServerHost := targetClientSet.Host
 
-	kubeconfig, err := GenerateKubeconfigFromTokenSecret(clusterName, contextNamespace, apiServerHost, accessSecret, labelsSet)
+	kubeconfig, err := GenerateKubeconfigFromTokenSecret(clusterName, contextNamespace, apiServerHost, accessSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -713,7 +724,7 @@ func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, h
 		"kubeconfig": kubeconfig,
 	}
 
-	return createOrUpdateSecretData(ctx, hostClientSet, *t.Spec.Host.Namespace, kubeconfigSecretName, data, labelsSet)
+	return createOrUpdateSecretData(ctx, hostClientSet, *t.Spec.Host.Namespace, kubeconfigSecretName, data, labelsSet, annotationsSet)
 }
 
 func deleteKubeconfig(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
@@ -721,11 +732,12 @@ func deleteKubeconfig(ctx context.Context, hostClientSet *ClientSet, t *extensio
 	return deleteSecret(ctx, hostClientSet, *t.Spec.Host.Namespace, kubeconfigSecretName)
 }
 
-func createOrUpdateSecretData(ctx context.Context, cs *ClientSet, namespace string, name string, data map[string][]byte, labelsSet *labels.Set) (*corev1.Secret, error) {
+func createOrUpdateSecretData(ctx context.Context, cs *ClientSet, namespace string, name string, data map[string][]byte, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Secret, error) {
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
 	return secret, CreateOrUpdateDiscardResult(ctx, cs, secret, func() error {
 		secret.Labels = labels.Merge(secret.Labels, *labelsSet)
+		secret.Annotations = utils.MergeStringMap(secret.Annotations, *annotationsSet)
 
 		secret.Data = data
 		secret.Type = corev1.SecretTypeOpaque
@@ -741,7 +753,7 @@ func deleteSecret(ctx context.Context, cs *ClientSet, namespace string, name str
 }
 
 // GenerateKubeconfigFromTokenSecret generates a kubeconfig using the provided
-func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace string, apiServerHost string, secret *corev1.Secret, labelsSet *labels.Set) ([]byte, error) {
+func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace string, apiServerHost string, secret *corev1.Secret) ([]byte, error) {
 	if apiServerHost == "" {
 		return nil, errors.New("api server host is required")
 	}
@@ -796,7 +808,7 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 	return yaml.Marshal(kubeConfig)
 }
 
-func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *ClientSet, t *extensionsv1alpha1.Terminal, kubeconfigSecretName string, labelsSet *labels.Set) (*corev1.Pod, error) {
+func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *ClientSet, t *extensionsv1alpha1.Terminal, kubeconfigSecretName string, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Pod, error) {
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
 	t.Status.PodName = pod.Name
@@ -809,6 +821,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 	return pod, CreateOrUpdateDiscardResult(ctx, cs, pod, func() error {
 		pod.Labels = labels.Merge(pod.Labels, t.Spec.Host.Pod.Labels)
 		pod.Labels = labels.Merge(pod.Labels, *labelsSet)
+		pod.Annotations = utils.MergeStringMap(pod.Annotations, *annotationsSet)
 
 		automountServiceAccountToken := false
 		pod.Spec.AutomountServiceAccountToken = &automountServiceAccountToken

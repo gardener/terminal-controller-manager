@@ -268,7 +268,7 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 		return nil, errors.New("createdBy annotation not set")
 	}
 
-	targetNamespace, err := utils.ToFnvHash(*t.Spec.Target.Namespace)
+	targetNamespaceHash, err := utils.ToFnvHash(*t.Spec.Target.Namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -286,8 +286,30 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 	return &labels.Set{
 		Component: TerminalComponent,
 		"terminal.dashboard.gardener.cloud/identifier":      t.Spec.Identifier,
-		"terminal.dashboard.gardener.cloud/target-ns-hash":  targetNamespace,
+		"terminal.dashboard.gardener.cloud/target-ns-hash":  targetNamespaceHash,
 		"terminal.dashboard.gardener.cloud/created-by-hash": createdByHash,
+	}, nil
+}
+
+func (t *Terminal) NewAnnotationsSet() (*utils.Set, error) {
+	if t.Spec.Target.Namespace == nil {
+		return nil, errors.New("target namespace not set")
+	}
+
+	if len(t.ObjectMeta.Annotations[GardenCreatedBy]) == 0 && len(t.ObjectMeta.Annotations[GardenCreatedByDeprecated]) == 0 {
+		return nil, errors.New("createdBy annotation not set")
+	}
+
+	targetNamespace := *t.Spec.Target.Namespace
+
+	createdBy := t.ObjectMeta.Annotations[GardenCreatedByDeprecated]
+	if len(createdBy) == 0 {
+		createdBy = t.ObjectMeta.Annotations[GardenCreatedBy]
+	}
+
+	return &utils.Set{
+		"terminal.dashboard.gardener.cloud/target-ns":  targetNamespace,
+		"terminal.dashboard.gardener.cloud/created-by": createdBy,
 	}, nil
 }
 
