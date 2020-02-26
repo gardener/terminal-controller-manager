@@ -6,8 +6,8 @@ resources:
 
 images:
 - name: controller
-  newName: eu.gcr.io/gardener-project/gardener/terminal-controller-manager
-  newTag: latest
+  newName: psutter/dashboard-terminal
+  newTag: go1.14
 
 configMapGenerator:
 - files:
