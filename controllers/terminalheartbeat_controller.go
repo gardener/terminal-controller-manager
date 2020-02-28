@@ -73,11 +73,7 @@ func (r *TerminalHeartbeatReconciler) Reconcile(req ctrl.Request) (ctrl.Result, 
 		return ctrl.Result{}, nil
 	}
 
-	lastHeartbeat := t.ObjectMeta.Annotations[extensionsv1alpha1.TerminalLastHeartbeatDeprecated]
-	if len(lastHeartbeat) == 0 {
-		lastHeartbeat = t.ObjectMeta.Annotations[extensionsv1alpha1.TerminalLastHeartbeat]
-	}
-
+	lastHeartbeat := t.ObjectMeta.Annotations[extensionsv1alpha1.TerminalLastHeartbeat]
 	if len(lastHeartbeat) == 0 {
 		// if there is no heartbeat set, delete right away
 		return ctrl.Result{}, r.deleteTerminal(ctx, t)

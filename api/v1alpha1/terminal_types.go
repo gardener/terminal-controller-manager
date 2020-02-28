@@ -264,7 +264,7 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 		return nil, errors.New("target namespace not set")
 	}
 
-	if len(t.ObjectMeta.Annotations[GardenCreatedBy]) == 0 && len(t.ObjectMeta.Annotations[GardenCreatedByDeprecated]) == 0 {
+	if len(t.ObjectMeta.Annotations[GardenCreatedBy]) == 0 {
 		return nil, errors.New("createdBy annotation not set")
 	}
 
@@ -273,12 +273,7 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 		return nil, err
 	}
 
-	createdBy := t.ObjectMeta.Annotations[GardenCreatedByDeprecated]
-	if len(createdBy) == 0 {
-		createdBy = t.ObjectMeta.Annotations[GardenCreatedBy]
-	}
-
-	createdByHash, err := utils.ToFnvHash(createdBy)
+	createdByHash, err := utils.ToFnvHash(t.ObjectMeta.Annotations[GardenCreatedBy])
 	if err != nil {
 		return nil, err
 	}
@@ -296,16 +291,12 @@ func (t *Terminal) NewAnnotationsSet() (*utils.Set, error) {
 		return nil, errors.New("target namespace not set")
 	}
 
-	if len(t.ObjectMeta.Annotations[GardenCreatedBy]) == 0 && len(t.ObjectMeta.Annotations[GardenCreatedByDeprecated]) == 0 {
+	if len(t.ObjectMeta.Annotations[GardenCreatedBy]) == 0 {
 		return nil, errors.New("createdBy annotation not set")
 	}
 
 	targetNamespace := *t.Spec.Target.Namespace
-
-	createdBy := t.ObjectMeta.Annotations[GardenCreatedByDeprecated]
-	if len(createdBy) == 0 {
-		createdBy = t.ObjectMeta.Annotations[GardenCreatedBy]
-	}
+	createdBy := t.ObjectMeta.Annotations[GardenCreatedBy]
 
 	return &utils.Set{
 		"terminal.dashboard.gardener.cloud/target-ns":  targetNamespace,
@@ -328,21 +319,9 @@ const (
 	// of the user that created the resource.
 	GardenCreatedBy = "gardener.cloud/created-by"
 
-	// GardenCreatedBy is the key for an annotation of a terminal resource whose value contains the username
-	// of the user that created the resource.
-	//
-	// Deprecated: Use `GardenCreatedBy` instead.
-	GardenCreatedByDeprecated = "garden.sapcloud.io/createdBy"
-
 	// TerminalLastHeartbeat is the key for an annotation of a terminal resource whose value contains the username
 	// of the user that created the resource.
 	TerminalLastHeartbeat = "dashboard.gardener.cloud/last-heartbeat-at"
-
-	// TerminalLastHeartbeat is the key for an annotation of a terminal resource whose value contains the username
-	// of the user that created the resource.
-	//
-	// Deprecated: Use `TerminalLastHeartbeat` instead.
-	TerminalLastHeartbeatDeprecated = "dashboard.gardener.cloud/lastHeartbeatAt"
 
 	// ShootOperation is a constant for an annotation on a Shoot in a failed state indicating that an operation shall be performed.
 	TerminalOperation = "dashboard.gardener.cloud/operation"
