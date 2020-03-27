@@ -88,6 +88,10 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
+	if err := validateRequiredPodFileds(t); err != nil {
+		return false, err.Error(), nil
+	}
+
 	if err := validateRequiredCredentials(t); err != nil {
 		return false, err.Error(), nil
 	}
@@ -120,10 +124,6 @@ func getFieldValidations(t *v1alpha1.Terminal) *[]fldValidation {
 		{
 			value:   &t.Spec.Target.KubeconfigContextNamespace,
 			fldPath: field.NewPath("spec", "target", "kubeconfigContextNamespace"),
-		},
-		{
-			value:   &t.Spec.Host.Pod.ContainerImage,
-			fldPath: field.NewPath("spec", "host", "pod", "containerImage"),
 		},
 	}
 
@@ -159,6 +159,22 @@ func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) err
 	}
 
 	return nil
+}
+
+func validateRequiredPodFileds(t *v1alpha1.Terminal) error {
+	if len(t.Spec.Host.Pod.ContainerImage) == 0 {
+		return validateRequiredContainerFields(t.Spec.Host.Pod.Container, field.NewPath("spec", "host", "pod", "container"))
+	}
+
+	return nil
+}
+
+func validateRequiredContainerFields(container *v1alpha1.Container, fldPath *field.Path) error {
+	if container == nil {
+		return field.Required(fldPath, "field is required")
+	}
+
+	return validateRequiredField(&container.Image, fldPath.Child("image"))
 }
 
 func validateRequiredCredentials(t *v1alpha1.Terminal) error {

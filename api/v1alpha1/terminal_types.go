@@ -125,12 +125,21 @@ type Pod struct {
 	// (scope and select) objects. Will be set as labels of the pod
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
+	// Container belonging to the pod.
+	// Cannot be updated.
+	// +optional if ContainerImage is set
+	Container *Container `json:"container,omitempty"`
 	// ContainerImage defines the image used for the container.
-	ContainerImage string `json:"containerImage"`
+	// ContainerImage is ignored if Container is set.
+	// +optional
+	// Deprecated: Use `Container.Image` instead.
+	ContainerImage string `json:"containerImage,omitempty"`
 	// Run container in privileged mode.
+	// Privileged is ignored if Container is set.
 	// Processes in privileged containers are essentially equivalent to root on the host.
 	// Defaults to false.
 	// +optional
+	// Deprecated: Use `Container.Privileged` instead.
 	Privileged bool `json:"privileged,omitempty"`
 	// Host networking requested for this pod. Use the host's network namespace.
 	// Default to false.
@@ -144,6 +153,32 @@ type Pod struct {
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+}
+
+// A single application container that you want to run within a pod.
+type Container struct {
+	// Image defines the image used for the container.
+	Image string `json:"image"`
+	// Arguments to the entrypoint.
+	// The docker image's CMD is used if this is not provided.
+	// Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
+	// cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
+	// can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
+	// regardless of whether the variable exists or not.
+	// Cannot be updated.
+	// More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
+	// +optional
+	Args []string `json:"args,omitempty"`
+	// Compute Resources required by this container.
+	// Cannot be updated.
+	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	// Run container in privileged mode.
+	// Processes in privileged containers are essentially equivalent to root on the host.
+	// Defaults to false.
+	// +optional
+	Privileged bool `json:"privileged,omitempty"`
 }
 
 // ClusterCredentials define the credentials for a kubernetes cluster

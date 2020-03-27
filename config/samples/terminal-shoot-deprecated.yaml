@@ -4,9 +4,8 @@ metadata:
   annotations:
     dashboard.gardener.cloud/operation: keepalive
   namespace: garden-coretmp
-  name: term-lukas-hib-cp
+  name: term-lukas-hib-deprecated
 spec:
-  identifier: testabc
   host:
     credentials:
       serviceAccountRef:
@@ -14,19 +13,13 @@ spec:
         namespace: gardentmp
     namespace: shoot--core--mycluster
     pod:
-      container:
-        image: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.9.0
-        args:
-          - watch
-          - kubectl
-          - get
-          - pods
+      containerImage: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.1.0
   target:
     credentials:
       serviceAccountRef:
-        name: seed-myseed
-        namespace: gardentmp
-    kubeconfigContextNamespace: shoot--core--mycluster
-    namespace: shoot--core--mycluster
-    bindingKind: RoleBinding
+        name: lukas-hib.kubeconfig
+        namespace: garden-coretmp
+    kubeconfigContextNamespace: default
+    temporaryNamespace: true
+    bindingKind: ClusterRoleBinding
     roleName: cluster-admin

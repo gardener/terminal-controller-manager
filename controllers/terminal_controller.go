@@ -823,13 +823,21 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		pod.Labels = labels.Merge(pod.Labels, *labelsSet)
 		pod.Annotations = utils.MergeStringMap(pod.Annotations, *annotationsSet)
 
+		image := t.Spec.Host.Pod.ContainerImage
+		privileged := t.Spec.Host.Pod.Privileged
+
+		if t.Spec.Host.Pod.Container != nil {
+			image = t.Spec.Host.Pod.Container.Image
+			privileged = t.Spec.Host.Pod.Container.Privileged
+		}
+
 		automountServiceAccountToken := false
 		pod.Spec.AutomountServiceAccountToken = &automountServiceAccountToken
 
 		pod.Spec.HostPID = t.Spec.Host.Pod.HostPID
 		pod.Spec.HostNetwork = t.Spec.Host.Pod.HostNetwork
 
-		mountHostRootFs := t.Spec.Host.Pod.Privileged || t.Spec.Host.Pod.HostPID || t.Spec.Host.Pod.HostNetwork
+		mountHostRootFs := privileged || t.Spec.Host.Pod.HostPID || t.Spec.Host.Pod.HostNetwork
 
 		volumeExists := func(name string) bool {
 			for _, volume := range pod.Spec.Volumes {
@@ -850,6 +858,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 
 		containerName := "terminal"
 		if len(pod.Spec.Containers) == 0 {
+			// initialize values that cannot be updated
 			container := corev1.Container{Name: containerName}
 
 			container.VolumeMounts = []corev1.VolumeMount{
@@ -863,6 +872,10 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 					Name:  "KUBECONFIG",
 					Value: "/mnt/.kube/config",
 				},
+			}
+			if t.Spec.Host.Pod.Container != nil {
+				container.Args = t.Spec.Host.Pod.Container.Args
+				container.Resources = t.Spec.Host.Pod.Container.Resources
 			}
 			if mountHostRootFs {
 				rootVolumeName := "root-volume"
@@ -884,6 +897,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 
 			pod.Spec.Containers = []corev1.Container{container}
 		}
+		// update values that can be updated
 		var containerFound bool
 		var containerIndex int
 		for k, v := range pod.Spec.Containers {
@@ -897,13 +911,13 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 			return errors.New("terminal container not found")
 		}
 
-		pod.Spec.Containers[containerIndex].Image = t.Spec.Host.Pod.ContainerImage
+		pod.Spec.Containers[containerIndex].Image = image
 		pod.Spec.Containers[containerIndex].Stdin = true
 		pod.Spec.Containers[containerIndex].TTY = true
 		if pod.Spec.Containers[containerIndex].SecurityContext == nil {
 			pod.Spec.Containers[containerIndex].SecurityContext = &corev1.SecurityContext{}
 		}
-		pod.Spec.Containers[containerIndex].SecurityContext.Privileged = &t.Spec.Host.Pod.Privileged
+		pod.Spec.Containers[containerIndex].SecurityContext.Privileged = &privileged
 
 		pod.Spec.NodeSelector = t.Spec.Host.Pod.NodeSelector
 
