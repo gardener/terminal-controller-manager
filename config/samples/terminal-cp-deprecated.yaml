@@ -4,7 +4,7 @@ metadata:
   annotations:
     dashboard.gardener.cloud/operation: keepalive
   namespace: garden-coretmp
-  name: term-lukas-hib-cp
+  name: term-lukas-hib-cp-deprecated
 spec:
   identifier: testabc
   host:
@@ -14,13 +14,7 @@ spec:
         namespace: gardentmp
     namespace: shoot--core--mycluster
     pod:
-      container:
-        image: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.9.0
-        args:
-          - watch
-          - kubectl
-          - get
-          - pods
+      containerImage: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.1.0
   target:
     credentials:
       serviceAccountRef:

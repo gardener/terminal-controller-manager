@@ -36,22 +36,22 @@ func ToFnvHash(value string) (string, error) {
 
 // MergeStringMap combines given maps, and does not check for any conflicts
 // between the maps. In case of conflicts, second map (map2) wins
-func MergeStringMap(oldMap Set, newMap Set) Set {
+func MergeStringMap(map1 Set, map2 Set) Set {
 	var out map[string]string
 
-	if oldMap != nil {
+	if map1 != nil {
 		out = make(map[string]string)
 	}
 
-	for k, v := range oldMap {
+	for k, v := range map1 {
 		out[k] = v
 	}
 
-	if newMap != nil && out == nil {
+	if map2 != nil && out == nil {
 		out = make(map[string]string)
 	}
 
-	for k, v := range newMap {
+	for k, v := range map2 {
 		out[k] = v
 	}
 
