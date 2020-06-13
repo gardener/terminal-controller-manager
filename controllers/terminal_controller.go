@@ -206,9 +206,7 @@ func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error
 			finalizers.Delete(extensionsv1alpha1.TerminalName)
 			t.Finalizers = finalizers.List()
 
-			if err := r.Update(context.Background(), t); err != nil {
-				return ctrl.Result{}, err
-			}
+			return ctrl.Result{}, r.Update(ctx, t)
 		}
 
 		// Our finalizer has finished, so the reconciler can do nothing.
@@ -236,14 +234,28 @@ func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error
 		finalizers.Insert(extensionsv1alpha1.TerminalName)
 		t.Finalizers = finalizers.UnsortedList()
 
-		if err := r.Update(context.Background(), t); err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, r.Update(ctx, t)
+	}
+
+	labelsSet, err := t.NewLabelsSet()
+	if err != nil {
+		// the needed labels will be set eventually, requeue won't change that
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Transient problem - %s. Skipping...", err.Error())
+
+		return ctrl.Result{}, nil
+	}
+
+	annotationsSet, err := t.NewAnnotationsSet()
+	if err != nil {
+		// the needed annotations will be set eventually, requeue won't change that
+		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Transient problem - %s. Skipping...", err.Error())
+
+		return ctrl.Result{}, nil
 	}
 
 	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
 
-	if err := r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t); err != nil {
+	if err := r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t, labelsSet, annotationsSet); err != nil {
 		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
 		return ctrl.Result{}, errors.New(err.Description)
 	}
@@ -254,7 +266,7 @@ func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error
 }
 
 func (r *TerminalReconciler) recordEventAndLog(t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
-	r.Recorder.Eventf(t, eventType, reason, messageFmt, args)
+	r.Recorder.Eventf(t, eventType, reason, messageFmt, args...)
 	r.Log.Info(fmt.Sprintf(messageFmt, args...), "namespace", t.Namespace, "name", t.Name)
 }
 
@@ -415,18 +427,8 @@ func deleteAttachPodSecret(ctx context.Context, hostClientSet *ClientSet, t *ext
 	return deleteRole(ctx, hostClientSet, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier)
 }
 
-func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
-	labelsSet, err := t.NewLabelsSet()
-	if err != nil {
-		return formatError("Failed to reconcile terminal", err)
-	}
-
-	annotationsSet, err := t.NewAnnotationsSet()
-	if err != nil {
-		return formatError("Failed to reconcile terminal", err)
-	}
-
-	if err = r.createOrUpdateAttachPodSecret(ctx, hostClientSet, t, labelsSet, annotationsSet); err != nil {
+func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set, annotationsSet *utils.Set) *extensionsv1alpha1.LastError {
+	if err := r.createOrUpdateAttachPodSecret(ctx, hostClientSet, t, labelsSet, annotationsSet); err != nil {
 		return formatError("Failed to create or update resources needed for attaching to a pod", err)
 	}
 
@@ -811,6 +813,13 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *ClientSet, t *extensionsv1alpha1.Terminal, kubeconfigSecretName string, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Pod, error) {
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
+	const (
+		containerName                 = "terminal"
+		initContainerName             = "setup"
+		kubeconfigReadWriteVolumeName = "kubeconfig-rw"
+		kubeconfigReadOnlyVolumeName  = "kubeconfig"
+	)
+
 	t.Status.PodName = pod.Name
 
 	err := r.Status().Update(ctx, t)
@@ -839,14 +848,6 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 
 		mountHostRootFs := privileged || t.Spec.Host.Pod.HostPID || t.Spec.Host.Pod.HostNetwork
 
-		volumeExists := func(name string) bool {
-			for _, volume := range pod.Spec.Volumes {
-				if volume.Name == name {
-					return true
-				}
-			}
-			return false
-		}
 		tolerationExists := func(key string) bool {
 			for _, toleration := range pod.Spec.Tolerations {
 				if toleration.Key == key {
@@ -856,14 +857,13 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 			return false
 		}
 
-		containerName := "terminal"
 		if len(pod.Spec.Containers) == 0 {
 			// initialize values that cannot be updated
 			container := corev1.Container{Name: containerName}
 
 			container.VolumeMounts = []corev1.VolumeMount{
 				{
-					Name:      "kubeconfig",
+					Name:      kubeconfigReadWriteVolumeName,
 					MountPath: "mnt/.kube",
 				},
 			}
@@ -896,6 +896,47 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 			}
 
 			pod.Spec.Containers = []corev1.Container{container}
+
+			pod.Spec.InitContainers = []corev1.Container{{
+				Name:  initContainerName,
+				Image: image,
+				Command: []string{
+					"/bin/cp",
+					"/mnt/.kube-ro/config",
+					"/mnt/.kube-rw/config",
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						MountPath: "/mnt/.kube-rw",
+						Name:      kubeconfigReadWriteVolumeName,
+					},
+					{
+						MountPath: "/mnt/.kube-ro",
+						Name:      kubeconfigReadOnlyVolumeName,
+					},
+				},
+			}}
+			pod.Spec.Volumes = []corev1.Volume{
+				{
+					Name: kubeconfigReadOnlyVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: kubeconfigSecretName,
+							Items: []corev1.KeyToPath{
+								{
+									Key:  "kubeconfig",
+									Path: "config",
+								},
+							},
+						},
+					},
+				},
+				{
+					Name: kubeconfigReadWriteVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{Medium: corev1.StorageMediumDefault}},
+				},
+			}
 		}
 		// update values that can be updated
 		var containerFound bool
@@ -920,26 +961,6 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		pod.Spec.Containers[containerIndex].SecurityContext.Privileged = &privileged
 
 		pod.Spec.NodeSelector = t.Spec.Host.Pod.NodeSelector
-
-		if len(pod.Spec.Volumes) == 0 {
-			pod.Spec.Volumes = []corev1.Volume{}
-		}
-		if !volumeExists("kubeconfig") {
-			pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-				Name: "kubeconfig",
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: kubeconfigSecretName,
-						Items: []corev1.KeyToPath{
-							{
-								Key:  "kubeconfig",
-								Path: "config",
-							},
-						},
-					},
-				},
-			})
-		}
 
 		if len(t.Spec.Host.Pod.NodeSelector) > 0 {
 			if len(pod.Spec.Tolerations) == 0 {
