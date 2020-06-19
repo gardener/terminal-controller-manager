@@ -874,6 +874,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 				},
 			}
 			if t.Spec.Host.Pod.Container != nil {
+				container.Command = t.Spec.Host.Pod.Container.Command
 				container.Args = t.Spec.Host.Pod.Container.Args
 				container.Resources = t.Spec.Host.Pod.Container.Resources
 			}
