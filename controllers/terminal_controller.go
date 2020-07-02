@@ -874,6 +874,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 				},
 			}
 			if t.Spec.Host.Pod.Container != nil {
+				container.Command = t.Spec.Host.Pod.Container.Command
 				container.Args = t.Spec.Host.Pod.Container.Args
 				container.Resources = t.Spec.Host.Pod.Container.Resources
 			}
@@ -916,7 +917,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 					},
 				},
 			}}
-			pod.Spec.Volumes = []corev1.Volume{
+			pod.Spec.Volumes = append(pod.Spec.Volumes, []corev1.Volume{
 				{
 					Name: kubeconfigReadOnlyVolumeName,
 					VolumeSource: corev1.VolumeSource{
@@ -936,7 +937,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{Medium: corev1.StorageMediumDefault}},
 				},
-			}
+			}...)
 		}
 		// update values that can be updated
 		var containerFound bool
