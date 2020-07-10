@@ -276,7 +276,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 		"terminal": "admission-configuration",
 	}).String()
 
-	mutatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().List(webhookConfigurationOptions)
+	mutatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
 		return errors.New(err.Error())
 	}
@@ -300,7 +300,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 		return fmt.Errorf("terminal %s has been created before mutating webhook was configured. Deleting resource", t.ObjectMeta.Name)
 	}
 
-	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().List(webhookConfigurationOptions)
+	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
 		return errors.New(err.Error())
 	}
@@ -653,11 +653,11 @@ func WaitUntilTokenAvailable(ctx context.Context, cs *ClientSet, serviceAccount 
 	lw := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			options.FieldSelector = fieldSelector
-			return cs.Kubernetes.CoreV1().ServiceAccounts(serviceAccount.Namespace).List(options)
+			return cs.Kubernetes.CoreV1().ServiceAccounts(serviceAccount.Namespace).List(ctx, options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 			options.FieldSelector = fieldSelector
-			return cs.Kubernetes.CoreV1().ServiceAccounts(serviceAccount.Namespace).Watch(options)
+			return cs.Kubernetes.CoreV1().ServiceAccounts(serviceAccount.Namespace).Watch(ctx, options)
 		},
 	}
 
