@@ -3,7 +3,7 @@
 IMG ?= eu.gcr.io/gardener-project/gardener/terminal-controller-manager:latest
 
 # Kube RBAC Proxy image to use
-IMG_RBAC_PROXY ?= gcr.io/kubebuilder/kube-rbac-proxy:v0.4.1
+IMG_RBAC_PROXY ?= gcr.io/kubebuilder/kube-rbac-proxy:v0.5.0
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
@@ -67,7 +67,7 @@ lint: $(GOPATH)/bin/golangci-lint
 	golangci-lint run ./... -E golint,whitespace,wsl --skip-files "zz_generated.*"
 
 $(GOPATH)/bin/golangci-lint:
-	go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
 
 # Generate code
 generate: controller-gen
@@ -90,7 +90,7 @@ ifeq (, $(shell which controller-gen))
 	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
 	cd $$CONTROLLER_GEN_TMP_DIR ;\
 	go mod init tmp ;\
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.5 ;\
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0 ;\
 	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
 	}
 CONTROLLER_GEN=$(GOBIN)/controller-gen
