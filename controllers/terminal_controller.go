@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -713,7 +714,39 @@ func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, h
 	}
 
 	contextNamespace := t.Spec.Target.KubeconfigContextNamespace
-	apiServerHost := targetClientSet.Host
+
+	var apiServerHost string
+
+	if t.Spec.Target.APIServerServiceRef != nil && t.Spec.Target.APIServerServiceRef.Name != "" {
+		var namespace string
+		if t.Spec.Target.APIServerServiceRef.Namespace != "" {
+			namespace = t.Spec.Target.APIServerServiceRef.Namespace
+		} else {
+			namespace = *t.Spec.Host.Namespace
+		}
+
+		name := t.Spec.Target.APIServerServiceRef.Name
+
+		// validate that kube-apiserver service really exists
+		if err := hostClientSet.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &corev1.Service{}); err != nil {
+			if kErros.IsNotFound(err) {
+				return nil, fmt.Errorf("kube-apiserver service %s/%s not found", namespace, name)
+			}
+
+			return nil, err
+		}
+
+		host := name + "." + namespace + ".svc"
+
+		baseURL, err := url.Parse("https://" + host)
+		if err != nil {
+			return nil, err
+		}
+
+		apiServerHost = baseURL.String()
+	} else {
+		apiServerHost = targetClientSet.Host
+	}
 
 	kubeconfig, err := GenerateKubeconfigFromTokenSecret(clusterName, contextNamespace, apiServerHost, accessSecret)
 	if err != nil {
@@ -845,6 +878,11 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 
 		pod.Spec.HostPID = t.Spec.Host.Pod.HostPID
 		pod.Spec.HostNetwork = t.Spec.Host.Pod.HostNetwork
+
+		if t.Spec.Host.Pod.HostNetwork {
+			// For Pods running with hostNetwork, we need to explicitly set its DNS policy "ClusterFirstWithHostNet"
+			pod.Spec.DNSPolicy = corev1.DNSClusterFirstWithHostNet
+		}
 
 		mountHostRootFs := privileged || t.Spec.Host.Pod.HostPID || t.Spec.Host.Pod.HostNetwork
 

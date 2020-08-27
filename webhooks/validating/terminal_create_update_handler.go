@@ -118,6 +118,10 @@ func getFieldValidations(t *v1alpha1.Terminal) *[]fldValidation {
 			fldPath: field.NewPath("spec", "target", "namespace"),
 		},
 		{
+			value:   t.Spec.Host.Namespace, // The mutating webhook ensures that a host namespace is set in case TemporaryNamespace is true
+			fldPath: field.NewPath("spec", "host", "namespace"),
+		},
+		{
 			value:   &t.Spec.Target.RoleName,
 			fldPath: field.NewPath("spec", "target", "roleName"),
 		},
