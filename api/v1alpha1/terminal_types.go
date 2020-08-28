@@ -76,7 +76,7 @@ type HostCluster struct {
 	Credentials ClusterCredentials `json:"credentials"`
 
 	// Namespace is the namespace where the pod resides in
-	// This field should not be set if TemporaryNamespace is set to true
+	// This field should not be set if TemporaryNamespace is set to true but must be set in case TemporaryNamespace is set to false.
 	// +optional
 	Namespace *string `json:"namespace,omitempty"`
 
@@ -107,6 +107,10 @@ type TargetCluster struct {
 
 	// KubeconfigContextNamespace is a reference to the namespace within the host cluster that should be used as default in the kubeconfig context
 	KubeconfigContextNamespace string `json:"kubeconfigContextNamespace"`
+
+	// APIServerServiceRef is a reference to the kube-apiserver service on the host cluster that points to the kube-apiserver of the target cluster. If no namespace is set on the object reference, it is defaulted to Spec.Host.Namespace.
+	// +optional
+	APIServerServiceRef *corev1.ObjectReference `json:"apiServerServiceRef,omitempty"`
 
 	// RoleName is the name of the ClusterRole the "access" service account is bound to.
 	RoleName string `json:"roleName"`
