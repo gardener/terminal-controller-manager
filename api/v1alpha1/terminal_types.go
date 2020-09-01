@@ -233,6 +233,11 @@ type ControllerManagerConfiguration struct {
 	Webhooks ControllerManagerWebhookConfiguration `yaml:"webhooks"`
 	// Logger defines the configuration of the zap logging module.
 	Logger ControllerManagerLoggerConfiguration `yaml:"logger"`
+	// HonourServiceAccountRef defines if the `credentials.serviceAccountRef` property should be honoured.
+	// It is recommended to be set to false for multi-cluster setups, in case pods are refused on the (virtual) cluster where the terminal resources are stored.
+	// Defaults to true.
+	// +optional
+	HonourServiceAccountRef bool `yaml:"honourServiceAccountRef"`
 }
 
 // ControllerManagerLogger defines the configuration of the Zap Logger.

@@ -183,6 +183,7 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 		Logger: v1alpha1.ControllerManagerLoggerConfiguration{
 			Development: true,
 		},
+		HonourServiceAccountRef: true,
 	}
 
 	if err := readFile(configFile, &cfg); err != nil {

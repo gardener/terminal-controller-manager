@@ -1,0 +1,4 @@
+configMapGenerator:
+  - files:
+      - config.yaml
+    name: controller-manager-configmap

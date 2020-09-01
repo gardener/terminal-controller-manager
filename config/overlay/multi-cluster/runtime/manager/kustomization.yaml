@@ -7,3 +7,8 @@ resources:
 patchesStrategicMerge:
 - manager_kubeconfig_patch.yaml
 - manager_auth_proxy_kubeconfig_patch.yaml
+
+configMapGenerator:
+  - files:
+      - config.yaml
+    name: controller-manager-configmap
