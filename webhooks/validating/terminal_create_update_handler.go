@@ -92,7 +92,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	if err := validateRequiredCredentials(t); err != nil {
+	if err := h.validateRequiredCredentials(t); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -181,17 +181,27 @@ func validateRequiredContainerFields(container *v1alpha1.Container, fldPath *fie
 	return validateRequiredField(&container.Image, fldPath.Child("image"))
 }
 
-func validateRequiredCredentials(t *v1alpha1.Terminal) error {
-	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials")); err != nil {
+func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) error {
+	if err := h.validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials")); err != nil {
 		return err
 	}
 
-	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"))
+	return h.validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"))
 }
 
-func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path) error {
-	if cred.SecretRef == nil && cred.ServiceAccountRef == nil {
-		return field.Required(fldPath, "field requires either SecretRef or ServiceAccountRef to be set")
+func (h *TerminalValidator) validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path) error {
+	if !h.Config.HonourServiceAccountRef {
+		if cred.ServiceAccountRef != nil {
+			return field.Forbidden(fldPath, "field is forbidden by configuration")
+		}
+
+		if cred.SecretRef == nil {
+			return field.Required(fldPath, "field requires SecretRef to be set")
+		}
+	} else {
+		if cred.SecretRef == nil && cred.ServiceAccountRef == nil {
+			return field.Required(fldPath, "field requires either SecretRef or ServiceAccountRef to be set")
+		}
 	}
 
 	if cred.SecretRef != nil {

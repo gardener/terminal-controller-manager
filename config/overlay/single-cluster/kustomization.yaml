@@ -13,6 +13,7 @@ resources:
 - ../../rbac-rt
 - ../../secret
 - webhook-admission
+- manager
 
 vars:
   - name: TLSCERT # somehow this var cannot be defined in the config/webhook-admission/kustomization.yaml

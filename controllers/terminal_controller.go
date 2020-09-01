@@ -169,8 +169,8 @@ func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error
 
 	gardenClientSet := r.ClientSet
 
-	hostClientSet, hostClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials)
-	targetClientSet, targetClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials)
+	hostClientSet, hostClientSetErr := r.NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials)
+	targetClientSet, targetClientSetErr := r.NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials)
 
 	if !t.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is being deleted
@@ -1039,10 +1039,10 @@ func NewClientSet(config *rest.Config, client client.Client, kubernetes kubernet
 	return &ClientSet{config, client, kubernetes}
 }
 
-func NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, credentials extensionsv1alpha1.ClusterCredentials) (*ClientSet, error) {
+func (r *TerminalReconciler) NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, credentials extensionsv1alpha1.ClusterCredentials) (*ClientSet, error) {
 	if credentials.SecretRef != nil {
 		return NewClientSetFromSecretRef(ctx, cs, credentials.SecretRef)
-	} else if credentials.ServiceAccountRef != nil {
+	} else if r.Config.HonourServiceAccountRef && credentials.ServiceAccountRef != nil {
 		return NewClientSetFromServiceAccountRef(ctx, cs, credentials.ServiceAccountRef)
 	} else {
 		return nil, errors.New("no cluster credentials provided")
