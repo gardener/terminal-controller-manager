@@ -34,10 +34,10 @@ spec:
         resources:
           limits:
             cpu: 200m
-            memory: 200Mi
+            memory: 300Mi
           requests:
             cpu: 100m
-            memory: 80Mi
+            memory: 100Mi
         securityContext:
           runAsNonRoot: true
         volumeMounts:
