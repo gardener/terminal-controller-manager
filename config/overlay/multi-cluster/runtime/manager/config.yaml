@@ -3,4 +3,4 @@ kind: ControllerManagerConfiguration
 apiVersion: v1alpha1
 logger:
   development: false
-honourServiceAccountRef: false # recommended to be disabled for multi-cluster overlay
+honourServiceAccountRefHostCluster: false # recommended to be disabled for multi-cluster overlay

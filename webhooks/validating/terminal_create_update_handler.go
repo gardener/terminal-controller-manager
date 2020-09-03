@@ -182,17 +182,17 @@ func validateRequiredContainerFields(container *v1alpha1.Container, fldPath *fie
 }
 
 func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) error {
-	if err := h.validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials")); err != nil {
+	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.Config.HonourServiceAccountRefTargetCluster); err != nil {
 		return err
 	}
 
-	return h.validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"))
+	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.Config.HonourServiceAccountRefHostCluster)
 }
 
-func (h *TerminalValidator) validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path) error {
-	if !h.Config.HonourServiceAccountRef {
+func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef bool) error {
+	if !honourServiceAccountRef {
 		if cred.ServiceAccountRef != nil {
-			return field.Forbidden(fldPath, "field is forbidden by configuration")
+			return field.Forbidden(fldPath.Child("serviceAccountRef"), "field is forbidden by configuration")
 		}
 
 		if cred.SecretRef == nil {
