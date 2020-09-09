@@ -110,13 +110,29 @@ type TargetCluster struct {
 
 	// APIServerServiceRef is a reference to the kube-apiserver service on the host cluster that points to the kube-apiserver of the target cluster. If no namespace is set on the object reference, it is defaulted to Spec.Host.Namespace.
 	// +optional
+	// Deprecated: use APIServer.ServiceRef instead
 	APIServerServiceRef *corev1.ObjectReference `json:"apiServerServiceRef,omitempty"`
+
+	// APIServer references the kube-apiserver of the target cluster. If APIServer is set, either APIServer.ServiceRef or APIServer.Server has to be set
+	// +optional
+	APIServer *APIServer `json:"apiServer,omitempty"`
 
 	// RoleName is the name of the ClusterRole the "access" service account is bound to.
 	RoleName string `json:"roleName"`
 
 	// BindingKind defines the desired role binding. ClusterRoleBinding will result in a ClusterRoleBinding. RoleBinding will result in a RoleBinding.
 	BindingKind BindingKind `json:"bindingKind"`
+}
+
+// APIServer references the kube-apiserver. If APIServer is set, either ServiceRef or Server has to be set
+type APIServer struct {
+	// ServiceRef is a reference to the kube-apiserver service on the host cluster that points to the kube-apiserver of the target cluster. If no namespace is set on the object reference, it is defaulted to Spec.Host.Namespace.
+	// +optional
+	ServiceRef *corev1.ObjectReference `json:"serviceRef,omitempty"`
+
+	// Server is the address of the target kubernetes cluster (https://hostname:port). The address should be accessible from the terminal pod within the host cluster.
+	// +optional
+	Server string `json:"server,omitempty"`
 }
 
 // BindingKind describes the desired role binding

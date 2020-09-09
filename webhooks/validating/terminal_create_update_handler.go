@@ -88,11 +88,15 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	if err := validateRequiredPodFileds(t); err != nil {
+	if err := validateRequiredPodFields(t); err != nil {
 		return false, err.Error(), nil
 	}
 
 	if err := h.validateRequiredCredentials(t); err != nil {
+		return false, err.Error(), nil
+	}
+
+	if err := validateRequiredAPIServerFields(t); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -165,7 +169,7 @@ func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) err
 	return nil
 }
 
-func validateRequiredPodFileds(t *v1alpha1.Terminal) error {
+func validateRequiredPodFields(t *v1alpha1.Terminal) error {
 	if len(t.Spec.Host.Pod.ContainerImage) == 0 {
 		return validateRequiredContainerFields(t.Spec.Host.Pod.Container, field.NewPath("spec", "host", "pod", "container"))
 	}
@@ -179,6 +183,26 @@ func validateRequiredContainerFields(container *v1alpha1.Container, fldPath *fie
 	}
 
 	return validateRequiredField(&container.Image, fldPath.Child("image"))
+}
+
+func validateRequiredAPIServerFields(t *v1alpha1.Terminal) error {
+	if t.Spec.Target.APIServerServiceRef != nil {
+		return validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name"))
+	}
+
+	if t.Spec.Target.APIServer != nil {
+		if t.Spec.Target.APIServer.ServiceRef == nil && t.Spec.Target.APIServer.Server == "" {
+			return field.Required(
+				field.NewPath("spec", "target", "apiServer", "server"),
+				"field or " + field.NewPath("spec", "target", "apiServer", "serviceRef").String() + " field is required when " + field.NewPath("spec", "target", "apiServer").String() + " is set")
+		}
+
+		if t.Spec.Target.APIServer.ServiceRef != nil {
+			return validateRequiredField(&t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name"))
+		}
+	}
+
+	return nil
 }
 
 func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) error {

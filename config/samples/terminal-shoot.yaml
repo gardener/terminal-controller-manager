@@ -24,6 +24,8 @@ spec:
     temporaryNamespace: true
     bindingKind: ClusterRoleBinding
     roleName: cluster-admin
-#    apiServerServiceRef:
-#      name: kubernetes
-#      namespace: default
+#    apiServer:
+##      serviceRef:
+##        name: kubernetes
+##        namespace: default
+#      server: https://kubernetes.default.svc
