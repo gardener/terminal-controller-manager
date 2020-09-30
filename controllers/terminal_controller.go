@@ -715,17 +715,27 @@ func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, h
 
 	contextNamespace := t.Spec.Target.KubeconfigContextNamespace
 
-	var apiServerHost string
+	var server string
 
-	if t.Spec.Target.APIServerServiceRef != nil && t.Spec.Target.APIServerServiceRef.Name != "" {
+	var apiServerServiceRef *corev1.ObjectReference
+
+	if t.Spec.Target.APIServerServiceRef != nil {
+		apiServerServiceRef = t.Spec.Target.APIServerServiceRef
+	}
+
+	if t.Spec.Target.APIServer != nil && t.Spec.Target.APIServer.ServiceRef != nil {
+		apiServerServiceRef = t.Spec.Target.APIServer.ServiceRef
+	}
+
+	if apiServerServiceRef != nil && apiServerServiceRef.Name != "" {
 		var namespace string
-		if t.Spec.Target.APIServerServiceRef.Namespace != "" {
-			namespace = t.Spec.Target.APIServerServiceRef.Namespace
+		if apiServerServiceRef.Namespace != "" {
+			namespace = apiServerServiceRef.Namespace
 		} else {
 			namespace = *t.Spec.Host.Namespace
 		}
 
-		name := t.Spec.Target.APIServerServiceRef.Name
+		name := apiServerServiceRef.Name
 
 		// validate that kube-apiserver service really exists
 		if err := hostClientSet.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &corev1.Service{}); err != nil {
@@ -743,12 +753,14 @@ func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, h
 			return nil, err
 		}
 
-		apiServerHost = baseURL.String()
+		server = baseURL.String()
+	} else if t.Spec.Target.APIServer != nil && len(t.Spec.Target.APIServer.Server) > 0 {
+		server = t.Spec.Target.APIServer.Server
 	} else {
-		apiServerHost = targetClientSet.Host
+		server = targetClientSet.Host
 	}
 
-	kubeconfig, err := GenerateKubeconfigFromTokenSecret(clusterName, contextNamespace, apiServerHost, accessSecret)
+	kubeconfig, err := GenerateKubeconfigFromTokenSecret(clusterName, contextNamespace, server, accessSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -788,14 +800,14 @@ func deleteSecret(ctx context.Context, cs *ClientSet, namespace string, name str
 }
 
 // GenerateKubeconfigFromTokenSecret generates a kubeconfig using the provided
-func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace string, apiServerHost string, secret *corev1.Secret) ([]byte, error) {
-	if apiServerHost == "" {
+func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace string, server string, secret *corev1.Secret) ([]byte, error) {
+	if server == "" {
 		return nil, errors.New("api server host is required")
 	}
 
-	matched, _ := regexp.MatchString(`^https:\/\/localhost:\d{1,5}$`, apiServerHost)
+	matched, _ := regexp.MatchString(`^https:\/\/localhost:\d{1,5}$`, server)
 	if matched {
-		apiServerHost = "https://kubernetes.default.svc.cluster.local"
+		server = "https://kubernetes.default.svc.cluster.local"
 	}
 
 	token, ok := secret.Data[corev1.ServiceAccountTokenKey]
@@ -813,7 +825,7 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 			{
 				Name: clusterName,
 				Cluster: clientcmdv1.Cluster{
-					Server:                   apiServerHost,
+					Server:                   server,
 					InsecureSkipTLSVerify:    false,
 					CertificateAuthorityData: secret.Data[corev1.ServiceAccountRootCAKey],
 				},
