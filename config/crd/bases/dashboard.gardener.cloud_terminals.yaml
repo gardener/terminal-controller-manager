@@ -319,13 +319,95 @@ spec:
                       description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                       type: string
                   type: object
+                authorization:
+                  description: Authorization the desired (temporary) privileges the
+                    "access" service account should receive. Either rbac role bindings
+                    can be defined, or the service account can be added as member
+                    to a gardener project with specific roles. In the latter case,
+                    gardener manages the rbac.
+                  properties:
+                    projectMemberships:
+                      description: ProjectMemberships defines the (temporary) project
+                        memberships of the "access" service account. Each project
+                        is updated by using the target.credential, hence the target
+                        has the be the (virtual) garden cluster.
+                      items:
+                        description: ProjectMembership defines the (temporary) project
+                          membership of the "access" service account. The project
+                          is updated by using the target.credential, hence the target
+                          has the be the (virtual) garden cluster.
+                        properties:
+                          projectName:
+                            description: ProjectName is the name of the project, the
+                              "access" service account should be member of
+                            type: string
+                          roles:
+                            description: Roles defines the gardener roles the "access"
+                              service account should receive, e.g. admin, viewer,
+                              uam.
+                            items:
+                              type: string
+                            type: array
+                        required:
+                        - projectName
+                        - roles
+                        type: object
+                      type: array
+                    roleBindings:
+                      description: RoleBindings defines the desired (temporary) rbac
+                        role bindings the "access" service account should be assigned
+                        to
+                      items:
+                        properties:
+                          bindingKind:
+                            description: BindingKind defines the desired role binding.
+                              ClusterRoleBinding will result in a ClusterRoleBinding.
+                              RoleBinding will result in a RoleBinding.
+                            enum:
+                            - ClusterRoleBinding
+                            - RoleBinding
+                            - ""
+                            type: string
+                          nameSuffix:
+                            description: NameSuffix is the name suffix of the temporary
+                              (Cluster)RoleBinding that will be created. NameSuffix
+                              should be unique
+                            type: string
+                          roleRef:
+                            description: RoleRef can reference a Role in the current
+                              namespace or a ClusterRole in the global namespace.
+                            properties:
+                              apiGroup:
+                                description: APIGroup is the group for the resource
+                                  being referenced
+                                type: string
+                              kind:
+                                description: Kind is the type of resource being referenced
+                                type: string
+                              name:
+                                description: Name is the name of resource being referenced
+                                type: string
+                            required:
+                            - apiGroup
+                            - kind
+                            - name
+                            type: object
+                        required:
+                        - bindingKind
+                        - nameSuffix
+                        - roleRef
+                        type: object
+                      type: array
+                  type: object
                 bindingKind:
-                  description: BindingKind defines the desired role binding. ClusterRoleBinding
+                  description: 'BindingKind defines the desired role binding. ClusterRoleBinding
                     will result in a ClusterRoleBinding. RoleBinding will result in
-                    a RoleBinding.
+                    a RoleBinding. Deprecated: use Authorization.RoleBindings[].BindingKind
+                    instead'
                   enum:
                   - ClusterRoleBinding
                   - RoleBinding
+                  - ""
                   type: string
                 credentials:
                   description: ClusterCredentials define the credentials to the target
@@ -396,8 +478,9 @@ spec:
                     should not be set if TemporaryNamespace is set to true
                   type: string
                 roleName:
-                  description: RoleName is the name of the ClusterRole the "access"
-                    service account is bound to.
+                  description: 'RoleName is the name of the ClusterRole the "access"
+                    service account is bound to. Deprecated: use Authorization.RoleBindings[].RoleRef.NameSuffix
+                    instead'
                   type: string
                 temporaryNamespace:
                   description: TemporaryNamespace is a flag to indicate if the namespace
@@ -409,10 +492,8 @@ spec:
                     of the temporary namespace.
                   type: boolean
               required:
-              - bindingKind
               - credentials
               - kubeconfigContextNamespace
-              - roleName
               type: object
           required:
           - host

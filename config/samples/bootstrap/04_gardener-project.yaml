@@ -1,0 +1,12 @@
+apiVersion: core.gardener.cloud/v1beta1
+kind: Project
+metadata:
+  annotations:
+  name: core-tmp
+spec:
+  namespace: garden-coretmp
+  members:
+    - kind: ServiceAccount
+      name: robot
+      namespace: garden-coretmp
+      role: admin

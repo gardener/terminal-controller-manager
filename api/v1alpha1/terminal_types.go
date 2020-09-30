@@ -18,6 +18,7 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"time"
 
 	"github.com/gardener/terminal-controller-manager/utils"
@@ -118,10 +119,48 @@ type TargetCluster struct {
 	APIServer *APIServer `json:"apiServer,omitempty"`
 
 	// RoleName is the name of the ClusterRole the "access" service account is bound to.
-	RoleName string `json:"roleName"`
+	// +optional
+	// Deprecated: use Authorization.RoleBindings[].RoleRef.NameSuffix instead
+	RoleName string `json:"roleName,omitempty"`
+
+	// BindingKind defines the desired role binding. ClusterRoleBinding will result in a ClusterRoleBinding. RoleBinding will result in a RoleBinding.
+	// +optional
+	// Deprecated: use Authorization.RoleBindings[].BindingKind instead
+	BindingKind BindingKind `json:"bindingKind,omitempty"`
+
+	Authorization *Authorization `json:"authorization,omitempty"`
+}
+
+// Authorization the desired (temporary) privileges the "access" service account should receive.
+// Either rbac role bindings can be defined, or the service account can be added as member to a gardener project with specific roles. In the latter case, gardener manages the rbac.
+type Authorization struct {
+	// RoleBindings defines the desired (temporary) rbac role bindings the "access" service account should be assigned to
+	// +optional
+	RoleBindings []RoleBinding `json:"roleBindings,omitempty"`
+
+	// ProjectMemberships defines the (temporary) project memberships of the "access" service account. Each project is updated by using the target.credential, hence the target has the be the (virtual) garden cluster.
+	// +optional
+	ProjectMemberships []ProjectMembership `json:"projectMemberships,omitempty"`
+}
+
+type RoleBinding struct {
+	// NameSuffix is the name suffix of the temporary (Cluster)RoleBinding that will be created. NameSuffix should be unique
+	NameSuffix string `json:"nameSuffix"`
+
+	// RoleRef can reference a Role in the current namespace or a ClusterRole in the global namespace.
+	RoleRef rbacv1.RoleRef `json:"roleRef"`
 
 	// BindingKind defines the desired role binding. ClusterRoleBinding will result in a ClusterRoleBinding. RoleBinding will result in a RoleBinding.
 	BindingKind BindingKind `json:"bindingKind"`
+}
+
+// ProjectMembership defines the (temporary) project membership of the "access" service account. The project is updated by using the target.credential, hence the target has the be the (virtual) garden cluster.
+type ProjectMembership struct {
+	// ProjectName is the name of the project, the "access" service account should be member of
+	ProjectName string `json:"projectName"`
+
+	// Roles defines the gardener roles the "access" service account should receive, e.g. admin, viewer, uam.
+	Roles []string `json:"roles"`
 }
 
 // APIServer references the kube-apiserver. If APIServer is set, either ServiceRef or Server has to be set
@@ -136,8 +175,12 @@ type APIServer struct {
 }
 
 // BindingKind describes the desired role binding
-// +kubebuilder:validation:Enum=ClusterRoleBinding;RoleBinding
+// +kubebuilder:validation:Enum=ClusterRoleBinding;RoleBinding;""
 type BindingKind string
+
+func (c BindingKind) String() string {
+	return string(c)
+}
 
 // Pod defines the desired state of the pod
 type Pod struct {
@@ -249,6 +292,7 @@ type ControllerManagerConfiguration struct {
 	Webhooks ControllerManagerWebhookConfiguration `yaml:"webhooks"`
 	// Logger defines the configuration of the zap logging module.
 	Logger ControllerManagerLoggerConfiguration `yaml:"logger"`
+
 	// HonourServiceAccountRefHostCluster defines if `host.credentials.serviceAccountRef` property should be honoured.
 	// It is recommended to be set to false for multi-cluster setups, in case pods are refused on the (virtual) cluster where the terminal resources are stored.
 	// Defaults to true.
@@ -258,6 +302,11 @@ type ControllerManagerConfiguration struct {
 	// Defaults to true.
 	// +optional
 	HonourServiceAccountRefTargetCluster bool `yaml:"honourServiceAccountRefTargetCluster"`
+	// HonourProjectMemberships defines if `target.authorization.projectMemberships` property should be honoured.
+	// It is recommended to be set to false in case no gardener API server extension is registered for the (virtual) cluster where the terminal resources are stored.
+	// Defaults to true.
+	// +optional
+	HonourProjectMemberships bool `yaml:"honourProjectMemberships"`
 }
 
 // ControllerManagerLogger defines the configuration of the Zap Logger.
@@ -400,6 +449,10 @@ const (
 
 	// ShootOperation is a constant for an annotation on a Shoot in a failed state indicating that an operation shall be performed.
 	TerminalOperation = "dashboard.gardener.cloud/operation"
+
+	// Description is the key for an annotation whose value contains the description for this resource
+	// of the user that created the resource.
+	Description = "dashboard.gardener.cloud/description"
 
 	// ShootOperationMaintain is a constant for an annotation on a Shoot indicating that the Shoot maintenance shall be executed as soon as
 	// possible.

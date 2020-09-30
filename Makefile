@@ -37,10 +37,15 @@ install: manifests
 uninstall: manifests
 	kustomize build config/crd | kubectl delete -f -
 
-# Install resources into a dev cluster
+# Install example resources into a dev cluster
 bootstrap-dev: install
 	kubectl apply -f config/samples/bootstrap/01_namespaces.yaml
 	kubectl apply -f config/samples/bootstrap/02_rbac.yaml
+
+# Install example resources and gardener project into a dev cluster
+bootstrap-dev-project: bootstrap-dev
+	kubectl apply -f config/samples/bootstrap/03_gardener-rbac.yaml
+	kubectl apply -f config/samples/bootstrap/04_gardener-project.yaml
 
 apply-image: manifests
 	cd config/manager && kustomize edit set image "controller=${IMG}"

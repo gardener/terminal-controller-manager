@@ -96,6 +96,10 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
+	if err := h.validateRequiredTargetAuthorization(t); err != nil {
+		return false, err.Error(), nil
+	}
+
 	if err := validateRequiredAPIServerFields(t); err != nil {
 		return false, err.Error(), nil
 	}
@@ -124,10 +128,6 @@ func getFieldValidations(t *v1alpha1.Terminal) *[]fldValidation {
 		{
 			value:   t.Spec.Host.Namespace, // The mutating webhook ensures that a host namespace is set in case TemporaryNamespace is true
 			fldPath: field.NewPath("spec", "host", "namespace"),
-		},
-		{
-			value:   &t.Spec.Target.RoleName,
-			fldPath: field.NewPath("spec", "target", "roleName"),
 		},
 		{
 			value:   &t.Spec.Target.KubeconfigContextNamespace,
@@ -257,6 +257,90 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 		}
 		if err := validateRequiredFields(fldValidations); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *TerminalValidator) validateRequiredTargetAuthorization(t *v1alpha1.Terminal) error {
+	fldPath := field.NewPath("spec", "target")
+
+	if t.Spec.Target.RoleName != ""  {
+		if t.Spec.Target.BindingKind != v1alpha1.BindingKindClusterRoleBinding && t.Spec.Target.BindingKind != v1alpha1.BindingKindRoleBinding {
+			return field.Invalid(fldPath.Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either " + v1alpha1.BindingKindClusterRoleBinding.String() + " or " +  v1alpha1.BindingKindRoleBinding.String())
+		}
+	}
+
+	if t.Spec.Target.Authorization != nil {
+		fldPath = fldPath.Child("authorization")
+
+		if err := validateRoleBindings(t, fldPath); err != nil {
+			return err
+		}
+
+		if err := h.validateProjectMemberships(t, fldPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateRoleBindings(t *v1alpha1.Terminal, fldPath *field.Path) error {
+	fldPath = fldPath.Child("roleBindings")
+
+	for index, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
+		if err := validateRequiredField(&roleBinding.RoleRef.Name, fldPath.Index(index).Child("roleRef", "name")); err != nil {
+			return err
+		}
+
+		if roleBinding.BindingKind != v1alpha1.BindingKindClusterRoleBinding && roleBinding.BindingKind != v1alpha1.BindingKindRoleBinding {
+			return field.Invalid(fldPath.Index(index).Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either "+v1alpha1.BindingKindClusterRoleBinding.String()+" or "+v1alpha1.BindingKindRoleBinding.String())
+		}
+	}
+
+	if err := validateUniqueRoleBindingNameSuffixes(t, fldPath); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateUniqueRoleBindingNameSuffixes(t *v1alpha1.Terminal, fldPath *field.Path) error {
+	names := make(map[string]struct{})
+
+	for index, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
+		if _, duplicate := names[roleBinding.NameSuffix]; duplicate{
+			return field.Invalid(fldPath.Index(index).Child("name"), roleBinding.NameSuffix, "name must be unique")
+		}
+
+		names[roleBinding.NameSuffix] = struct{}{}
+	}
+
+	return nil
+}
+
+func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fldPath *field.Path) error {
+	fldPath = fldPath.Child("projectMemberships")
+
+	for index, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
+		if !h.Config.HonourProjectMemberships {
+			return field.Forbidden(fldPath, "field is forbidden by configuration")
+		}
+
+		if err := validateRequiredField(&projectMembership.ProjectName, fldPath.Index(index).Child("projectName")); err != nil {
+			return err
+		}
+
+		if len(projectMembership.Roles) == 0 {
+			return field.Required(fldPath.Index(index).Child("roles"), "field is required")
+		}
+
+		for index, role := range projectMembership.Roles {
+			if err := validateRequiredField(&role, fldPath.Index(index).Child("roles").Index(index)); err != nil {
+				return err
+			}
 		}
 	}
 
