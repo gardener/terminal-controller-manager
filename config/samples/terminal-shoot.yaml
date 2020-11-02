@@ -14,7 +14,7 @@ spec:
     namespace: shoot--core--mycluster
     pod:
       container:
-        image: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.9.0
+        image: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.11.0
   target:
     credentials:
       serviceAccountRef:
@@ -22,8 +22,14 @@ spec:
         namespace: garden-coretmp
     kubeconfigContextNamespace: default
     temporaryNamespace: true
-    bindingKind: ClusterRoleBinding
-    roleName: cluster-admin
+    authorization:
+      roleBindings:
+        - nameSuffix: -ca
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: cluster-admin
+          bindingKind: ClusterRoleBinding
 #    apiServer:
 ##      serviceRef:
 ##        name: kubernetes

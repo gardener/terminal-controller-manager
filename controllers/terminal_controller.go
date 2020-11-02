@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"net/url"
 	"regexp"
 	"strings"
@@ -131,6 +132,7 @@ func (r *TerminalReconciler) decreaseCounterForNamespace(namespace string) {
 // +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
 // +kubebuilder:rbac:groups=dashboard.gardener.cloud,resources=terminals,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=dashboard.gardener.cloud,resources=terminals/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=core.gardener.cloud,resources=projects,verbs=get;list;watch
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations;mutatingwebhookconfigurations,verbs=list
 
 func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
@@ -169,8 +171,8 @@ func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error
 
 	gardenClientSet := r.ClientSet
 
-	hostClientSet, hostClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials, r.Config.HonourServiceAccountRefHostCluster)
-	targetClientSet, targetClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials, r.Config.HonourServiceAccountRefTargetCluster)
+	hostClientSet, hostClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials, r.Config.HonourServiceAccountRefHostCluster, r.Scheme)
+	targetClientSet, targetClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials, r.Config.HonourServiceAccountRefTargetCluster, r.Scheme)
 
 	if !t.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is being deleted
@@ -332,11 +334,11 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) []*extensionsv1alpha1.LastError {
 	var lastErrors []*extensionsv1alpha1.LastError
 
-	if targetErr := r.deleteTargetClusterDepencies(ctx, targetClientSet, t); targetErr != nil {
+	if targetErr := r.deleteTargetClusterDependencies(ctx, targetClientSet, t); targetErr != nil {
 		lastErrors = append(lastErrors, targetErr)
 	}
 
-	if hostErr := r.deleteHostClusterDepencies(ctx, hostClientSet, t); hostErr != nil {
+	if hostErr := r.deleteHostClusterDependencies(ctx, hostClientSet, t); hostErr != nil {
 		lastErrors = append(lastErrors, hostErr)
 	}
 
@@ -347,9 +349,9 @@ func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targe
 	return nil
 }
 
-func (r *TerminalReconciler) deleteTargetClusterDepencies(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
 	if targetClientSet != nil {
-		if err := deleteAccessToken(ctx, targetClientSet, t); err != nil {
+		if err := r.deleteAccessToken(ctx, targetClientSet, t); err != nil {
 			return formatError("Failed to delete access token", err)
 		}
 	} else {
@@ -359,7 +361,7 @@ func (r *TerminalReconciler) deleteTargetClusterDepencies(ctx context.Context, t
 	return nil
 }
 
-func (r *TerminalReconciler) deleteHostClusterDepencies(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
 	if hostClientSet != nil {
 		if err := deleteAttachPodSecret(ctx, hostClientSet, t); err != nil {
 			return formatError("Failed to delete attach pod secret", err)
@@ -385,32 +387,134 @@ func (r *TerminalReconciler) deleteHostClusterDepencies(ctx context.Context, hos
 	return nil
 }
 
-func deleteAccessToken(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
-	var err error
+func (r *TerminalReconciler) deleteAccessToken(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
+	serviceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Target.Namespace, Name: extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier}}
 
-	bindingName := extensionsv1alpha1.TerminalAccessResourceNamePrefix + t.Spec.Identifier
+	if t.Spec.Target.RoleName != "" && t.Spec.Target.BindingKind != "" {
+		roleBinding := &extensionsv1alpha1.RoleBinding{
+			NameSuffix: "", // must not be set
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind: "ClusterRole", // only ClusterRole was possible
+				Name: t.Spec.Target.RoleName,
+			},
+			BindingKind: t.Spec.Target.BindingKind,
+		}
 
-	switch t.Spec.Target.BindingKind {
-	case extensionsv1alpha1.BindingKindClusterRoleBinding:
-		err = deleteClusterRoleBinding(ctx, targetClientSet, bindingName)
-	case extensionsv1alpha1.BindingKindRoleBinding:
-		err = deleteRoleBinding(ctx, targetClientSet, *t.Spec.Target.Namespace, bindingName)
-	default:
-		panic("unknown BindingKind") // TODO validate in webhook
+		err := deleteBinding(ctx, targetClientSet, t.Spec.Identifier, *t.Spec.Target.Namespace, roleBinding)
+		if err != nil {
+			return err
+		}
 	}
 
-	if err != nil {
-		return err
+	if t.Spec.Target.Authorization != nil {
+		for _, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
+			err := deleteBinding(ctx, targetClientSet, t.Spec.Identifier, *t.Spec.Target.Namespace, &roleBinding)
+			if err != nil {
+				return err
+			}
+		}
+
+		if r.Config.HonourProjectMemberships {
+			for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
+				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
+					err := r.removeServiceAccountFromProjectMember(ctx, targetClientSet, projectMembership, serviceAccount)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
 	}
 
-	if err := deleteServiceAccount(ctx, targetClientSet, *t.Spec.Target.Namespace, extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier); err != nil {
-		return err
+	if err := deleteObj(ctx, targetClientSet, serviceAccount); err != nil {
+		if !kErros.IsForbidden(err) {
+			return err
+		}
+		// in case of forbidden error, try to read the service account with the terminal-controller-manager's client to be able to check if the service account was already removed
+		if rErr := r.Get(ctx, client.ObjectKey{Name: serviceAccount.Name, Namespace: serviceAccount.Namespace}, serviceAccount); rErr != nil {
+			if !kErros.IsNotFound(rErr) {
+				return err // return original error
+			} // else: already removed continue
+		}
 	}
 
 	if t.Spec.Target.TemporaryNamespace {
 		if err := deleteNamespace(ctx, targetClientSet, *t.Spec.Target.Namespace); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (r *TerminalReconciler) removeServiceAccountFromProjectMember(ctx context.Context, targetClientSet *ClientSet, projectMembership extensionsv1alpha1.ProjectMembership, serviceAccount *corev1.ServiceAccount) error {
+	project := &gardencorev1beta1.Project{}
+	if err := targetClientSet.Get(ctx, client.ObjectKey{Name: projectMembership.ProjectName}, project); err != nil {
+		if kErros.IsNotFound(err) {
+			return nil // nothing to remove
+		}
+
+		if !kErros.IsForbidden(err) {
+			return err
+		}
+
+		// in case of forbidden error, try to read the project with the terminal-controller-manager's client to be able to check if the service account was already removed as project member
+		if rErr := r.Get(ctx, client.ObjectKey{Name: projectMembership.ProjectName}, project); rErr != nil {
+			if kErros.IsNotFound(rErr) {
+				return nil // nothing to remove
+			}
+
+			return err // return original error
+		}
+	}
+
+	isProjectMember, index := isMember(project.Spec.Members, serviceAccount)
+	if !isProjectMember {
+		// already removed
+		return nil
+	}
+
+	// remove member at index
+	project.Spec.Members = append(project.Spec.Members[:index], project.Spec.Members[index+1:]...)
+
+	if err := targetClientSet.Update(ctx, project); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func isMember(members []gardencorev1beta1.ProjectMember, serviceAccount *corev1.ServiceAccount) (bool, int) {
+	for index, member := range members {
+		isServiceAccountKindMember := member.APIGroup == "" && member.Kind == rbacv1.ServiceAccountKind && member.Namespace == serviceAccount.Namespace && member.Name == serviceAccount.Name
+		isUserKindMember := member.APIGroup == rbacv1.GroupName && member.Kind == rbacv1.UserKind && member.Name == "system:serviceaccount:"+serviceAccount.Namespace+":"+serviceAccount.Name
+		isMember := isServiceAccountKindMember || isUserKindMember
+
+		if isMember {
+			return true, index
+		}
+	}
+
+	return false, -1
+}
+
+func deleteBinding(ctx context.Context, targetClientSet *ClientSet, identifier string, namespace string, roleBinding *extensionsv1alpha1.RoleBinding) error {
+	bindingName := extensionsv1alpha1.TerminalAccessResourceNamePrefix + identifier + roleBinding.NameSuffix
+
+	var err error
+
+	switch roleBinding.BindingKind {
+	case extensionsv1alpha1.BindingKindClusterRoleBinding:
+		err = deleteClusterRoleBinding(ctx, targetClientSet, bindingName)
+	case extensionsv1alpha1.BindingKindRoleBinding:
+		err = deleteRoleBinding(ctx, targetClientSet, namespace, bindingName)
+	default:
+		panic("unknown BindingKind " + roleBinding.BindingKind) // should not happen; is validated in webhook
+	}
+
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -433,7 +537,7 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 		return formatError("Failed to create or update resources needed for attaching to a pod", err)
 	}
 
-	kubeconfigSecret, err := createOrUpdateAdminKubeconfig(ctx, targetClientSet, hostClientSet, t, labelsSet, annotationsSet)
+	kubeconfigSecret, err := r.createOrUpdateAdminKubeconfig(ctx, targetClientSet, hostClientSet, t, labelsSet, annotationsSet)
 	if err != nil {
 		return formatError("Failed to create or update admin kubeconfig", err)
 	}
@@ -593,8 +697,8 @@ func deleteClusterRoleBinding(ctx context.Context, cs *ClientSet, name string) e
 	return deleteObj(ctx, cs, clusterRoleBinding)
 }
 
-func createOrUpdateAdminKubeconfig(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Secret, error) {
-	accessSecret, err := createAccessToken(ctx, targetClientSet, t, labelsSet, annotationsSet)
+func (r *TerminalReconciler) createOrUpdateAdminKubeconfig(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Secret, error) {
+	accessSecret, err := r.createAccessToken(ctx, targetClientSet, t, labelsSet, annotationsSet)
 	if err != nil {
 		return nil, err
 	}
@@ -602,47 +706,128 @@ func createOrUpdateAdminKubeconfig(ctx context.Context, targetClientSet *ClientS
 	return createOrUpdateKubeconfig(ctx, targetClientSet, hostClientSet, t, accessSecret, labelsSet, annotationsSet)
 }
 
-func createAccessToken(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Secret, error) {
+func (r *TerminalReconciler) createAccessToken(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Secret, error) {
 	if t.Spec.Target.TemporaryNamespace {
 		if _, err := createOrUpdateNamespace(ctx, targetClientSet, *t.Spec.Target.Namespace, labelsSet, annotationsSet); err != nil {
 			return nil, err
 		}
 	}
 
-	accessServiceAccount, err := createOrUpdateServiceAccount(ctx, targetClientSet, *t.Spec.Target.Namespace, extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier, labelsSet, annotationsSet)
+	accessServiceAccountAnnotations := utils.MergeStringMap(*annotationsSet, map[string]string{
+		extensionsv1alpha1.Description: "Temporary service account for web-terminal session. Managed by gardener/terminal-controller-manager",
+	})
+
+	accessServiceAccount, err := createOrUpdateServiceAccount(ctx, targetClientSet, *t.Spec.Target.Namespace, extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier, labelsSet, &accessServiceAccountAnnotations)
 	if err != nil {
 		return nil, err
 	}
 
-	subject := rbacv1.Subject{
-		Kind:      rbacv1.ServiceAccountKind,
-		Namespace: accessServiceAccount.Namespace,
-		Name:      accessServiceAccount.Name,
-	}
-	roleRef := rbacv1.RoleRef{
-		APIGroup: rbacv1.GroupName,
-		Kind:     "ClusterRole",
-		Name:     t.Spec.Target.RoleName,
-	}
-	bindingName := extensionsv1alpha1.TerminalAccessResourceNamePrefix + t.Spec.Identifier
+	// TODO can be removed once t.Spec.Target.RoleName and t.Spec.Target.BindingKind is removed from the API
+	if t.Spec.Target.RoleName != "" && t.Spec.Target.BindingKind != "" {
+		roleBinding := &extensionsv1alpha1.RoleBinding{
+			NameSuffix: "", // must not be set to be compatible to previous versions
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind: "ClusterRole", // only ClusterRole was possible
+				Name: t.Spec.Target.RoleName,
+			},
+			BindingKind: t.Spec.Target.BindingKind,
+		}
 
-	switch t.Spec.Target.BindingKind {
-	case extensionsv1alpha1.BindingKindClusterRoleBinding:
-		_, err = createOrUpdateClusterRoleBinding(ctx, targetClientSet, bindingName, subject, roleRef, labelsSet, annotationsSet)
-	case extensionsv1alpha1.BindingKindRoleBinding:
-		_, err = createOrUpdateRoleBinding(ctx, targetClientSet, *t.Spec.Target.Namespace, bindingName, subject, roleRef, labelsSet, annotationsSet)
-	default:
-		panic("unknown BindingKind") // TODO validate in webhook
+		err := createOrUpdateBinding(ctx, targetClientSet, t.Spec.Identifier, *t.Spec.Target.Namespace, roleBinding, labelsSet, annotationsSet, accessServiceAccount)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if err != nil {
-		return nil, err
+	if t.Spec.Target.Authorization != nil {
+		for _, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
+			err := createOrUpdateBinding(ctx, targetClientSet, t.Spec.Identifier, *t.Spec.Target.Namespace, &roleBinding, labelsSet, annotationsSet, accessServiceAccount)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if r.Config.HonourProjectMemberships {
+			for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
+				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
+					err := addServiceAccountAsProjectMember(ctx, targetClientSet, projectMembership, accessServiceAccount)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
 	}
 
 	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	return WaitUntilTokenAvailable(childCtx, targetClientSet, accessServiceAccount)
+}
+
+func addServiceAccountAsProjectMember(ctx context.Context, targetClientSet *ClientSet, projectMembership extensionsv1alpha1.ProjectMembership, serviceAccount *corev1.ServiceAccount) error {
+	project := &gardencorev1beta1.Project{}
+	if err := targetClientSet.Get(ctx, client.ObjectKey{Name: projectMembership.ProjectName}, project); err != nil {
+		return err
+	}
+
+	isProjectMember, _ := isMember(project.Spec.Members, serviceAccount)
+	if isProjectMember {
+		// will not attempt to update
+		return nil
+	}
+
+	member := gardencorev1beta1.ProjectMember{
+		Subject: rbacv1.Subject{
+			APIGroup:  "",
+			Kind:      rbacv1.ServiceAccountKind,
+			Name:      serviceAccount.Name,
+			Namespace: serviceAccount.Namespace,
+		},
+	}
+
+	member.Role = projectMembership.Roles[0]
+
+	if len(projectMembership.Roles) > 1 {
+		member.Roles = projectMembership.Roles[1:]
+	} else {
+		member.Roles = nil
+	}
+
+	project.Spec.Members = append(project.Spec.Members, member)
+
+	if err := targetClientSet.Update(ctx, project); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func createOrUpdateBinding(ctx context.Context, targetClientSet *ClientSet, identifier string, namespace string, roleBinding *extensionsv1alpha1.RoleBinding, labelsSet *labels.Set, annotationsSet *utils.Set, accessServiceAccount *corev1.ServiceAccount) error {
+	subject := rbacv1.Subject{
+		Kind:      rbacv1.ServiceAccountKind,
+		Namespace: accessServiceAccount.Namespace,
+		Name:      accessServiceAccount.Name,
+	}
+	bindingName := extensionsv1alpha1.TerminalAccessResourceNamePrefix + identifier + roleBinding.NameSuffix
+
+	var err error
+
+	switch roleBinding.BindingKind {
+	case extensionsv1alpha1.BindingKindClusterRoleBinding:
+		_, err = createOrUpdateClusterRoleBinding(ctx, targetClientSet, bindingName, subject, roleBinding.RoleRef, labelsSet, annotationsSet)
+	case extensionsv1alpha1.BindingKindRoleBinding:
+		_, err = createOrUpdateRoleBinding(ctx, targetClientSet, namespace, bindingName, subject, roleBinding.RoleRef, labelsSet, annotationsSet)
+	default:
+		panic("unknown BindingKind " + roleBinding.BindingKind) // should not happen; is validated in webhook
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // WaitUntilTokenAvailable waits until the secret that is referenced in the service account exists and returns it.
@@ -1051,17 +1236,17 @@ func NewClientSet(config *rest.Config, client client.Client, kubernetes kubernet
 	return &ClientSet{config, client, kubernetes}
 }
 
-func NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, credentials extensionsv1alpha1.ClusterCredentials, honourServiceAccountRef bool) (*ClientSet, error) {
+func NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, credentials extensionsv1alpha1.ClusterCredentials, honourServiceAccountRef bool, scheme *runtime.Scheme) (*ClientSet, error) {
 	if credentials.SecretRef != nil {
-		return NewClientSetFromSecretRef(ctx, cs, credentials.SecretRef)
+		return NewClientSetFromSecretRef(ctx, cs, credentials.SecretRef, scheme)
 	} else if honourServiceAccountRef && credentials.ServiceAccountRef != nil {
-		return NewClientSetFromServiceAccountRef(ctx, cs, credentials.ServiceAccountRef)
+		return NewClientSetFromServiceAccountRef(ctx, cs, credentials.ServiceAccountRef, scheme)
 	} else {
 		return nil, errors.New("no cluster credentials provided")
 	}
 }
 
-func NewClientSetFromServiceAccountRef(ctx context.Context, cs *ClientSet, ref *corev1.ObjectReference) (*ClientSet, error) {
+func NewClientSetFromServiceAccountRef(ctx context.Context, cs *ClientSet, ref *corev1.ObjectReference, scheme *runtime.Scheme) (*ClientSet, error) {
 	serviceAccount := &corev1.ServiceAccount{}
 	if err := cs.Get(ctx, client.ObjectKey{Namespace: ref.Namespace, Name: ref.Name}, serviceAccount); err != nil {
 		return nil, err
@@ -1075,16 +1260,20 @@ func NewClientSetFromServiceAccountRef(ctx context.Context, cs *ClientSet, ref *
 		return nil, err
 	}
 
-	return NewClientSetFromSecret(cs.Config, secret, client.Options{})
+	return NewClientSetFromSecret(cs.Config, secret, client.Options{
+		Scheme: scheme,
+	})
 }
 
-func NewClientSetFromSecretRef(ctx context.Context, cs *ClientSet, ref *corev1.SecretReference) (*ClientSet, error) {
+func NewClientSetFromSecretRef(ctx context.Context, cs *ClientSet, ref *corev1.SecretReference, scheme *runtime.Scheme) (*ClientSet, error) {
 	secret := &corev1.Secret{}
 	if err := cs.Get(ctx, client.ObjectKey{Namespace: ref.Namespace, Name: ref.Name}, secret); err != nil {
 		return nil, err
 	}
 
-	return NewClientSetFromSecret(cs.Config, secret, client.Options{})
+	return NewClientSetFromSecret(cs.Config, secret, client.Options{
+		Scheme: scheme,
+	})
 }
 
 // NewClientSetFromSecret creates a new controller ClientSet struct for a given secret.

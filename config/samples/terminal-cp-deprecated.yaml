@@ -14,7 +14,7 @@ spec:
         namespace: gardentmp
     namespace: shoot--core--mycluster
     pod:
-      containerImage: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.1.0
+      containerImage: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.11.0
   target:
     credentials:
       serviceAccountRef:

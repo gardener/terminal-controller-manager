@@ -36,6 +36,7 @@ import (
 	"github.com/gardener/terminal-controller-manager/controllers"
 	"github.com/gardener/terminal-controller-manager/webhooks/mutating"
 	"github.com/gardener/terminal-controller-manager/webhooks/validating"
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -54,6 +55,7 @@ func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	_ = v1alpha1.AddToScheme(scheme)
+	_ = gardencorev1beta1.AddToScheme(scheme)
 }
 
 func main() {
@@ -183,8 +185,9 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 		Logger: v1alpha1.ControllerManagerLoggerConfiguration{
 			Development: true,
 		},
-		HonourServiceAccountRefHostCluster: true,
+		HonourServiceAccountRefHostCluster:   true,
 		HonourServiceAccountRefTargetCluster: true,
+		HonourProjectMemberships:             true,
 	}
 
 	if err := readFile(configFile, &cfg); err != nil {
