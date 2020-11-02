@@ -3,7 +3,7 @@ module github.com/gardener/terminal-controller-manager
 go 1.15
 
 require (
-	github.com/gardener/gardener v1.11.0
+	github.com/gardener/gardener v1.12.2
 	github.com/go-logr/logr v0.1.0
 	github.com/google/go-cmp v0.5.0 // indirect
 	github.com/kr/text v0.2.0 // indirect

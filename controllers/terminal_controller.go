@@ -334,11 +334,11 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targetClientSet *ClientSet, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) []*extensionsv1alpha1.LastError {
 	var lastErrors []*extensionsv1alpha1.LastError
 
-	if targetErr := r.deleteTargetClusterDepencies(ctx, targetClientSet, t); targetErr != nil {
+	if targetErr := r.deleteTargetClusterDependencies(ctx, targetClientSet, t); targetErr != nil {
 		lastErrors = append(lastErrors, targetErr)
 	}
 
-	if hostErr := r.deleteHostClusterDepencies(ctx, hostClientSet, t); hostErr != nil {
+	if hostErr := r.deleteHostClusterDependencies(ctx, hostClientSet, t); hostErr != nil {
 		lastErrors = append(lastErrors, hostErr)
 	}
 
@@ -349,7 +349,7 @@ func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targe
 	return nil
 }
 
-func (r *TerminalReconciler) deleteTargetClusterDepencies(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
 	if targetClientSet != nil {
 		if err := r.deleteAccessToken(ctx, targetClientSet, t); err != nil {
 			return formatError("Failed to delete access token", err)
@@ -361,7 +361,7 @@ func (r *TerminalReconciler) deleteTargetClusterDepencies(ctx context.Context, t
 	return nil
 }
 
-func (r *TerminalReconciler) deleteHostClusterDepencies(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, hostClientSet *ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
 	if hostClientSet != nil {
 		if err := deleteAttachPodSecret(ctx, hostClientSet, t); err != nil {
 			return formatError("Failed to delete attach pod secret", err)
@@ -713,7 +713,9 @@ func (r *TerminalReconciler) createAccessToken(ctx context.Context, targetClient
 		}
 	}
 
-	accessServiceAccountAnnotations := utils.MergeStringMap(*annotationsSet, map[string]string{extensionsv1alpha1.Description: "Temporary service account for web-terminal session. Managed by gardener/terminal-controller-manager"})
+	accessServiceAccountAnnotations := utils.MergeStringMap(*annotationsSet, map[string]string{
+		extensionsv1alpha1.Description: "Temporary service account for web-terminal session. Managed by gardener/terminal-controller-manager",
+	})
 
 	accessServiceAccount, err := createOrUpdateServiceAccount(ctx, targetClientSet, *t.Spec.Target.Namespace, extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier, labelsSet, &accessServiceAccountAnnotations)
 	if err != nil {

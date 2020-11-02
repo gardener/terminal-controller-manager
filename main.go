@@ -55,7 +55,7 @@ func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	_ = v1alpha1.AddToScheme(scheme)
-	_= gardencorev1beta1.AddToScheme(scheme)
+	_ = gardencorev1beta1.AddToScheme(scheme)
 }
 
 func main() {
