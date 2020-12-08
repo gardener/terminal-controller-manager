@@ -23,6 +23,8 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
+      securityContext:
+        runAsUser: 65532
       containers:
       - command:
         - /manager
@@ -40,6 +42,7 @@ spec:
             memory: 100Mi
         securityContext:
           runAsNonRoot: true
+          allowPrivilegeEscalation: false
         volumeMounts:
           - mountPath: /etc/terminal-controller-manager
             name: manager-config

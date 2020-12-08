@@ -3,7 +3,7 @@
 IMG ?= eu.gcr.io/gardener-project/gardener/terminal-controller-manager:latest
 
 # Kube RBAC Proxy image to use
-IMG_RBAC_PROXY ?= gcr.io/kubebuilder/kube-rbac-proxy:v0.5.0
+IMG_RBAC_PROXY ?= quay.io/brancz/kube-rbac-proxy:v0.8.0
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
@@ -49,7 +49,7 @@ bootstrap-dev-project: bootstrap-dev
 
 apply-image: manifests
 	cd config/manager && kustomize edit set image "controller=${IMG}"
-	cd config/default && kustomize edit set image "gcr.io/kubebuilder/kube-rbac-proxy=${IMG_RBAC_PROXY}"
+	cd config/default && kustomize edit set image "quay.io/brancz/kube-rbac-proxy=${IMG_RBAC_PROXY}"
 
 # Multi-cluster use case: Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy-rt: apply-image
