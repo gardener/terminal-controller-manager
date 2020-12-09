@@ -51,9 +51,7 @@ func (r *TerminalHeartbeatReconciler) SetupWithManager(mgr ctrl.Manager, config 
 		Complete(r)
 }
 
-func (r *TerminalHeartbeatReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
-
+func (r *TerminalHeartbeatReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Fetch the TerminalHeartbeat instance
 	t := &extensionsv1alpha1.Terminal{}
 

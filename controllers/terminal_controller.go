@@ -135,7 +135,7 @@ func (r *TerminalReconciler) decreaseCounterForNamespace(namespace string) {
 // +kubebuilder:rbac:groups=core.gardener.cloud,resources=projects,verbs=get;list;watch
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations;mutatingwebhookconfigurations,verbs=list
 
-func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *TerminalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if err := r.increaseCounterForNamespace(req.Namespace); err != nil {
 		r.Log.Info("maximum parallel reconciles reached for namespace - requeuing the req", "namespace", req.Namespace, "name", req.Name)
 
@@ -144,17 +144,15 @@ func (r *TerminalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}, nil
 	}
 
-	res, err := r.handleRequest(req)
+	res, err := r.handleRequest(ctx, req)
 
 	r.decreaseCounterForNamespace(req.Namespace)
 
 	return res, err
 }
 
-func (r *TerminalReconciler) handleRequest(req ctrl.Request) (ctrl.Result, error) {
+func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// TODO introduce unique reconcile identifier that is used for logging
-	ctx := context.Background()
-
 	// Fetch the Terminal t
 	t := &extensionsv1alpha1.Terminal{}
 
@@ -1223,7 +1221,7 @@ func deleteTerminalPod(ctx context.Context, cs *ClientSet, t *extensionsv1alpha1
 	return deleteObj(ctx, cs, pod)
 }
 
-func deleteObj(ctx context.Context, cs *ClientSet, obj runtime.Object) error {
+func deleteObj(ctx context.Context, cs *ClientSet, obj client.Object) error {
 	err := cs.Delete(ctx, obj)
 	if kErros.IsNotFound(err) {
 		return nil
@@ -1299,7 +1297,7 @@ func NewClientSetFromSecret(config *rest.Config, secret *corev1.Secret, opts cli
 	return nil, errors.New("no valid kubeconfig found")
 }
 
-func CreateOrUpdateDiscardResult(ctx context.Context, cs *ClientSet, obj runtime.Object, f controllerutil.MutateFn) error {
+func CreateOrUpdateDiscardResult(ctx context.Context, cs *ClientSet, obj client.Object, f controllerutil.MutateFn) error {
 	_, err := ctrl.CreateOrUpdate(ctx, cs.Client, obj, f)
 	return err
 }

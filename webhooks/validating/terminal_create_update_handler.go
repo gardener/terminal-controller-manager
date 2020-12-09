@@ -24,7 +24,7 @@ import (
 	"github.com/go-logr/logr"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/authentication/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
@@ -47,10 +47,10 @@ type TerminalValidator struct {
 	decoder *admission.Decoder
 }
 
-func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha1.Terminal, oldT *v1alpha1.Terminal, admissionReq v1beta1.AdmissionRequest) (bool, string, error) {
+func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha1.Terminal, oldT *v1alpha1.Terminal, admissionReq admissionv1.AdmissionRequest) (bool, string, error) {
 	userInfo := admissionReq.UserInfo
 
-	if admissionReq.Operation != v1beta1.Create {
+	if admissionReq.Operation != admissionv1.Create {
 		// TODO write unit tests where we explicitly check that the identifier and the secretRefs cannot be changed
 		specFldPath := field.NewPath("spec")
 		if err := validateImmutableField(t.Spec, oldT.Spec, specFldPath); err != nil {
@@ -455,7 +455,7 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	if req.AdmissionRequest.Operation != v1beta1.Create {
+	if req.AdmissionRequest.Operation != admissionv1.Create {
 		err = h.decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj)
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
