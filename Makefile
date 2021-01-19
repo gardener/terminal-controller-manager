@@ -72,7 +72,7 @@ lint: $(GOPATH)/bin/golangci-lint
 	golangci-lint run ./... -E golint,whitespace,wsl --skip-files "zz_generated.*"
 
 $(GOPATH)/bin/golangci-lint:
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.35.2
 
 # Generate code
 generate: controller-gen

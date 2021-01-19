@@ -25,7 +25,7 @@ import (
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/utils"
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 
 	uuid "github.com/satori/go.uuid"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,12 +43,12 @@ type TerminalMutator struct {
 	decoder *admission.Decoder
 }
 
-func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Terminal, admissionReq v1beta1.AdmissionRequest) error {
+func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Terminal, admissionReq admissionv1.AdmissionRequest) error {
 	if t.ObjectMeta.Annotations == nil {
 		t.ObjectMeta.Annotations = map[string]string{}
 	}
 
-	if admissionReq.Operation == v1beta1.Create {
+	if admissionReq.Operation == admissionv1.Create {
 		t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy] = admissionReq.UserInfo.Username
 
 		uuidString := uuid.NewV4().String()
