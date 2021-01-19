@@ -23,6 +23,6 @@ patchesStrategicMerge:
 - manager_webhook_patch.yaml
 
 images:
-- name: gcr.io/kubebuilder/kube-rbac-proxy
-  newName: gcr.io/kubebuilder/kube-rbac-proxy
-  newTag: v0.5.0
+- name: quay.io/brancz/kube-rbac-proxy
+  newName: quay.io/brancz/kube-rbac-proxy
+  newTag: v0.8.0
