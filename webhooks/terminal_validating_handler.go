@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package validating
+package webhooks
 
 import (
 	"context"
@@ -194,7 +194,7 @@ func validateRequiredAPIServerFields(t *v1alpha1.Terminal) error {
 		if t.Spec.Target.APIServer.ServiceRef == nil && t.Spec.Target.APIServer.Server == "" {
 			return field.Required(
 				field.NewPath("spec", "target", "apiServer", "server"),
-				"field or " + field.NewPath("spec", "target", "apiServer", "serviceRef").String() + " field is required when " + field.NewPath("spec", "target", "apiServer").String() + " is set")
+				"field or "+field.NewPath("spec", "target", "apiServer", "serviceRef").String()+" field is required when "+field.NewPath("spec", "target", "apiServer").String()+" is set")
 		}
 
 		if t.Spec.Target.APIServer.ServiceRef != nil {
@@ -220,7 +220,7 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 		}
 
 		if cred.SecretRef == nil {
-			return field.Required(fldPath, "field requires SecretRef to be set")
+			return field.Required(fldPath.Child("secretRef"), "field is required")
 		}
 	} else {
 		if cred.SecretRef == nil && cred.ServiceAccountRef == nil {
@@ -266,9 +266,9 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 func (h *TerminalValidator) validateRequiredTargetAuthorization(t *v1alpha1.Terminal) error {
 	fldPath := field.NewPath("spec", "target")
 
-	if t.Spec.Target.RoleName != ""  {
+	if t.Spec.Target.RoleName != "" {
 		if t.Spec.Target.BindingKind != v1alpha1.BindingKindClusterRoleBinding && t.Spec.Target.BindingKind != v1alpha1.BindingKindRoleBinding {
-			return field.Invalid(fldPath.Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either " + v1alpha1.BindingKindClusterRoleBinding.String() + " or " +  v1alpha1.BindingKindRoleBinding.String())
+			return field.Invalid(fldPath.Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either "+v1alpha1.BindingKindClusterRoleBinding.String()+" or "+v1alpha1.BindingKindRoleBinding.String())
 		}
 	}
 
@@ -311,8 +311,8 @@ func validateUniqueRoleBindingNameSuffixes(t *v1alpha1.Terminal, fldPath *field.
 	names := make(map[string]struct{})
 
 	for index, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
-		if _, duplicate := names[roleBinding.NameSuffix]; duplicate{
-			return field.Invalid(fldPath.Index(index).Child("name"), roleBinding.NameSuffix, "name must be unique")
+		if _, duplicate := names[roleBinding.NameSuffix]; duplicate {
+			return field.Invalid(fldPath.Index(index).Child("nameSuffix"), roleBinding.NameSuffix, "name must be unique")
 		}
 
 		names[roleBinding.NameSuffix] = struct{}{}
@@ -337,8 +337,8 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 			return field.Required(fldPath.Index(index).Child("roles"), "field is required")
 		}
 
-		for index, role := range projectMembership.Roles {
-			if err := validateRequiredField(&role, fldPath.Index(index).Child("roles").Index(index)); err != nil {
+		for rolesIndex, role := range projectMembership.Roles {
+			if err := validateRequiredField(&role, fldPath.Index(index).Child("roles").Index(rolesIndex)); err != nil {
 				return err
 			}
 		}

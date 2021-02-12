@@ -19,12 +19,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"net/url"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 
 	"github.com/gardener/terminal-controller-manager/utils"
 
@@ -386,15 +387,15 @@ func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, 
 }
 
 func (r *TerminalReconciler) deleteAccessToken(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
-	serviceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Target.Namespace, Name: extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier}}
+	serviceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Target.Namespace, Name: extensionsv1alpha1.TerminalAccessResourceNamePrefix + t.Spec.Identifier}}
 
 	if t.Spec.Target.RoleName != "" && t.Spec.Target.BindingKind != "" {
 		roleBinding := &extensionsv1alpha1.RoleBinding{
 			NameSuffix: "", // must not be set
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
-				Kind: "ClusterRole", // only ClusterRole was possible
-				Name: t.Spec.Target.RoleName,
+				Kind:     "ClusterRole", // only ClusterRole was possible
+				Name:     t.Spec.Target.RoleName,
 			},
 			BindingKind: t.Spec.Target.BindingKind,
 		}
@@ -726,8 +727,8 @@ func (r *TerminalReconciler) createAccessToken(ctx context.Context, targetClient
 			NameSuffix: "", // must not be set to be compatible to previous versions
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
-				Kind: "ClusterRole", // only ClusterRole was possible
-				Name: t.Spec.Target.RoleName,
+				Kind:     "ClusterRole", // only ClusterRole was possible
+				Name:     t.Spec.Target.RoleName,
 			},
 			BindingKind: t.Spec.Target.BindingKind,
 		}
