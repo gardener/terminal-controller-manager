@@ -57,8 +57,7 @@ var _ = Describe("Validating Webhook", func() {
 	)
 	BeforeEach(func() {
 		cmConfig = test.DefaultConfiguration()
-		mutator.Config = cmConfig
-		validator.Config = cmConfig
+		validator.injectConfig(cmConfig)
 
 		suffix = test.StringWithCharset(randomLength, charset)
 		terminalNamespace = fmt.Sprintf("%s%s", "test-terminal-namespace-", suffix)

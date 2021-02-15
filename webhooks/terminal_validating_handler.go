@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -39,12 +40,28 @@ import (
 
 // TerminalValidator handles Terminal
 type TerminalValidator struct {
-	client client.Client
-	Log    logr.Logger
-	Config *v1alpha1.ControllerManagerConfiguration
+	client      client.Client
+	Log         logr.Logger
+	Config      *v1alpha1.ControllerManagerConfiguration
+	configMutex sync.RWMutex
 
 	// Decoder decodes objects
 	decoder *admission.Decoder
+}
+
+func (h *TerminalValidator) getConfig() *v1alpha1.ControllerManagerConfiguration {
+	h.configMutex.RLock()
+	defer h.configMutex.RUnlock()
+
+	return h.Config
+}
+
+// Mainly used for tests to inject config
+func (h *TerminalValidator) injectConfig(config *v1alpha1.ControllerManagerConfiguration) {
+	h.configMutex.Lock()
+	defer h.configMutex.Unlock()
+
+	h.Config = config
 }
 
 func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha1.Terminal, oldT *v1alpha1.Terminal, admissionReq admissionv1.AdmissionRequest) (bool, string, error) {
@@ -206,11 +223,11 @@ func validateRequiredAPIServerFields(t *v1alpha1.Terminal) error {
 }
 
 func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) error {
-	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.Config.HonourServiceAccountRefTargetCluster); err != nil {
+	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.getConfig().HonourServiceAccountRefTargetCluster); err != nil {
 		return err
 	}
 
-	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.Config.HonourServiceAccountRefHostCluster)
+	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.getConfig().HonourServiceAccountRefHostCluster)
 }
 
 func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef bool) error {
@@ -325,7 +342,7 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 	fldPath = fldPath.Child("projectMemberships")
 
 	for index, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
-		if !h.Config.HonourProjectMemberships {
+		if !h.getConfig().HonourProjectMemberships {
 			return field.Forbidden(fldPath, "field is forbidden by configuration")
 		}
 
@@ -440,7 +457,7 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 	obj := &v1alpha1.Terminal{}
 	oldObj := &v1alpha1.Terminal{}
 
-	maxObjSize := h.Config.Webhooks.TerminalValidation.MaxObjectSize
+	maxObjSize := h.getConfig().Webhooks.TerminalValidation.MaxObjectSize
 	objSize := len(req.Object.Raw)
 
 	if objSize > maxObjSize {

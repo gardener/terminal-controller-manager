@@ -18,9 +18,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/gardener/terminal-controller-manager/webhooks"
 	"os"
 	"time"
+
+	"github.com/gardener/terminal-controller-manager/webhooks"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -140,8 +141,7 @@ func main() {
 
 	setupLog.Info("registering webhooks to the webhook server")
 	hookServer.Register("/mutate-terminal", &webhook.Admission{Handler: &webhooks.TerminalMutator{
-		Log:    ctrl.Log.WithName("webhooks").WithName("TerminalMutation"),
-		Config: cmConfig,
+		Log: ctrl.Log.WithName("webhooks").WithName("TerminalMutation"),
 	}})
 	hookServer.Register("/validate-terminal", &webhook.Admission{Handler: &webhooks.TerminalValidator{
 		Log:    ctrl.Log.WithName("webhooks").WithName("TerminalValidation"),

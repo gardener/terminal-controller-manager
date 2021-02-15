@@ -60,8 +60,8 @@ var _ = Describe("Terminal Controller", func() {
 	BeforeEach(func() {
 		cmConfig = test.DefaultConfiguration()
 
-		terminalReconciler.Config = cmConfig
-		terminalHeartbeatReconciler.Config = cmConfig
+		terminalReconciler.injectConfig(cmConfig)
+		terminalHeartbeatReconciler.injectConfig(cmConfig)
 
 		suffix = test.StringWithCharset(randomLength, charset)
 		terminalNamespace = fmt.Sprintf("%s%s", "test-terminal-namespace-", suffix)

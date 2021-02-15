@@ -62,8 +62,7 @@ var _ = BeforeSuite(func() {
 	cmConfig := test.DefaultConfiguration()
 
 	mutator = &TerminalMutator{
-		Log:    ctrl.Log.WithName("webhooks").WithName("TerminalMutation"),
-		Config: cmConfig,
+		Log: ctrl.Log.WithName("webhooks").WithName("TerminalMutation"),
 	}
 	validator = &TerminalValidator{
 		Log:    ctrl.Log.WithName("webhooks").WithName("TerminalValidation"),

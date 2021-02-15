@@ -37,7 +37,6 @@ import (
 type TerminalMutator struct {
 	client client.Client
 	Log    logr.Logger
-	Config *v1alpha1.ControllerManagerConfiguration
 
 	// Decoder decodes objects
 	decoder *admission.Decoder

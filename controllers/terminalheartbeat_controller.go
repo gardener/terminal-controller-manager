@@ -18,6 +18,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -36,9 +37,10 @@ import (
 // TerminalHeartbeatReconciler reconciles a TerminalHeartbeat object
 type TerminalHeartbeatReconciler struct {
 	client.Client
-	Log      logr.Logger
-	Recorder record.EventRecorder
-	Config   *extensionsv1alpha1.ControllerManagerConfiguration
+	Log         logr.Logger
+	Recorder    record.EventRecorder
+	Config      *extensionsv1alpha1.ControllerManagerConfiguration
+	configMutex sync.RWMutex
 }
 
 func (r *TerminalHeartbeatReconciler) SetupWithManager(mgr ctrl.Manager, config extensionsv1alpha1.TerminalHeartbeatControllerConfiguration) error {
@@ -49,6 +51,21 @@ func (r *TerminalHeartbeatReconciler) SetupWithManager(mgr ctrl.Manager, config 
 			MaxConcurrentReconciles: config.MaxConcurrentReconciles,
 		}).
 		Complete(r)
+}
+
+func (r *TerminalHeartbeatReconciler) getConfig() *extensionsv1alpha1.ControllerManagerConfiguration {
+	r.configMutex.RLock()
+	defer r.configMutex.RUnlock()
+
+	return r.Config
+}
+
+// Mainly used for tests to inject config
+func (r *TerminalHeartbeatReconciler) injectConfig(config *extensionsv1alpha1.ControllerManagerConfiguration) {
+	r.configMutex.Lock()
+	defer r.configMutex.Unlock()
+
+	r.Config = config
 }
 
 func (r *TerminalHeartbeatReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -82,7 +99,7 @@ func (r *TerminalHeartbeatReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, r.deleteTerminal(ctx, t)
 	}
 
-	ttl := r.Config.Controllers.TerminalHeartbeat.TimeToLive.Duration
+	ttl := r.getConfig().Controllers.TerminalHeartbeat.TimeToLive.Duration
 	expiration := lastHeartBeatParsed.Add(ttl)
 
 	expiresIn := expiration.Sub(time.Now().UTC())
