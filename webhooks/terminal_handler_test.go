@@ -241,39 +241,133 @@ var _ = Describe("Validating Webhook", func() {
 
 	Describe("UPDATE fails", func() {
 		Context("when changing immutable fields", func() {
-			It("spec should be immutable 1", func() {
-				Expect(terminalCreationError).To(Not(HaveOccurred()))
+			Describe("spec should be immutable", func() {
+				It("should fail when updating identifier", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
 
-				By("Expecting terminal to be created")
-				Eventually(func() bool {
-					terminal = &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, terminal)
-					return err == nil
-				}, timeout, interval).Should(BeTrue())
+					By("Expecting terminal to be created")
+					Eventually(func() bool {
+						terminal = &dashboardv1alpha1.Terminal{}
+						err := k8sClient.Get(ctx, terminalKey, terminal)
+						return err == nil
+					}, timeout, interval).Should(BeTrue())
 
-				terminal.Spec.Identifier = "changed"
-				error := k8sClient.Update(ctx, terminal)
+					terminal.Spec.Identifier = "changed"
+					error := k8sClient.Update(ctx, terminal)
 
-				Expect(error).To(HaveOccurred())
-				Expect(error.Error()).To(ContainSubstring("field is immutable"))
-			})
+					Expect(error).To(HaveOccurred())
+					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+				})
 
-			It("spec should be immutable 2", func() {
-				Expect(terminalCreationError).To(Not(HaveOccurred()))
+				It("should fail when updating host namespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
 
-				By("Expecting terminal to be created")
-				Eventually(func() bool {
-					terminal = &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, terminal)
-					return err == nil
-				}, timeout, interval).Should(BeTrue())
+					By("Expecting terminal to be created")
+					Eventually(func() bool {
+						terminal = &dashboardv1alpha1.Terminal{}
+						err := k8sClient.Get(ctx, terminalKey, terminal)
+						return err == nil
+					}, timeout, interval).Should(BeTrue())
 
-				changed := "changed"
-				terminal.Spec.Host.Namespace = &changed
-				error := k8sClient.Update(ctx, terminal)
+					changed := "changed"
+					terminal.Spec.Host.Namespace = &changed
+					error := k8sClient.Update(ctx, terminal)
 
-				Expect(error).To(HaveOccurred())
-				Expect(error.Error()).To(ContainSubstring("field is immutable"))
+					Expect(error).To(HaveOccurred())
+					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+				})
+
+				It("should fail when updating target namespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+
+					By("Expecting terminal to be created")
+					Eventually(func() bool {
+						terminal = &dashboardv1alpha1.Terminal{}
+						err := k8sClient.Get(ctx, terminalKey, terminal)
+						return err == nil
+					}, timeout, interval).Should(BeTrue())
+
+					changed := "changed"
+					terminal.Spec.Target.Namespace = &changed
+					error := k8sClient.Update(ctx, terminal)
+
+					Expect(error).To(HaveOccurred())
+					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+				})
+
+				It("should fail when updating target credential secret", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+
+					By("Expecting terminal to be created")
+					Eventually(func() bool {
+						terminal = &dashboardv1alpha1.Terminal{}
+						err := k8sClient.Get(ctx, terminalKey, terminal)
+						return err == nil
+					}, timeout, interval).Should(BeTrue())
+
+					terminal.Spec.Target.Credentials.SecretRef = &v1.SecretReference{
+						Namespace: targetNamespace,
+						Name:      "changed",
+					}
+					error := k8sClient.Update(ctx, terminal)
+
+					Expect(error).To(HaveOccurred())
+					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+				})
+
+				It("should fail when updating host credential secret", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+
+					By("Expecting terminal to be created")
+					Eventually(func() bool {
+						terminal = &dashboardv1alpha1.Terminal{}
+						err := k8sClient.Get(ctx, terminalKey, terminal)
+						return err == nil
+					}, timeout, interval).Should(BeTrue())
+
+					terminal.Spec.Host.Credentials.SecretRef = &v1.SecretReference{
+						Namespace: hostNamespace,
+						Name:      "bar",
+					}
+					error := k8sClient.Update(ctx, terminal)
+
+					Expect(error).To(HaveOccurred())
+					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+				})
+
+				It("should fail when changing target temporary namespace flag", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+
+					By("Expecting terminal to be created")
+					Eventually(func() bool {
+						terminal = &dashboardv1alpha1.Terminal{}
+						err := k8sClient.Get(ctx, terminalKey, terminal)
+						return err == nil
+					}, timeout, interval).Should(BeTrue())
+
+					terminal.Spec.Target.TemporaryNamespace = true
+					error := k8sClient.Update(ctx, terminal)
+
+					Expect(error).To(HaveOccurred())
+					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+				})
+
+				It("should fail when changing host temporary namespace flag", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+
+					By("Expecting terminal to be created")
+					Eventually(func() bool {
+						terminal = &dashboardv1alpha1.Terminal{}
+						err := k8sClient.Get(ctx, terminalKey, terminal)
+						return err == nil
+					}, timeout, interval).Should(BeTrue())
+
+					terminal.Spec.Host.TemporaryNamespace = true
+					error := k8sClient.Update(ctx, terminal)
+
+					Expect(error).To(HaveOccurred())
+					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+				})
 			})
 
 			It("annotation createdBy should be immutable", func() {

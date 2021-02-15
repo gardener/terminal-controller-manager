@@ -68,7 +68,6 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	userInfo := admissionReq.UserInfo
 
 	if admissionReq.Operation != admissionv1.Create {
-		// TODO write unit tests where we explicitly check that the identifier and the secretRefs cannot be changed
 		specFldPath := field.NewPath("spec")
 		if err := validateImmutableField(t.Spec, oldT.Spec, specFldPath); err != nil {
 			return false, err.Error(), nil

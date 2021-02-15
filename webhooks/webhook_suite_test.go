@@ -73,7 +73,6 @@ var _ = BeforeSuite(func() {
 	testEnv = environment.Env
 	k8sManager = environment.K8sManager
 	k8sClient = environment.K8sClient
-	//cfg := environment.Config
 	environment.Start()
 }, 60)
 

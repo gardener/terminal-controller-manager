@@ -59,9 +59,6 @@ func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Te
 
 		t.Spec.Identifier = terminalIdentifier
 
-		// TODO validate that there is no other terminal with this identifier (search for label terminal.dashboard.gardener.cloud/identifier in all namespaces)
-		// TODO write a test that if the namespace is temporary, also a temporary namespace is generated
-
 		h.mutateNamespaceIfTemporary(t, terminalIdentifier)
 
 		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)

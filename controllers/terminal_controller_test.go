@@ -189,17 +189,17 @@ var _ = Describe("Terminal Controller", func() {
 							return kErros.IsNotFound(err)
 						}, timeout, interval).Should(BeTrue())
 
-						By("expecting host namespace to be in deletion")
+						By("expecting temporary host namespace to be in deletion")
 						namespace := &v1.Namespace{}
 						err = k8sClient.Get(ctx, types.NamespacedName{Name: temporaryHostNamespace}, namespace)
 						Expect(err).To(Not(HaveOccurred())) // with envtest no kube-controller is running that is finally deleting the namespace
 						Expect(namespace.DeletionTimestamp).To(Not(BeNil()))
 
-						By("expecting target namespace to be deleted")
+						By("expecting temporary target namespace to be in deletion")
 						namespace = &v1.Namespace{}
 						err = k8sClient.Get(ctx, types.NamespacedName{Name: temporaryTargetNamespace}, namespace)
-						Expect(err).To(Not(HaveOccurred()))                  // with envtest no kube-controller is running that is finally deleting the namespace
-						Expect(namespace.DeletionTimestamp).To(Not(BeNil())) // with envtest no kube-controller is running that is finally deleting the namespace
+						Expect(err).To(Not(HaveOccurred())) // with envtest no kube-controller is running that is finally deleting the namespace
+						Expect(namespace.DeletionTimestamp).To(Not(BeNil()))
 					})
 				})
 			})
@@ -247,14 +247,14 @@ var _ = Describe("Terminal Controller", func() {
 								t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+terminal.Spec.Identifier
 						}, timeout, interval).Should(BeTrue())
 
-						By("Expecting target namespace to be created")
+						By("Expecting (temporary) target namespace to be created")
 						Expect(*terminal.Spec.Target.Namespace).To(Not(BeEmpty()))
 						Eventually(func() bool {
 							err := k8sClient.Get(ctx, types.NamespacedName{Name: *terminal.Spec.Target.Namespace}, &v1.Namespace{})
 							return err == nil
 						}).Should(BeTrue())
 
-						By("Expecting host namespace to be created")
+						By("Expecting (temporary) host namespace to be created")
 						Expect(*terminal.Spec.Host.Namespace).To(Not(BeEmpty()))
 						Eventually(func() bool {
 							err := k8sClient.Get(ctx, types.NamespacedName{Name: *terminal.Spec.Host.Namespace}, &v1.Namespace{})
