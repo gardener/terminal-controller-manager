@@ -37,7 +37,7 @@ There are two options to deploy the `terminal-controller-manager` into your clus
 To setup local development certificates under the /tmp directory needed by the controller execute:
 
 ```bash
-./hack/setup-local-dev-certs
+./hack/setup-local-dev-certs.sh
 ```
 
 To deploy the `terminal-controller-manager` into a single-cluster execute:

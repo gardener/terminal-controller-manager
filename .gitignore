@@ -1,5 +1,10 @@
 .DS_Store
 
+/args
+/bin
+/local
+/dev
+
 # Ignore all tempfiles.
 /tmp
 

@@ -15,7 +15,6 @@
 # limitations under the License.
 
 set -o errexit
-set -o nounset
 set -o pipefail
 
 # For the check step concourse will set the following environment variables:
@@ -29,4 +28,16 @@ fi
 
 cd "$SOURCE_PATH"
 
-go test ./... -race -coverprofile cover.out
+TEST_BIN_DIR="$SOURCE_PATH/../dev/testbin"
+mkdir -p ${TEST_BIN_DIR}
+
+ENVTEST_ASSETS_DIR="$(realpath ${TEST_BIN_DIR})"
+
+source "$SOURCE_PATH/hack/setup-envtest.sh"
+
+fetch_envtest_tools ${ENVTEST_ASSETS_DIR}
+setup_envtest_env ${ENVTEST_ASSETS_DIR}
+
+echo "> Test"
+
+GO111MODULE=on go test ./... -race
