@@ -8,6 +8,8 @@ IMG_RBAC_PROXY ?= quay.io/brancz/kube-rbac-proxy:v0.8.0
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
+CR_VERSION := $(shell go mod edit -json | jq -r '.Require[] | select(.Path=="sigs.k8s.io/controller-runtime") | .Version')
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -85,6 +87,9 @@ docker-build: test
 # Push the docker image
 docker-push:
 	docker push ${IMG}
+
+sync-setup-envtest:
+	@curl -sSLo hack/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/$(CR_VERSION)/hack/setup-envtest.sh
 
 # find or download controller-gen
 # download controller-gen if necessary
