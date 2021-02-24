@@ -19,12 +19,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"net/url"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 
 	"github.com/gardener/terminal-controller-manager/utils"
 
@@ -69,6 +70,7 @@ type TerminalReconciler struct {
 	Config                      *extensionsv1alpha1.ControllerManagerConfiguration
 	ReconcilerCountPerNamespace map[string]int
 	mutex                       sync.RWMutex
+	configMutex                 sync.RWMutex
 }
 
 type ClientSet struct {
@@ -87,6 +89,21 @@ func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager, config extension
 		Complete(r)
 }
 
+func (r *TerminalReconciler) getConfig() *extensionsv1alpha1.ControllerManagerConfiguration {
+	r.configMutex.RLock()
+	defer r.configMutex.RUnlock()
+
+	return r.Config
+}
+
+// Mainly used for tests to inject config
+func (r *TerminalReconciler) injectConfig(config *extensionsv1alpha1.ControllerManagerConfiguration) {
+	r.configMutex.Lock()
+	defer r.configMutex.Unlock()
+
+	r.Config = config
+}
+
 func (r *TerminalReconciler) increaseCounterForNamespace(namespace string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -98,7 +115,7 @@ func (r *TerminalReconciler) increaseCounterForNamespace(namespace string) error
 		counter = c + 1
 	}
 
-	if counter > r.Config.Controllers.Terminal.MaxConcurrentReconcilesPerNamespace {
+	if counter > r.getConfig().Controllers.Terminal.MaxConcurrentReconcilesPerNamespace {
 		return fmt.Errorf("max count reached")
 	}
 
@@ -169,8 +186,8 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 
 	gardenClientSet := r.ClientSet
 
-	hostClientSet, hostClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials, r.Config.HonourServiceAccountRefHostCluster, r.Scheme)
-	targetClientSet, targetClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials, r.Config.HonourServiceAccountRefTargetCluster, r.Scheme)
+	hostClientSet, hostClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials, r.getConfig().HonourServiceAccountRefHostCluster, r.Scheme)
+	targetClientSet, targetClientSetErr := NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials, r.getConfig().HonourServiceAccountRefTargetCluster, r.Scheme)
 
 	if !t.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is being deleted
@@ -386,15 +403,15 @@ func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, 
 }
 
 func (r *TerminalReconciler) deleteAccessToken(ctx context.Context, targetClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
-	serviceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Target.Namespace, Name: extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier}}
+	serviceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Target.Namespace, Name: extensionsv1alpha1.TerminalAccessResourceNamePrefix + t.Spec.Identifier}}
 
 	if t.Spec.Target.RoleName != "" && t.Spec.Target.BindingKind != "" {
 		roleBinding := &extensionsv1alpha1.RoleBinding{
 			NameSuffix: "", // must not be set
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
-				Kind: "ClusterRole", // only ClusterRole was possible
-				Name: t.Spec.Target.RoleName,
+				Kind:     "ClusterRole", // only ClusterRole was possible
+				Name:     t.Spec.Target.RoleName,
 			},
 			BindingKind: t.Spec.Target.BindingKind,
 		}
@@ -413,7 +430,7 @@ func (r *TerminalReconciler) deleteAccessToken(ctx context.Context, targetClient
 			}
 		}
 
-		if r.Config.HonourProjectMemberships {
+		if r.getConfig().HonourProjectMemberships {
 			for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
 				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
 					err := r.removeServiceAccountFromProjectMember(ctx, targetClientSet, projectMembership, serviceAccount)
@@ -726,8 +743,8 @@ func (r *TerminalReconciler) createAccessToken(ctx context.Context, targetClient
 			NameSuffix: "", // must not be set to be compatible to previous versions
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
-				Kind: "ClusterRole", // only ClusterRole was possible
-				Name: t.Spec.Target.RoleName,
+				Kind:     "ClusterRole", // only ClusterRole was possible
+				Name:     t.Spec.Target.RoleName,
 			},
 			BindingKind: t.Spec.Target.BindingKind,
 		}
@@ -746,7 +763,7 @@ func (r *TerminalReconciler) createAccessToken(ctx context.Context, targetClient
 			}
 		}
 
-		if r.Config.HonourProjectMemberships {
+		if r.getConfig().HonourProjectMemberships {
 			for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
 				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
 					err := addServiceAccountAsProjectMember(ctx, targetClientSet, projectMembership, accessServiceAccount)

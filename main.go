@@ -21,6 +21,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/gardener/terminal-controller-manager/webhooks"
+
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"gopkg.in/yaml.v2"
@@ -32,11 +34,9 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/controllers"
-	"github.com/gardener/terminal-controller-manager/webhooks/mutating"
-	"github.com/gardener/terminal-controller-manager/webhooks/validating"
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -140,11 +140,10 @@ func main() {
 	}
 
 	setupLog.Info("registering webhooks to the webhook server")
-	hookServer.Register("/mutate-terminal", &webhook.Admission{Handler: &mutating.TerminalMutator{
-		Log:    ctrl.Log.WithName("webhooks").WithName("TerminalMutation"),
-		Config: cmConfig,
+	hookServer.Register("/mutate-terminal", &webhook.Admission{Handler: &webhooks.TerminalMutator{
+		Log: ctrl.Log.WithName("webhooks").WithName("TerminalMutation"),
 	}})
-	hookServer.Register("/validate-terminal", &webhook.Admission{Handler: &validating.TerminalValidator{
+	hookServer.Register("/validate-terminal", &webhook.Admission{Handler: &webhooks.TerminalValidator{
 		Log:    ctrl.Log.WithName("webhooks").WithName("TerminalValidation"),
 		Config: cmConfig,
 	}})

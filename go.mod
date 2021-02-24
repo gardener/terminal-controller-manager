@@ -12,11 +12,11 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v2 v2.3.0
-	k8s.io/api v0.20.1
-	k8s.io/apimachinery v0.20.1
+	k8s.io/api v0.20.2
+	k8s.io/apimachinery v0.20.2
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
-	sigs.k8s.io/controller-runtime v0.8.0
+	sigs.k8s.io/controller-runtime v0.8.2
 	sigs.k8s.io/yaml v1.2.0
 )
 
-replace k8s.io/client-go => k8s.io/client-go v0.20.1
+replace k8s.io/client-go => k8s.io/client-go v0.20.2

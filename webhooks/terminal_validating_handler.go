@@ -13,12 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package validating
+package webhooks
 
 import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -39,19 +40,34 @@ import (
 
 // TerminalValidator handles Terminal
 type TerminalValidator struct {
-	client client.Client
-	Log    logr.Logger
-	Config *v1alpha1.ControllerManagerConfiguration
+	client      client.Client
+	Log         logr.Logger
+	Config      *v1alpha1.ControllerManagerConfiguration
+	configMutex sync.RWMutex
 
 	// Decoder decodes objects
 	decoder *admission.Decoder
+}
+
+func (h *TerminalValidator) getConfig() *v1alpha1.ControllerManagerConfiguration {
+	h.configMutex.RLock()
+	defer h.configMutex.RUnlock()
+
+	return h.Config
+}
+
+// Mainly used for tests to inject config
+func (h *TerminalValidator) injectConfig(config *v1alpha1.ControllerManagerConfiguration) {
+	h.configMutex.Lock()
+	defer h.configMutex.Unlock()
+
+	h.Config = config
 }
 
 func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha1.Terminal, oldT *v1alpha1.Terminal, admissionReq admissionv1.AdmissionRequest) (bool, string, error) {
 	userInfo := admissionReq.UserInfo
 
 	if admissionReq.Operation != admissionv1.Create {
-		// TODO write unit tests where we explicitly check that the identifier and the secretRefs cannot be changed
 		specFldPath := field.NewPath("spec")
 		if err := validateImmutableField(t.Spec, oldT.Spec, specFldPath); err != nil {
 			return false, err.Error(), nil
@@ -194,7 +210,7 @@ func validateRequiredAPIServerFields(t *v1alpha1.Terminal) error {
 		if t.Spec.Target.APIServer.ServiceRef == nil && t.Spec.Target.APIServer.Server == "" {
 			return field.Required(
 				field.NewPath("spec", "target", "apiServer", "server"),
-				"field or " + field.NewPath("spec", "target", "apiServer", "serviceRef").String() + " field is required when " + field.NewPath("spec", "target", "apiServer").String() + " is set")
+				"field or "+field.NewPath("spec", "target", "apiServer", "serviceRef").String()+" field is required when "+field.NewPath("spec", "target", "apiServer").String()+" is set")
 		}
 
 		if t.Spec.Target.APIServer.ServiceRef != nil {
@@ -206,11 +222,11 @@ func validateRequiredAPIServerFields(t *v1alpha1.Terminal) error {
 }
 
 func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) error {
-	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.Config.HonourServiceAccountRefTargetCluster); err != nil {
+	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.getConfig().HonourServiceAccountRefTargetCluster); err != nil {
 		return err
 	}
 
-	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.Config.HonourServiceAccountRefHostCluster)
+	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.getConfig().HonourServiceAccountRefHostCluster)
 }
 
 func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef bool) error {
@@ -220,7 +236,7 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 		}
 
 		if cred.SecretRef == nil {
-			return field.Required(fldPath, "field requires SecretRef to be set")
+			return field.Required(fldPath.Child("secretRef"), "field is required")
 		}
 	} else {
 		if cred.SecretRef == nil && cred.ServiceAccountRef == nil {
@@ -266,9 +282,9 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 func (h *TerminalValidator) validateRequiredTargetAuthorization(t *v1alpha1.Terminal) error {
 	fldPath := field.NewPath("spec", "target")
 
-	if t.Spec.Target.RoleName != ""  {
+	if t.Spec.Target.RoleName != "" {
 		if t.Spec.Target.BindingKind != v1alpha1.BindingKindClusterRoleBinding && t.Spec.Target.BindingKind != v1alpha1.BindingKindRoleBinding {
-			return field.Invalid(fldPath.Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either " + v1alpha1.BindingKindClusterRoleBinding.String() + " or " +  v1alpha1.BindingKindRoleBinding.String())
+			return field.Invalid(fldPath.Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either "+v1alpha1.BindingKindClusterRoleBinding.String()+" or "+v1alpha1.BindingKindRoleBinding.String())
 		}
 	}
 
@@ -311,8 +327,8 @@ func validateUniqueRoleBindingNameSuffixes(t *v1alpha1.Terminal, fldPath *field.
 	names := make(map[string]struct{})
 
 	for index, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
-		if _, duplicate := names[roleBinding.NameSuffix]; duplicate{
-			return field.Invalid(fldPath.Index(index).Child("name"), roleBinding.NameSuffix, "name must be unique")
+		if _, duplicate := names[roleBinding.NameSuffix]; duplicate {
+			return field.Invalid(fldPath.Index(index).Child("nameSuffix"), roleBinding.NameSuffix, "name must be unique")
 		}
 
 		names[roleBinding.NameSuffix] = struct{}{}
@@ -325,7 +341,7 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 	fldPath = fldPath.Child("projectMemberships")
 
 	for index, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
-		if !h.Config.HonourProjectMemberships {
+		if !h.getConfig().HonourProjectMemberships {
 			return field.Forbidden(fldPath, "field is forbidden by configuration")
 		}
 
@@ -337,8 +353,8 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 			return field.Required(fldPath.Index(index).Child("roles"), "field is required")
 		}
 
-		for index, role := range projectMembership.Roles {
-			if err := validateRequiredField(&role, fldPath.Index(index).Child("roles").Index(index)); err != nil {
+		for rolesIndex, role := range projectMembership.Roles {
+			if err := validateRequiredField(&role, fldPath.Index(index).Child("roles").Index(rolesIndex)); err != nil {
 				return err
 			}
 		}
@@ -440,7 +456,7 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 	obj := &v1alpha1.Terminal{}
 	oldObj := &v1alpha1.Terminal{}
 
-	maxObjSize := h.Config.Webhooks.TerminalValidation.MaxObjectSize
+	maxObjSize := h.getConfig().Webhooks.TerminalValidation.MaxObjectSize
 	objSize := len(req.Object.Raw)
 
 	if objSize > maxObjSize {
