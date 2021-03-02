@@ -576,9 +576,7 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 		return err
 	}
 
-	t.Status.AttachServiceAccountName = attachPodServiceAccount.Name
-
-	err = r.Status().Update(ctx, t)
+	err = r.updateTerminalStatusAttachServiceAccountName(ctx, t, attachPodServiceAccount.Name)
 	if err != nil {
 		return err
 	}
@@ -621,6 +619,34 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 	}
 
 	return nil
+}
+
+func (r *TerminalReconciler) updateTerminalStatusAttachServiceAccountName(ctx context.Context, t *extensionsv1alpha1.Terminal, attachServiceAccountName string) error {
+	terminal := &extensionsv1alpha1.Terminal{}
+
+	// make sure to fetch the latest version of the terminal resource before updating it's status
+	err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal)
+	if err != nil {
+		return err
+	}
+
+	terminal.Status.AttachServiceAccountName = attachServiceAccountName
+
+	return r.Status().Update(ctx, terminal)
+}
+
+func (r *TerminalReconciler) updateTerminalStatusPodName(ctx context.Context, t *extensionsv1alpha1.Terminal, podName string) error {
+	terminal := &extensionsv1alpha1.Terminal{}
+
+	// make sure to fetch the latest version of the terminal resource before updating it's status
+	err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal)
+	if err != nil {
+		return err
+	}
+
+	terminal.Status.PodName = podName
+
+	return r.Status().Update(ctx, terminal)
 }
 
 func createOrUpdateAttachRole(ctx context.Context, hostClientSet *ClientSet, namespace string, name string, rules []rbacv1.PolicyRule) (*rbacv1.Role, error) {
@@ -1065,9 +1091,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		kubeconfigReadOnlyVolumeName  = "kubeconfig"
 	)
 
-	t.Status.PodName = pod.Name
-
-	err := r.Status().Update(ctx, t)
+	err := r.updateTerminalStatusPodName(ctx, t, pod.Name)
 	if err != nil {
 		return nil, err
 	}
