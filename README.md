@@ -4,6 +4,7 @@
 [![CI Build status](https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/terminal-controller-manager-master/jobs/master-head-update-job/badge)](https://concourse.ci.gardener.cloud/teams/gardener/pipelines/terminal-controller-manager-master/jobs/master-head-update-job)
 [![Slack channel #gardener](https://img.shields.io/badge/slack-gardener-brightgreen.svg?logo=slack)](https://kubernetes.slack.com/messages/gardener)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gardener/terminal-controller-manager)](https://goreportcard.com/report/github.com/gardener/terminal-controller-manager)
+[![reuse compliant](https://reuse.software/badge/reuse-compliant.svg)](https://reuse.software/)
 
 The `terminal-controller-manager` is used for the [webterminal feature](https://github.com/gardener/dashboard/blob/master/docs/Webterminals.md) of the [gardener/dashboard](https://github.com/gardener/dashboard) but is in general independant of the gardener and it's resource kinds like `Shoots`, `Seeds` etc.
 
