@@ -1312,7 +1312,32 @@ func NewClientSetFromSecretRef(ctx context.Context, cs *ClientSet, ref *corev1.S
 // Client is created either from "kubeconfig" or "token" and "ca.crt" data keys
 func NewClientSetFromSecret(ctx context.Context, config *rest.Config, secret *corev1.Secret, opts client.Options) (*ClientSet, error) {
 	if kubeconfig, ok := secret.Data[DataKeyKubeConfig]; ok {
-		if gsaKey, ok := secret.Data[DataKeyServiceaccountJSON]; ok {
+		clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg, err := clientConfig.RawConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		context := cfg.Contexts[cfg.CurrentContext]
+		if context == nil {
+			return nil, fmt.Errorf("no context found for current context %s", cfg.CurrentContext)
+		}
+
+		authInfo := cfg.AuthInfos[context.AuthInfo]
+		if authInfo == nil {
+			return nil, fmt.Errorf("no auth info found with name %s", context.AuthInfo)
+		}
+
+		if authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "gcp" {
+			gsaKey, ok := secret.Data[DataKeyServiceaccountJSON]
+			if !ok {
+				return nil, fmt.Errorf("%q required in secret for gcp authentication provider", DataKeyServiceaccountJSON)
+			}
+
 			return NewClientSetFromGoogleSAKey(ctx, kubeconfig, gsaKey, opts)
 		}
 
