@@ -1309,7 +1309,7 @@ func NewClientSetFromSecretRef(ctx context.Context, cs *ClientSet, ref *corev1.S
 }
 
 // NewClientSetFromSecret creates a new controller ClientSet struct for a given secret.
-// Client is created either from "kubeconfig" or "token" and "ca.crt" data keys
+// Client is created either from "kubeconfig" (and in case of gcp from "serviceaccount.json") or "token" and "ca.crt" data keys
 func NewClientSetFromSecret(ctx context.Context, config *rest.Config, secret *corev1.Secret, opts client.Options) (*ClientSet, error) {
 	if kubeconfig, ok := secret.Data[DataKeyKubeConfig]; ok {
 		clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
@@ -1338,7 +1338,7 @@ func NewClientSetFromSecret(ctx context.Context, config *rest.Config, secret *co
 				return nil, fmt.Errorf("%q required in secret for gcp authentication provider", DataKeyServiceaccountJSON)
 			}
 
-			return NewClientSetFromGoogleSAKey(ctx, kubeconfig, gsaKey, opts)
+			return NewClientSetFromGoogleSAKey(ctx, cfg, *context, gsaKey, opts)
 		}
 
 		return NewClientSetFromBytes(kubeconfig, opts)
@@ -1360,22 +1360,8 @@ func NewClientSetFromSecret(ctx context.Context, config *rest.Config, secret *co
 	return nil, errors.New("no valid kubeconfig found")
 }
 
-func NewClientSetFromGoogleSAKey(ctx context.Context, kubeconfig []byte, gsaKey []byte, opts client.Options) (*ClientSet, error) {
-	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg, err := clientConfig.RawConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	context := cfg.Contexts[cfg.CurrentContext]
-	if context == nil {
-		return nil, fmt.Errorf("no context found for current context %s", cfg.CurrentContext)
-	}
-
+// NewClientSetFromGoogleSAKey creates a new controller ClientSet struct for a given google service account key and client config.
+func NewClientSetFromGoogleSAKey(ctx context.Context, cfg clientcmdapi.Config, context clientcmdapi.Context, gsaKey []byte, opts client.Options) (*ClientSet, error) {
 	cluster := cfg.Clusters[context.Cluster]
 	if cluster == nil {
 		return nil, fmt.Errorf("no cluster found with name %s", context.Cluster)
