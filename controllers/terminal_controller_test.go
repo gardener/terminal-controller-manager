@@ -16,6 +16,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -414,6 +416,46 @@ var _ = Describe("Terminal Controller", func() {
 				//attachServiceAccountName = t.Status.AttachServiceAccountName
 				return t.Status.PodName
 			}, timeout, interval).Should(Not(BeEmpty()))
+		})
+	})
+
+	Context("Terminal pod tolerations", func() {
+		var (
+			tolerations        []corev1.Toleration
+			tolerationWithKey1 = corev1.Toleration{
+				Key:      "key1",
+				Effect:   corev1.TaintEffectNoSchedule,
+				Operator: corev1.TolerationOpExists,
+			}
+			tolerationWithKey2 = corev1.Toleration{
+				Key:      "key2",
+				Operator: corev1.TolerationOpExists,
+			}
+			existingToleration = corev1.Toleration{
+				Effect:   corev1.TaintEffectNoExecute,
+				Operator: corev1.TolerationOpExists,
+			}
+			nonExistingToleration = corev1.Toleration{
+				Effect:   corev1.TaintEffectNoSchedule,
+				Operator: corev1.TolerationOpExists,
+			}
+		)
+
+		BeforeEach(func() {
+			tolerations = []corev1.Toleration{tolerationWithKey1, tolerationWithKey2, existingToleration}
+		})
+
+		It("Should correctly determine that toleration exists or not by comparing their keys", func() {
+			Expect(tolerationExists(tolerations, matchByKey(tolerationWithKey1.Key))).To(BeTrue())
+			Expect(tolerationExists(tolerations, matchByKey(tolerationWithKey2.Key))).To(BeTrue())
+
+			Expect(tolerationExists(tolerations, matchByKey("key3"))).To(BeFalse())
+		})
+
+		It("Should correctly determine that toleration exists or not by comparing the entire toleration struct", func() {
+			Expect(tolerationExists(tolerations, match(existingToleration))).To(BeTrue())
+
+			Expect(tolerationExists(tolerations, match(nonExistingToleration))).To(BeFalse())
 		})
 	})
 })
