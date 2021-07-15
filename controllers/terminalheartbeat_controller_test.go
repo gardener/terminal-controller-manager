@@ -125,7 +125,9 @@ var _ = Describe("Terminal Controller", func() {
 	Context("terminal lifecycle", func() {
 		Context("expired lifetime", func() {
 			BeforeEach(func() {
-				cmConfig.Controllers.TerminalHeartbeat.TimeToLive = v1alpha1.Duration{Duration: time.Duration(1) * time.Second}
+				configWithNewTTL := test.DefaultConfiguration()
+				configWithNewTTL.Controllers.TerminalHeartbeat.TimeToLive = v1alpha1.Duration{Duration: time.Duration(1) * time.Second}
+				terminalHeartbeatReconciler.injectConfig(configWithNewTTL)
 			})
 			It("Should delete terminal", func() {
 				Expect(terminalCreationError).Should(Not(HaveOccurred()))
