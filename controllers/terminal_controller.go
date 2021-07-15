@@ -40,6 +40,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -1113,15 +1114,6 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 
 		mountHostRootFs := privileged || t.Spec.Host.Pod.HostPID || t.Spec.Host.Pod.HostNetwork
 
-		tolerationExists := func(key string) bool {
-			for _, toleration := range pod.Spec.Tolerations {
-				if toleration.Key == key {
-					return true
-				}
-			}
-			return false
-		}
-
 		if len(pod.Spec.Containers) == 0 {
 			// initialize values that cannot be updated
 			container := corev1.Container{Name: containerName}
@@ -1232,14 +1224,30 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 			if len(pod.Spec.Tolerations) == 0 {
 				pod.Spec.Tolerations = []corev1.Toleration{}
 			}
-			tolerationKey := "node-role.kubernetes.io/master"
-			if !tolerationExists(tolerationKey) {
+			masterNodeKey := "node-role.kubernetes.io/master"
+			criticalAddonsKey := "CriticalAddonsOnly"
+			if !tolerationExists(pod.Spec.Tolerations, matchByKey(masterNodeKey)) {
 				pod.Spec.Tolerations = append(pod.Spec.Tolerations,
 					corev1.Toleration{
-						Key:      tolerationKey,
+						Key:      masterNodeKey,
 						Operator: corev1.TolerationOpExists,
 						Effect:   corev1.TaintEffectNoSchedule,
 					})
+			}
+			if !tolerationExists(pod.Spec.Tolerations, matchByKey(criticalAddonsKey)) {
+				pod.Spec.Tolerations = append(pod.Spec.Tolerations,
+					corev1.Toleration{
+						Key:      criticalAddonsKey,
+						Operator: corev1.TolerationOpExists,
+					})
+			}
+
+			noExecuteToleration := corev1.Toleration{
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoExecute,
+			}
+			if !tolerationExists(pod.Spec.Tolerations, match(noExecuteToleration)) {
+				pod.Spec.Tolerations = append(pod.Spec.Tolerations, noExecuteToleration)
 			}
 		}
 
@@ -1260,6 +1268,30 @@ func deleteObj(ctx context.Context, cs *ClientSet, obj client.Object) error {
 	}
 
 	return err
+}
+
+type tolerationMatchFunc func(toleration corev1.Toleration) bool
+
+func tolerationExists(tolerations []corev1.Toleration, matchFunc tolerationMatchFunc) bool {
+	for _, toleration := range tolerations {
+		if matchFunc(toleration) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func matchByKey(key string) tolerationMatchFunc {
+	return func(toleration corev1.Toleration) bool {
+		return toleration.Key == key
+	}
+}
+
+func match(matchToleration corev1.Toleration) tolerationMatchFunc {
+	return func(toleration corev1.Toleration) bool {
+		return apiequality.Semantic.DeepEqual(toleration, matchToleration)
+	}
 }
 
 func NewClientSet(config *rest.Config, client client.Client, kubernetes kubernetes.Interface) *ClientSet {
