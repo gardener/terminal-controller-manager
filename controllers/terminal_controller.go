@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/oauth2/google"
+
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 
 	"github.com/gardener/terminal-controller-manager/utils"
@@ -1322,7 +1324,7 @@ func NewClientSetFromServiceAccountRef(ctx context.Context, cs *ClientSet, ref *
 		return nil, err
 	}
 
-	return NewClientSetFromSecret(cs.Config, secret, client.Options{
+	return NewClientSetFromSecret(ctx, cs.Config, secret, client.Options{
 		Scheme: scheme,
 	})
 }
@@ -1333,15 +1335,44 @@ func NewClientSetFromSecretRef(ctx context.Context, cs *ClientSet, ref *corev1.S
 		return nil, err
 	}
 
-	return NewClientSetFromSecret(cs.Config, secret, client.Options{
+	return NewClientSetFromSecret(ctx, cs.Config, secret, client.Options{
 		Scheme: scheme,
 	})
 }
 
 // NewClientSetFromSecret creates a new controller ClientSet struct for a given secret.
-// Client is created either from "kubeconfig" or "token" and "ca.crt" data keys
-func NewClientSetFromSecret(config *rest.Config, secret *corev1.Secret, opts client.Options) (*ClientSet, error) {
-	if kubeconfig, ok := secret.Data[KubeConfig]; ok {
+// Client is created either from "kubeconfig" (and in case of gcp from "serviceaccount.json") or "token" and "ca.crt" data keys
+func NewClientSetFromSecret(ctx context.Context, config *rest.Config, secret *corev1.Secret, opts client.Options) (*ClientSet, error) {
+	if kubeconfig, ok := secret.Data[DataKeyKubeConfig]; ok {
+		clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg, err := clientConfig.RawConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		context := cfg.Contexts[cfg.CurrentContext]
+		if context == nil {
+			return nil, fmt.Errorf("no context found for current context %s", cfg.CurrentContext)
+		}
+
+		authInfo := cfg.AuthInfos[context.AuthInfo]
+		if authInfo == nil {
+			return nil, fmt.Errorf("no auth info found with name %s", context.AuthInfo)
+		}
+
+		if authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "gcp" {
+			gsaKey, ok := secret.Data[DataKeyServiceaccountJSON]
+			if !ok {
+				return nil, fmt.Errorf("%q required in secret for gcp authentication provider", DataKeyServiceaccountJSON)
+			}
+
+			return NewClientSetFromGoogleSAKey(ctx, cfg, *context, gsaKey, opts)
+		}
+
 		return NewClientSetFromBytes(kubeconfig, opts)
 	}
 
@@ -1361,6 +1392,40 @@ func NewClientSetFromSecret(config *rest.Config, secret *corev1.Secret, opts cli
 	return nil, errors.New("no valid kubeconfig found")
 }
 
+// NewClientSetFromGoogleSAKey creates a new controller ClientSet struct for a given google service account key and client config.
+func NewClientSetFromGoogleSAKey(ctx context.Context, cfg clientcmdapi.Config, context clientcmdapi.Context, gsaKey []byte, opts client.Options) (*ClientSet, error) {
+	cluster := cfg.Clusters[context.Cluster]
+	if cluster == nil {
+		return nil, fmt.Errorf("no cluster found with name %s", context.Cluster)
+	}
+
+	// defaultScopes:
+	// - cloud-platform is the base scope to authenticate to GCP
+	defaultScopes := []string{
+		"https://www.googleapis.com/auth/cloud-platform",
+	}
+
+	credentials, err := google.CredentialsFromJSON(ctx, gsaKey, defaultScopes...)
+	if err != nil {
+		return nil, fmt.Errorf("could not get google credentials from json: %w", err)
+	}
+
+	token, err := credentials.TokenSource.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	secretConfig := &rest.Config{
+		Host: cluster.Server,
+		TLSClientConfig: rest.TLSClientConfig{
+			CAData: cluster.CertificateAuthorityData,
+		},
+		BearerToken: token.AccessToken,
+	}
+
+	return NewClientSetForConfig(secretConfig, opts)
+}
+
 func CreateOrUpdateDiscardResult(ctx context.Context, cs *ClientSet, obj client.Object, f controllerutil.MutateFn) error {
 	_, err := ctrl.CreateOrUpdate(ctx, cs.Client, obj, f)
 	return err
@@ -1375,8 +1440,12 @@ func formatError(message string, err error) *extensionsv1alpha1.LastError {
 	}
 }
 
-// KubeConfig is the key for the kubeconfig
-const KubeConfig = "kubeconfig"
+const (
+	// DataKeyKubeConfig is the key key in a secret holding the kubeconfig
+	DataKeyKubeConfig = "kubeconfig"
+	// DataKeyServiceaccountJSON is the key in a secret data holding the google service account key.
+	DataKeyServiceaccountJSON = "serviceaccount.json"
+)
 
 // NewClientSetFromBytes creates a new controller ClientSet struct for a given kubeconfig byte slice.
 func NewClientSetFromBytes(kubeconfig []byte, opts client.Options) (*ClientSet, error) {

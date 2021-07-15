@@ -6,7 +6,7 @@
 
 cd "${0%/*}"
 echo "Generating certificates.."
-./gen-certs
+./gen-certs.sh
 
 if [ -z "${CERTS_DIR}" ]; then
     export CERTS_DIR=/tmp/k8s-webhook-server/serving-certs
