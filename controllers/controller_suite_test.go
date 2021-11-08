@@ -11,22 +11,19 @@ import (
 	"testing"
 	"time"
 
+	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
 	"github.com/gardener/terminal-controller-manager/webhooks"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
-	//+kubebuilder:scaffold:imports
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -38,11 +35,9 @@ const (
 )
 
 var (
-	k8sClient                   client.Client
-	testEnv                     *envtest.Environment
+	e                           test.Environment
 	ctx                         context.Context
 	cancel                      context.CancelFunc
-	k8sManager                  ctrl.Manager
 	cmConfig                    *dashboardv1alpha1.ControllerManagerConfiguration
 	mutator                     *webhooks.TerminalMutator
 	validator                   *webhooks.TerminalValidator
@@ -72,38 +67,34 @@ var _ = BeforeSuite(func() {
 		Config: cmConfig,
 	}
 
-	environment := test.New(cmConfig, mutator, validator)
-	testEnv = environment.Env
-	k8sManager = environment.K8sManager
-	k8sClient = environment.K8sClient
-	cfg := environment.Config
+	e = test.New(cmConfig, mutator, validator)
 
-	kube, err := kubernetes.NewForConfig(cfg)
+	kube, err := kubernetes.NewForConfig(e.Config)
 	Expect(err).ToNot(HaveOccurred())
 
-	recorder := CreateRecorder(kube, k8sManager.GetScheme())
+	recorder := CreateRecorder(kube, e.K8sManager.GetScheme())
 
 	terminalReconciler = &TerminalReconciler{
-		ClientSet:                   NewClientSet(cfg, k8sManager.GetClient(), kube),
+		ClientSet:                   NewClientSet(e.Config, e.K8sManager.GetClient(), kube),
 		Log:                         ctrl.Log.WithName("controllers").WithName("Terminal"),
-		Scheme:                      k8sManager.GetScheme(),
+		Scheme:                      e.K8sManager.GetScheme(),
 		Recorder:                    recorder,
 		Config:                      cmConfig,
 		ReconcilerCountPerNamespace: map[string]int{},
 	}
-	err = terminalReconciler.SetupWithManager(k8sManager, cmConfig.Controllers.Terminal)
+	err = terminalReconciler.SetupWithManager(e.K8sManager, cmConfig.Controllers.Terminal)
 	Expect(err).ToNot(HaveOccurred())
 
 	terminalHeartbeatReconciler = &TerminalHeartbeatReconciler{
-		Client:   k8sManager.GetClient(),
+		Client:   e.K8sManager.GetClient(),
 		Log:      ctrl.Log.WithName("controllers").WithName("TerminalHeartbeat"),
 		Recorder: recorder,
 		Config:   cmConfig,
 	}
-	err = terminalHeartbeatReconciler.SetupWithManager(k8sManager, cmConfig.Controllers.TerminalHeartbeat)
+	err = terminalHeartbeatReconciler.SetupWithManager(e.K8sManager, cmConfig.Controllers.TerminalHeartbeat)
 	Expect(err).ToNot(HaveOccurred())
 
-	environment.Start()
+	e.Start()
 }, 60)
 
 // TODO reuse from main
@@ -117,6 +108,6 @@ func CreateRecorder(kubeClient kubernetes.Interface, scheme *runtime.Scheme) rec
 var _ = AfterSuite(func() {
 	cancel()
 	By("tearing down the test environment")
-	err := testEnv.Stop()
+	err := e.GardenEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 }, 5)

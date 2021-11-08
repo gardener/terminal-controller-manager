@@ -3,13 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Adds namespace to all resources.
-namespace: terminal-system
+namespace: terminal-system # namespace should not start with garden- to prevent name clashes with project namespaces
 
 namePrefix: terminal- # must match with namePrefix defined in ../../default/kustomization.yaml
 
-commonLabels:
-  component: terminal-manager
+labels:
+  - includeSelectors: true
+    pairs:
+      component: terminal-manager
 
 resources:
 - manager
+- rbac # contains only multi-cluster specific kustomization for the runtime cluster
 - ../../../rbac-rt

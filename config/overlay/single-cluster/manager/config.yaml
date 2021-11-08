@@ -5,5 +5,3 @@
 # overwrites defaults
 kind: ControllerManagerConfiguration
 apiVersion: v1alpha1
-logger:
-  development: false

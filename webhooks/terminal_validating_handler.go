@@ -13,18 +13,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
-
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
+
+	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
-	v1 "k8s.io/api/authentication/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	authv1 "k8s.io/api/authorization/v1"
-	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
@@ -355,7 +354,7 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 }
 
 // canGetCredential returns true if the user can read the referenced secret and or the referenced service account and all the secrets within the namespace of the service account
-func (h *TerminalValidator) canGetCredential(ctx context.Context, userInfo v1.UserInfo, cred v1alpha1.ClusterCredentials) (bool, error) {
+func (h *TerminalValidator) canGetCredential(ctx context.Context, userInfo authenticationv1.UserInfo, cred v1alpha1.ClusterCredentials) (bool, error) {
 	if allowed, err := h.canGetSecretAccessReview(ctx, userInfo, cred.SecretRef); err != nil {
 		return false, err
 	} else if !allowed {
@@ -365,14 +364,14 @@ func (h *TerminalValidator) canGetCredential(ctx context.Context, userInfo v1.Us
 	return h.canGetServiceAccountAndSecretAccessReview(ctx, userInfo, cred.ServiceAccountRef)
 }
 
-func (h *TerminalValidator) canGetSecretAccessReview(ctx context.Context, userInfo v1.UserInfo, ref *corev1.SecretReference) (bool, error) {
+func (h *TerminalValidator) canGetSecretAccessReview(ctx context.Context, userInfo authenticationv1.UserInfo, ref *corev1.SecretReference) (bool, error) {
 	if ref == nil {
 		return true, nil
 	}
 
-	subjectAccessReview := &authv1.SubjectAccessReview{
-		Spec: authv1.SubjectAccessReviewSpec{
-			ResourceAttributes: &authv1.ResourceAttributes{
+	subjectAccessReview := &authorizationv1.SubjectAccessReview{
+		Spec: authorizationv1.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
 				Group:     corev1.GroupName,
 				Resource:  corev1.ResourceSecrets.String(),
 				Verb:      "get",
@@ -390,14 +389,14 @@ func (h *TerminalValidator) canGetSecretAccessReview(ctx context.Context, userIn
 	return subjectAccessReview.Status.Allowed, err
 }
 
-func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx context.Context, userInfo v1.UserInfo, serviceAccountRef *corev1.ObjectReference) (bool, error) {
+func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx context.Context, userInfo authenticationv1.UserInfo, serviceAccountRef *corev1.ObjectReference) (bool, error) {
 	if serviceAccountRef == nil {
 		return true, nil
 	}
 
-	accesReviewServiceAccount := &authv1.SubjectAccessReview{
-		Spec: authv1.SubjectAccessReviewSpec{
-			ResourceAttributes: &authv1.ResourceAttributes{
+	accesReviewServiceAccount := &authorizationv1.SubjectAccessReview{
+		Spec: authorizationv1.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
 				Group:     corev1.GroupName,
 				Resource:  "serviceaccounts",
 				Verb:      "get",
@@ -421,9 +420,9 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 	}
 
 	// we ensure that the user is allowed to read "all" secrets in the referenced namespace, as the secrets referenced in the service account could change over time
-	accessReviewSecret := &authv1.SubjectAccessReview{
-		Spec: authv1.SubjectAccessReviewSpec{
-			ResourceAttributes: &authv1.ResourceAttributes{
+	accessReviewSecret := &authorizationv1.SubjectAccessReview{
+		Spec: authorizationv1.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
 				Group:     corev1.GroupName,
 				Resource:  corev1.ResourceSecrets.String(),
 				Verb:      "get",

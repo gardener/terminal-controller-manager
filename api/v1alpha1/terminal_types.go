@@ -9,12 +9,12 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"time"
 
 	"github.com/gardener/terminal-controller-manager/utils"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -281,9 +281,6 @@ type ControllerManagerConfiguration struct {
 	Controllers ControllerManagerControllerConfiguration `yaml:"controllers"`
 	// Webhooks defines the configuration of the admission webhooks.
 	Webhooks ControllerManagerWebhookConfiguration `yaml:"webhooks"`
-	// Logger defines the configuration of the zap logging module.
-	Logger ControllerManagerLoggerConfiguration `yaml:"logger"`
-
 	// HonourServiceAccountRefHostCluster defines if `host.credentials.serviceAccountRef` property should be honoured.
 	// It is recommended to be set to false for multi-cluster setups, in case pods are refused on the (virtual) cluster where the terminal resources are stored.
 	// Defaults to true.
@@ -298,14 +295,6 @@ type ControllerManagerConfiguration struct {
 	// Defaults to true.
 	// +optional
 	HonourProjectMemberships bool `yaml:"honourProjectMemberships"`
-}
-
-// ControllerManagerLogger defines the configuration of the Zap Logger.
-type ControllerManagerLoggerConfiguration struct {
-	// If Development is true, a Zap development config will be used
-	// (stacktraces on warnings, no sampling), otherwise a Zap production
-	// config will be used (stacktraces on errors, sampling). Defaults to true.
-	Development bool `yaml:"development"`
 }
 
 // ControllerManagerControllerConfiguration defines the configuration of the controllers.

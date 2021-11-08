@@ -12,17 +12,15 @@ import (
 	"sync"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/tools/record"
+	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
 // TerminalHeartbeatReconciler reconciles a TerminalHeartbeat object

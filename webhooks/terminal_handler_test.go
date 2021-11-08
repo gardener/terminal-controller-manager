@@ -12,9 +12,10 @@ import (
 
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -51,10 +52,10 @@ var _ = Describe("Validating Webhook", func() {
 		validator.injectConfig(cmConfig)
 
 		suffix = test.StringWithCharset(randomLength, charset)
-		terminalNamespace = fmt.Sprintf("%s%s", "test-terminal-namespace-", suffix)
-		hostNamespace = fmt.Sprintf("%s%s", "test-host-serviceaccount-namespace-", suffix)
-		targetNamespace = fmt.Sprintf("%s%s", "test-target-serviceaccount-namespace-", suffix)
-		terminalName = fmt.Sprintf("%s%s", "test-terminal-", suffix)
+		terminalNamespace = fmt.Sprintf("test-terminal-namespace-%s", suffix)
+		hostNamespace = fmt.Sprintf("test-host-serviceaccount-namespace-%s", suffix)
+		targetNamespace = fmt.Sprintf("test-target-serviceaccount-namespace-%s", suffix)
+		terminalName = fmt.Sprintf("test-terminal-%s", suffix)
 
 		terminalKey = types.NamespacedName{Name: terminalName, Namespace: terminalNamespace}
 		hostServiceAccountKey = types.NamespacedName{Name: HostServiceAccountName, Namespace: hostNamespace}
@@ -72,7 +73,7 @@ var _ = Describe("Validating Webhook", func() {
 			Spec: dashboardv1alpha1.TerminalSpec{
 				Host: dashboardv1alpha1.HostCluster{
 					Credentials: dashboardv1alpha1.ClusterCredentials{
-						ServiceAccountRef: &v1.ObjectReference{
+						ServiceAccountRef: &corev1.ObjectReference{
 							Kind:      rbacv1.ServiceAccountKind,
 							Name:      hostServiceAccountKey.Name,
 							Namespace: hostServiceAccountKey.Namespace,
@@ -88,7 +89,7 @@ var _ = Describe("Validating Webhook", func() {
 				},
 				Target: dashboardv1alpha1.TargetCluster{
 					Credentials: dashboardv1alpha1.ClusterCredentials{
-						ServiceAccountRef: &v1.ObjectReference{
+						ServiceAccountRef: &corev1.ObjectReference{
 							Kind:      rbacv1.ServiceAccountKind,
 							Name:      targetServiceAccountKey.Name,
 							Namespace: targetServiceAccountKey.Namespace,
@@ -105,13 +106,13 @@ var _ = Describe("Validating Webhook", func() {
 		namespaces := []string{terminalNamespace, hostNamespace, targetNamespace}
 		for _, namespace := range namespaces {
 			terminalNamespaceKey := types.NamespacedName{Name: namespace}
-			test.CreateObject(ctx, k8sClient, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, terminalNamespaceKey, timeout, interval)
+			e.CreateObject(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, terminalNamespaceKey, timeout, interval)
 		}
 
 		By("By creating host serviceaccount")
-		test.CreateServiceAccount(ctx, k8sClient, HostServiceAccountName, hostNamespace, timeout, interval)
+		e.AddClusterAdminServiceAccount(ctx, HostServiceAccountName, hostNamespace, timeout, interval)
 		By("By creating target serviceaccount")
-		test.CreateServiceAccount(ctx, k8sClient, TargetServiceAccountName, targetNamespace, timeout, interval)
+		e.AddClusterAdminServiceAccount(ctx, TargetServiceAccountName, targetNamespace, timeout, interval)
 	})
 
 	AssertFailedBehavior := func(expectedSubstring string) {
@@ -122,7 +123,7 @@ var _ = Describe("Validating Webhook", func() {
 	}
 
 	JustBeforeEach(func() {
-		terminalCreationError = k8sClient.Create(ctx, terminal)
+		terminalCreationError = e.K8sClient.Create(ctx, terminal)
 	})
 
 	Describe("mutation succeeds", func() {
@@ -134,7 +135,7 @@ var _ = Describe("Validating Webhook", func() {
 				Expect(terminalCreationError).To(Not(HaveOccurred()))
 
 				Eventually(func() bool {
-					err := k8sClient.Get(ctx, terminalKey, terminal)
+					err := e.K8sClient.Get(ctx, terminalKey, terminal)
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 				Expect(terminal.Spec.Identifier).To(Not(BeEmpty()))
@@ -151,7 +152,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, terminal)
+					err := e.K8sClient.Get(ctx, terminalKey, terminal)
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 				Expect(terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat]).To(Not(BeEmpty()))
@@ -159,13 +160,13 @@ var _ = Describe("Validating Webhook", func() {
 				By("clearing last heartbeat and setting keepalive annotation")
 				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
 				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalOperation] = dashboardv1alpha1.TerminalOperationKeepalive
-				error := k8sClient.Update(ctx, terminal)
-				Expect(error).To(Not(HaveOccurred()))
+				err := e.K8sClient.Update(ctx, terminal)
+				Expect(err).To(Not(HaveOccurred()))
 
 				By("by reading the terminal")
 				terminal = &dashboardv1alpha1.Terminal{}
-				error = k8sClient.Get(ctx, terminalKey, terminal)
-				Expect(error).To(Not(HaveOccurred()))
+				err = e.K8sClient.Get(ctx, terminalKey, terminal)
+				Expect(err).To(Not(HaveOccurred()))
 
 				Expect(terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat]).To(Not(BeEmpty()))
 				Expect(terminal.Annotations[dashboardv1alpha1.TerminalOperation]).To(BeEmpty())
@@ -186,7 +187,7 @@ var _ = Describe("Validating Webhook", func() {
 
 		Context("secret ref (host credential)", func() {
 			BeforeEach(func() {
-				terminal.Spec.Host.Credentials.SecretRef = &v1.SecretReference{
+				terminal.Spec.Host.Credentials.SecretRef = &corev1.SecretReference{
 					Namespace: hostNamespace,
 					Name:      "bar",
 				}
@@ -198,7 +199,7 @@ var _ = Describe("Validating Webhook", func() {
 
 		Context("secret ref (target credential)", func() {
 			BeforeEach(func() {
-				terminal.Spec.Target.Credentials.SecretRef = &v1.SecretReference{
+				terminal.Spec.Target.Credentials.SecretRef = &corev1.SecretReference{
 					Namespace: targetNamespace,
 					Name:      "bar",
 				}
@@ -217,15 +218,15 @@ var _ = Describe("Validating Webhook", func() {
 				By("Expecting terminal to be created")
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, terminal)
+					err := e.K8sClient.Get(ctx, terminalKey, terminal)
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
 				By("updating the last heartbeat time")
 				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
-				error := k8sClient.Update(ctx, terminal)
+				err := e.K8sClient.Update(ctx, terminal)
 
-				Expect(error).To(Not(HaveOccurred()))
+				Expect(err).To(Not(HaveOccurred()))
 			})
 		})
 	})
@@ -239,15 +240,15 @@ var _ = Describe("Validating Webhook", func() {
 					By("Expecting terminal to be created")
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
-						err := k8sClient.Get(ctx, terminalKey, terminal)
+						err := e.K8sClient.Get(ctx, terminalKey, terminal)
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
 					terminal.Spec.Identifier = "changed"
-					error := k8sClient.Update(ctx, terminal)
+					err := e.K8sClient.Update(ctx, terminal)
 
-					Expect(error).To(HaveOccurred())
-					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("field is immutable"))
 				})
 
 				It("should fail when updating host namespace", func() {
@@ -256,16 +257,16 @@ var _ = Describe("Validating Webhook", func() {
 					By("Expecting terminal to be created")
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
-						err := k8sClient.Get(ctx, terminalKey, terminal)
+						err := e.K8sClient.Get(ctx, terminalKey, terminal)
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
 					changed := "changed"
 					terminal.Spec.Host.Namespace = &changed
-					error := k8sClient.Update(ctx, terminal)
+					err := e.K8sClient.Update(ctx, terminal)
 
-					Expect(error).To(HaveOccurred())
-					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("field is immutable"))
 				})
 
 				It("should fail when updating target namespace", func() {
@@ -274,16 +275,16 @@ var _ = Describe("Validating Webhook", func() {
 					By("Expecting terminal to be created")
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
-						err := k8sClient.Get(ctx, terminalKey, terminal)
+						err := e.K8sClient.Get(ctx, terminalKey, terminal)
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
 					changed := "changed"
 					terminal.Spec.Target.Namespace = &changed
-					error := k8sClient.Update(ctx, terminal)
+					err := e.K8sClient.Update(ctx, terminal)
 
-					Expect(error).To(HaveOccurred())
-					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("field is immutable"))
 				})
 
 				It("should fail when updating target credential secret", func() {
@@ -292,18 +293,18 @@ var _ = Describe("Validating Webhook", func() {
 					By("Expecting terminal to be created")
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
-						err := k8sClient.Get(ctx, terminalKey, terminal)
+						err := e.K8sClient.Get(ctx, terminalKey, terminal)
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Target.Credentials.SecretRef = &v1.SecretReference{
+					terminal.Spec.Target.Credentials.SecretRef = &corev1.SecretReference{
 						Namespace: targetNamespace,
 						Name:      "changed",
 					}
-					error := k8sClient.Update(ctx, terminal)
+					err := e.K8sClient.Update(ctx, terminal)
 
-					Expect(error).To(HaveOccurred())
-					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("field is immutable"))
 				})
 
 				It("should fail when updating host credential secret", func() {
@@ -312,18 +313,18 @@ var _ = Describe("Validating Webhook", func() {
 					By("Expecting terminal to be created")
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
-						err := k8sClient.Get(ctx, terminalKey, terminal)
+						err := e.K8sClient.Get(ctx, terminalKey, terminal)
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Host.Credentials.SecretRef = &v1.SecretReference{
+					terminal.Spec.Host.Credentials.SecretRef = &corev1.SecretReference{
 						Namespace: hostNamespace,
 						Name:      "bar",
 					}
-					error := k8sClient.Update(ctx, terminal)
+					err := e.K8sClient.Update(ctx, terminal)
 
-					Expect(error).To(HaveOccurred())
-					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("field is immutable"))
 				})
 
 				It("should fail when changing target temporary namespace flag", func() {
@@ -332,15 +333,15 @@ var _ = Describe("Validating Webhook", func() {
 					By("Expecting terminal to be created")
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
-						err := k8sClient.Get(ctx, terminalKey, terminal)
+						err := e.K8sClient.Get(ctx, terminalKey, terminal)
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
 					terminal.Spec.Target.TemporaryNamespace = true
-					error := k8sClient.Update(ctx, terminal)
+					err := e.K8sClient.Update(ctx, terminal)
 
-					Expect(error).To(HaveOccurred())
-					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("field is immutable"))
 				})
 
 				It("should fail when changing host temporary namespace flag", func() {
@@ -349,15 +350,15 @@ var _ = Describe("Validating Webhook", func() {
 					By("Expecting terminal to be created")
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
-						err := k8sClient.Get(ctx, terminalKey, terminal)
+						err := e.K8sClient.Get(ctx, terminalKey, terminal)
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
 					terminal.Spec.Host.TemporaryNamespace = true
-					error := k8sClient.Update(ctx, terminal)
+					err := e.K8sClient.Update(ctx, terminal)
 
-					Expect(error).To(HaveOccurred())
-					Expect(error.Error()).To(ContainSubstring("field is immutable"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("field is immutable"))
 				})
 			})
 
@@ -367,15 +368,15 @@ var _ = Describe("Validating Webhook", func() {
 				By("Expecting terminal to be created")
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, terminal)
+					err := e.K8sClient.Get(ctx, terminalKey, terminal)
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
 				terminal.ObjectMeta.Annotations[dashboardv1alpha1.GardenCreatedBy] = "changed"
-				error := k8sClient.Update(ctx, terminal)
+				err := e.K8sClient.Update(ctx, terminal)
 
-				Expect(error).To(HaveOccurred())
-				Expect(error.Error()).To(ContainSubstring("metadata.annotations.gardener.cloud/created-by: Invalid value: \"changed\": field is immutable"))
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("metadata.annotations.gardener.cloud/created-by: Invalid value: \"changed\": field is immutable"))
 			})
 
 			It("should not allow to set last heartbeat in the future", func() {
@@ -384,17 +385,17 @@ var _ = Describe("Validating Webhook", func() {
 				By("Expecting terminal to be created")
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, terminal)
+					err := e.K8sClient.Get(ctx, terminalKey, terminal)
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
 				By("updating the last heartbeat time to the future")
 				future := time.Now().Local().Add(time.Hour)
 				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = future.UTC().Format(time.RFC3339)
-				error := k8sClient.Update(ctx, terminal)
+				err := e.K8sClient.Update(ctx, terminal)
 
-				Expect(error).To(HaveOccurred())
-				Expect(error.Error()).To(ContainSubstring("metadata.annotations.dashboard.gardener.cloud/last-heartbeat-at: Forbidden"))
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("metadata.annotations.dashboard.gardener.cloud/last-heartbeat-at: Forbidden"))
 			})
 
 			It("should not allow to set invalid last heartbeat date", func() {
@@ -403,16 +404,16 @@ var _ = Describe("Validating Webhook", func() {
 				By("Expecting terminal to be created")
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, terminal)
+					err := e.K8sClient.Get(ctx, terminalKey, terminal)
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
 				By("setting an invalid value as last heartbeat time")
 				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = "invalid"
-				error := k8sClient.Update(ctx, terminal)
+				err := e.K8sClient.Update(ctx, terminal)
 
-				Expect(error).To(HaveOccurred())
-				Expect(error.Error()).To(ContainSubstring("metadata.annotations.dashboard.gardener.cloud/last-heartbeat-at: Invalid value"))
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("metadata.annotations.dashboard.gardener.cloud/last-heartbeat-at: Invalid value"))
 			})
 		})
 	})
@@ -517,7 +518,7 @@ var _ = Describe("Validating Webhook", func() {
 			Context("api server", func() {
 				Context("service ref name - deprecated", func() {
 					BeforeEach(func() {
-						terminal.Spec.Target.APIServerServiceRef = &v1.ObjectReference{
+						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
 							Name: "",
 						}
 					})
@@ -537,7 +538,7 @@ var _ = Describe("Validating Webhook", func() {
 				Context("serviceRef and server field", func() {
 					BeforeEach(func() {
 						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
-							ServiceRef: &v1.ObjectReference{
+							ServiceRef: &corev1.ObjectReference{
 								Name: "",
 							},
 						}
@@ -550,7 +551,7 @@ var _ = Describe("Validating Webhook", func() {
 				Context("name field (target credential)", func() {
 					BeforeEach(func() {
 						terminal.Spec.Target.Credentials.SecretRef = nil
-						terminal.Spec.Target.Credentials.ServiceAccountRef = &v1.ObjectReference{
+						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "foo",
 							Name:      "",
 						}
@@ -561,7 +562,7 @@ var _ = Describe("Validating Webhook", func() {
 				Context("name field (target credential)", func() {
 					BeforeEach(func() {
 						terminal.Spec.Target.Credentials.SecretRef = nil
-						terminal.Spec.Target.Credentials.ServiceAccountRef = &v1.ObjectReference{
+						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "",
 							Name:      "bar",
 						}
@@ -572,7 +573,7 @@ var _ = Describe("Validating Webhook", func() {
 				Context("name field (host credential)", func() {
 					BeforeEach(func() {
 						terminal.Spec.Host.Credentials.SecretRef = nil
-						terminal.Spec.Host.Credentials.ServiceAccountRef = &v1.ObjectReference{
+						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "foo",
 							Name:      "",
 						}
@@ -583,7 +584,7 @@ var _ = Describe("Validating Webhook", func() {
 				Context("name field (host credential)", func() {
 					BeforeEach(func() {
 						terminal.Spec.Host.Credentials.SecretRef = nil
-						terminal.Spec.Host.Credentials.ServiceAccountRef = &v1.ObjectReference{
+						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "",
 							Name:      "bar",
 						}
@@ -613,7 +614,7 @@ var _ = Describe("Validating Webhook", func() {
 					Context("name field (target credential)", func() {
 						BeforeEach(func() {
 							terminal.Spec.Target.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Target.Credentials.SecretRef = &v1.SecretReference{
+							terminal.Spec.Target.Credentials.SecretRef = &corev1.SecretReference{
 								Namespace: "foo",
 								Name:      "",
 							}
@@ -624,7 +625,7 @@ var _ = Describe("Validating Webhook", func() {
 					Context("name field (target credential)", func() {
 						BeforeEach(func() {
 							terminal.Spec.Target.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Target.Credentials.SecretRef = &v1.SecretReference{
+							terminal.Spec.Target.Credentials.SecretRef = &corev1.SecretReference{
 								Namespace: "",
 								Name:      "bar",
 							}
@@ -635,7 +636,7 @@ var _ = Describe("Validating Webhook", func() {
 					Context("name field (host credential)", func() {
 						BeforeEach(func() {
 							terminal.Spec.Host.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Host.Credentials.SecretRef = &v1.SecretReference{
+							terminal.Spec.Host.Credentials.SecretRef = &corev1.SecretReference{
 								Namespace: "foo",
 								Name:      "",
 							}
@@ -646,7 +647,7 @@ var _ = Describe("Validating Webhook", func() {
 					Context("name field (host credential)", func() {
 						BeforeEach(func() {
 							terminal.Spec.Host.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Host.Credentials.SecretRef = &v1.SecretReference{
+							terminal.Spec.Host.Credentials.SecretRef = &corev1.SecretReference{
 								Namespace: "",
 								Name:      "bar",
 							}
@@ -727,7 +728,7 @@ var _ = Describe("Validating Webhook", func() {
 				Context("service account ref (host credential)", func() {
 					BeforeEach(func() {
 						cmConfig.HonourServiceAccountRefHostCluster = false
-						terminal.Spec.Host.Credentials.ServiceAccountRef = &v1.ObjectReference{
+						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "foo",
 							Name:      "bar",
 						}
@@ -737,7 +738,7 @@ var _ = Describe("Validating Webhook", func() {
 				Context("service account ref (target credential)", func() {
 					BeforeEach(func() {
 						cmConfig.HonourServiceAccountRefTargetCluster = false
-						terminal.Spec.Target.Credentials.ServiceAccountRef = &v1.ObjectReference{
+						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "foo",
 							Name:      "bar",
 						}

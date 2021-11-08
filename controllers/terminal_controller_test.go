@@ -10,19 +10,16 @@ import (
 	"fmt"
 	"time"
 
+	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
-	rbacv1 "k8s.io/api/rbac/v1"
-	kErros "k8s.io/apimachinery/pkg/api/errors"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 )
 
 var _ = Describe("Terminal Controller", func() {
@@ -55,10 +52,10 @@ var _ = Describe("Terminal Controller", func() {
 		terminalHeartbeatReconciler.injectConfig(cmConfig)
 
 		suffix = test.StringWithCharset(randomLength, charset)
-		terminalNamespace = fmt.Sprintf("%s%s", "test-terminal-namespace-", suffix)
-		hostNamespace = fmt.Sprintf("%s%s", "test-host-serviceaccount-namespace-", suffix)
-		targetNamespace = fmt.Sprintf("%s%s", "test-target-serviceaccount-namespace-", suffix)
-		terminalName = fmt.Sprintf("%s%s", "test-terminal-", suffix)
+		terminalNamespace = fmt.Sprintf("test-terminal-namespace-%s", suffix)
+		hostNamespace = fmt.Sprintf("test-host-serviceaccount-namespace-%s", suffix)
+		targetNamespace = fmt.Sprintf("test-target-serviceaccount-namespace-%s", suffix)
+		terminalName = fmt.Sprintf("test-terminal-%s", suffix)
 
 		terminalKey = types.NamespacedName{Name: terminalName, Namespace: terminalNamespace}
 		hostServiceAccountKey = types.NamespacedName{Name: HostServiceAccountName, Namespace: hostNamespace}
@@ -76,7 +73,7 @@ var _ = Describe("Terminal Controller", func() {
 			Spec: dashboardv1alpha1.TerminalSpec{
 				Host: dashboardv1alpha1.HostCluster{
 					Credentials: dashboardv1alpha1.ClusterCredentials{
-						ServiceAccountRef: &v1.ObjectReference{
+						ServiceAccountRef: &corev1.ObjectReference{
 							Kind:      rbacv1.ServiceAccountKind,
 							Name:      hostServiceAccountKey.Name,
 							Namespace: hostServiceAccountKey.Namespace,
@@ -92,7 +89,7 @@ var _ = Describe("Terminal Controller", func() {
 				},
 				Target: dashboardv1alpha1.TargetCluster{
 					Credentials: dashboardv1alpha1.ClusterCredentials{
-						ServiceAccountRef: &v1.ObjectReference{
+						ServiceAccountRef: &corev1.ObjectReference{
 							Kind:      rbacv1.ServiceAccountKind,
 							Name:      targetServiceAccountKey.Name,
 							Namespace: targetServiceAccountKey.Namespace,
@@ -109,17 +106,17 @@ var _ = Describe("Terminal Controller", func() {
 		namespaces := []string{terminalNamespace, hostNamespace, targetNamespace}
 		for _, namespace := range namespaces {
 			terminalNamespaceKey := types.NamespacedName{Name: namespace}
-			test.CreateObject(ctx, k8sClient, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, terminalNamespaceKey, timeout, interval)
+			e.CreateObject(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, terminalNamespaceKey, timeout, interval)
 		}
 
 		By("By creating host serviceaccount")
-		test.CreateServiceAccount(ctx, k8sClient, HostServiceAccountName, hostNamespace, timeout, interval)
+		e.AddClusterAdminServiceAccount(ctx, HostServiceAccountName, hostNamespace, timeout, interval)
 		By("By creating target serviceaccount")
-		test.CreateServiceAccount(ctx, k8sClient, TargetServiceAccountName, targetNamespace, timeout, interval)
+		e.AddClusterAdminServiceAccount(ctx, TargetServiceAccountName, targetNamespace, timeout, interval)
 	})
 
 	JustBeforeEach(func() {
-		terminalCreationError = k8sClient.Create(ctx, terminal)
+		terminalCreationError = e.K8sClient.Create(ctx, terminal)
 	})
 
 	Context("terminal lifecycle", func() {
@@ -139,7 +136,7 @@ var _ = Describe("Terminal Controller", func() {
 						By("Expecting target namespace to be set")
 						Eventually(func() bool {
 							terminal = &dashboardv1alpha1.Terminal{}
-							err := k8sClient.Get(ctx, terminalKey, terminal)
+							err := e.K8sClient.Get(ctx, terminalKey, terminal)
 							if err != nil {
 								return false
 							}
@@ -148,20 +145,20 @@ var _ = Describe("Terminal Controller", func() {
 						}, timeout, interval).Should(BeTrue())
 
 						By("Waiting for AccessServiceAccount to be created")
-						accessServiceAccount := &v1.ServiceAccount{}
+						accessServiceAccount := &corev1.ServiceAccount{}
 						Eventually(func() bool {
 							targetNamespace := *terminal.Spec.Target.Namespace
-							err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, accessServiceAccount)
+							err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, accessServiceAccount)
 							return err == nil
 						}, timeout, interval).Should(BeTrue())
 
-						By("By creating a dummy token as no kube-controller is running for AccessServiceAccount to be created")
-						test.CreateServiceAccountSecret(ctx, k8sClient, accessServiceAccount, timeout, interval)
+						By("By ensuring service account token as no kube-controller is running for AccessServiceAccount to be created")
+						e.EnsureServiceAccountToken(ctx, accessServiceAccount, timeout, interval)
 
 						By("Waiting for terminal to be ready")
 						Eventually(func() bool {
 							terminal = &dashboardv1alpha1.Terminal{}
-							err := k8sClient.Get(ctx, terminalKey, terminal)
+							err := e.K8sClient.Get(ctx, terminalKey, terminal)
 							if err != nil {
 								return false
 							}
@@ -173,24 +170,24 @@ var _ = Describe("Terminal Controller", func() {
 						temporaryTargetNamespace := *terminal.Spec.Target.Namespace
 
 						By("Deleting the terminal")
-						err := k8sClient.Delete(ctx, terminal)
+						err := e.K8sClient.Delete(ctx, terminal)
 						Expect(err).To(Not(HaveOccurred()))
 
 						Eventually(func() bool {
 							t := &dashboardv1alpha1.Terminal{}
-							err := k8sClient.Get(ctx, terminalKey, t)
+							err := e.K8sClient.Get(ctx, terminalKey, t)
 							return kErros.IsNotFound(err)
 						}, timeout, interval).Should(BeTrue())
 
 						By("expecting temporary host namespace to be in deletion")
-						namespace := &v1.Namespace{}
-						err = k8sClient.Get(ctx, types.NamespacedName{Name: temporaryHostNamespace}, namespace)
+						namespace := &corev1.Namespace{}
+						err = e.K8sClient.Get(ctx, types.NamespacedName{Name: temporaryHostNamespace}, namespace)
 						Expect(err).To(Not(HaveOccurred())) // with envtest no kube-controller is running that is finally deleting the namespace
 						Expect(namespace.DeletionTimestamp).To(Not(BeNil()))
 
 						By("expecting temporary target namespace to be in deletion")
-						namespace = &v1.Namespace{}
-						err = k8sClient.Get(ctx, types.NamespacedName{Name: temporaryTargetNamespace}, namespace)
+						namespace = &corev1.Namespace{}
+						err = e.K8sClient.Get(ctx, types.NamespacedName{Name: temporaryTargetNamespace}, namespace)
 						Expect(err).To(Not(HaveOccurred())) // with envtest no kube-controller is running that is finally deleting the namespace
 						Expect(namespace.DeletionTimestamp).To(Not(BeNil()))
 					})
@@ -211,7 +208,7 @@ var _ = Describe("Terminal Controller", func() {
 						By("Expecting target namespace to be set")
 						Eventually(func() bool {
 							terminal = &dashboardv1alpha1.Terminal{}
-							err := k8sClient.Get(ctx, terminalKey, terminal)
+							err := e.K8sClient.Get(ctx, terminalKey, terminal)
 							if err != nil {
 								return false
 							}
@@ -220,19 +217,19 @@ var _ = Describe("Terminal Controller", func() {
 						}, timeout, interval).Should(BeTrue())
 
 						By("Waiting for AccessServiceAccount to be created")
-						accessServiceAccount := &v1.ServiceAccount{}
+						accessServiceAccount := &corev1.ServiceAccount{}
 						Eventually(func() bool {
-							err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, accessServiceAccount)
+							err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, accessServiceAccount)
 							return err == nil
 						}, timeout, interval).Should(BeTrue())
 
-						By("By creating a dummy token as no kube-controller is running for AccessServiceAccount to be created")
-						test.CreateServiceAccountSecret(ctx, k8sClient, accessServiceAccount, timeout, interval)
+						By("By ensuring service account token as no kube-controller is running for AccessServiceAccount to be created")
+						e.EnsureServiceAccountToken(ctx, accessServiceAccount, timeout, interval)
 
 						By("Waiting for terminal to be ready")
 						Eventually(func() bool {
 							t := &dashboardv1alpha1.Terminal{}
-							err := k8sClient.Get(ctx, terminalKey, t)
+							err := e.K8sClient.Get(ctx, terminalKey, t)
 							if err != nil {
 								return false
 							}
@@ -243,14 +240,14 @@ var _ = Describe("Terminal Controller", func() {
 						By("Expecting (temporary) target namespace to be created")
 						Expect(*terminal.Spec.Target.Namespace).To(Not(BeEmpty()))
 						Eventually(func() bool {
-							err := k8sClient.Get(ctx, types.NamespacedName{Name: *terminal.Spec.Target.Namespace}, &v1.Namespace{})
+							err := e.K8sClient.Get(ctx, types.NamespacedName{Name: *terminal.Spec.Target.Namespace}, &corev1.Namespace{})
 							return err == nil
 						}).Should(BeTrue())
 
 						By("Expecting (temporary) host namespace to be created")
 						Expect(*terminal.Spec.Host.Namespace).To(Not(BeEmpty()))
 						Eventually(func() bool {
-							err := k8sClient.Get(ctx, types.NamespacedName{Name: *terminal.Spec.Host.Namespace}, &v1.Namespace{})
+							err := e.K8sClient.Get(ctx, types.NamespacedName{Name: *terminal.Spec.Host.Namespace}, &corev1.Namespace{})
 							return err == nil
 						}).Should(BeTrue())
 					})
@@ -263,24 +260,24 @@ var _ = Describe("Terminal Controller", func() {
 
 			By("Expecting terminal to be created")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, terminalKey, &dashboardv1alpha1.Terminal{})
+				err := e.K8sClient.Get(ctx, terminalKey, &dashboardv1alpha1.Terminal{})
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
 			By("Waiting for AccessServiceAccount to be created")
-			accessServiceAccount := &v1.ServiceAccount{}
+			accessServiceAccount := &corev1.ServiceAccount{}
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, accessServiceAccount)
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, accessServiceAccount)
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			By("By creating a dummy token as no kube-controller is running for AccessServiceAccount to be created")
-			test.CreateServiceAccountSecret(ctx, k8sClient, accessServiceAccount, timeout, interval)
+			By("By ensuring service account token as no kube-controller is running for AccessServiceAccount to be created")
+			e.EnsureServiceAccountToken(ctx, accessServiceAccount, timeout, interval)
 
 			By("Waiting for terminal to be ready")
 			Eventually(func() bool {
 				t := &dashboardv1alpha1.Terminal{}
-				err := k8sClient.Get(ctx, terminalKey, t)
+				err := e.K8sClient.Get(ctx, terminalKey, t)
 				if err != nil {
 					return false
 				}
@@ -290,50 +287,50 @@ var _ = Describe("Terminal Controller", func() {
 
 			By("Deleting the terminal")
 			Eventually(func() bool {
-				err := k8sClient.Delete(ctx, terminal)
+				err := e.K8sClient.Delete(ctx, terminal)
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting AttachServiceAccount to be removed")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAttachResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &v1.ServiceAccount{})
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAttachResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.ServiceAccount{})
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting attach role to be removed")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAttachRoleResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &rbacv1.Role{})
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAttachRoleResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &rbacv1.Role{})
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting AccessServiceAccount to be removed")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, &v1.ServiceAccount{})
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, &corev1.ServiceAccount{})
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting kubeconfig to be removed")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.KubeconfigSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &v1.Secret{})
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.KubeconfigSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.Secret{})
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting terminal pod to be removed")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &v1.Pod{})
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.Pod{})
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting terminal resource to be removed")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: terminalKey.Name, Namespace: terminalKey.Namespace}, &dashboardv1alpha1.Terminal{})
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: terminalKey.Name, Namespace: terminalKey.Namespace}, &dashboardv1alpha1.Terminal{})
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
 			By("Ensuring that host namespace is not deleted")
 			Consistently(func() bool {
-				namespace := &v1.Namespace{}
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: hostNamespace}, namespace)
+				namespace := &corev1.Namespace{}
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: hostNamespace}, namespace)
 				if err != nil {
 					return false
 				}
@@ -342,8 +339,8 @@ var _ = Describe("Terminal Controller", func() {
 
 			By("Ensuring that target namespace is not deleted")
 			Consistently(func() bool {
-				namespace := &v1.Namespace{}
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: targetNamespace}, namespace)
+				namespace := &corev1.Namespace{}
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: targetNamespace}, namespace)
 				if err != nil {
 					return false
 				}
@@ -356,20 +353,20 @@ var _ = Describe("Terminal Controller", func() {
 
 			By("Expecting terminal to be created")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, terminalKey, &dashboardv1alpha1.Terminal{})
+				err := e.K8sClient.Get(ctx, terminalKey, &dashboardv1alpha1.Terminal{})
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting AttachServiceAccount to be created")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAttachResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &v1.ServiceAccount{})
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAttachResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.ServiceAccount{})
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting AttachServiceAccountName to be set")
 			Eventually(func() string {
 				t := &dashboardv1alpha1.Terminal{}
-				err := k8sClient.Get(ctx, terminalKey, t)
+				err := e.K8sClient.Get(ctx, terminalKey, t)
 				if err != nil {
 					return ""
 				}
@@ -378,28 +375,28 @@ var _ = Describe("Terminal Controller", func() {
 
 			By("Expecting attach role to be created")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAttachRoleResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &rbacv1.Role{})
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAttachRoleResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &rbacv1.Role{})
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting AccessServiceAccount to be created")
-			accessServiceAccount := &v1.ServiceAccount{}
+			accessServiceAccount := &corev1.ServiceAccount{}
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, accessServiceAccount)
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, accessServiceAccount)
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
-			test.CreateServiceAccountSecret(ctx, k8sClient, accessServiceAccount, timeout, interval) // need to create a dummy token as no kube-controller is running
+			e.EnsureServiceAccountToken(ctx, accessServiceAccount, timeout, interval) // need to create a dummy token as no kube-controller is running
 
 			By("Expecting kubeconfig to be created")
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.KubeconfigSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &v1.Secret{})
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.KubeconfigSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.Secret{})
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
 			By("Expecting terminal pod with foo image to be created")
 			Eventually(func() string {
-				pod := &v1.Pod{}
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+				pod := &corev1.Pod{}
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
 				if err != nil {
 					return ""
 				}
@@ -409,7 +406,7 @@ var _ = Describe("Terminal Controller", func() {
 			By("Expecting PodName to be set")
 			Eventually(func() string {
 				t := &dashboardv1alpha1.Terminal{}
-				err := k8sClient.Get(ctx, terminalKey, t)
+				err := e.K8sClient.Get(ctx, terminalKey, t)
 				if err != nil {
 					return ""
 				}

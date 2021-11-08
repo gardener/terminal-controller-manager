@@ -12,13 +12,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-logr/logr"
-
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/utils"
-	admissionv1 "k8s.io/api/admission/v1"
 
+	"github.com/go-logr/logr"
 	uuid "github.com/satori/go.uuid"
+	admissionv1 "k8s.io/api/admission/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"

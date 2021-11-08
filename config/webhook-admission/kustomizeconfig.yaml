@@ -1,9 +1,0 @@
-# SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
-#
-# SPDX-License-Identifier: Apache-2.0
-
-varReference:
-  - path: webhooks/clientConfig/caBundle
-    kind: ValidatingWebhookConfiguration
-  - path: webhooks/clientConfig/caBundle
-    kind: MutatingWebhookConfiguration

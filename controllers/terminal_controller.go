@@ -16,43 +16,36 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/oauth2/google"
-
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-
+	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/utils"
 
-	"k8s.io/apimachinery/pkg/util/wait"
-
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/go-logr/logr"
-
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
+	"golang.org/x/oauth2/google"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
+	"k8s.io/client-go/tools/record"
 	watchtools "k8s.io/client-go/tools/watch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/yaml"
-
-	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 )
 
 // TerminalReconciler reconciles a Terminal object
@@ -288,7 +281,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 		"terminal": "admission-configuration",
 	}).String()
 
-	mutatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
+	mutatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
 		return errors.New(err.Error())
 	}
@@ -312,7 +305,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 		return fmt.Errorf("terminal %s has been created before mutating webhook was configured. Deleting resource", t.ObjectMeta.Name)
 	}
 
-	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
+	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
 		return errors.New(err.Error())
 	}
@@ -1019,7 +1012,8 @@ func deleteSecret(ctx context.Context, cs *ClientSet, namespace string, name str
 	return deleteObj(ctx, cs, secret)
 }
 
-// GenerateKubeconfigFromTokenSecret generates a kubeconfig using the provided
+// GenerateKubeconfigFromTokenSecret generates a kubeconfig using the bearer token from the provided secret to authenticate against the provided server.
+// If the server points to localhost, the kubernetes default service is used instead as server.
 func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace string, server string, secret *corev1.Secret) ([]byte, error) {
 	if server == "" {
 		return nil, errors.New("api server host is required")
@@ -1032,10 +1026,10 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 
 	token, ok := secret.Data[corev1.ServiceAccountTokenKey]
 	if !ok {
-		return nil, errors.New("no " + corev1.ServiceAccountTokenKey + " found on secret")
+		return nil, fmt.Errorf("no %s data key found on secret", corev1.ServiceAccountTokenKey)
 	}
 
-	kubeConfig := &clientcmdv1.Config{
+	kubeconfig := &clientcmdv1.Config{
 		APIVersion: "v1",
 		Kind:       "Config",
 		Preferences: clientcmdv1.Preferences{
@@ -1072,7 +1066,7 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 		CurrentContext: clusterName,
 	}
 
-	return yaml.Marshal(kubeConfig)
+	return yaml.Marshal(kubeconfig)
 }
 
 func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *ClientSet, t *extensionsv1alpha1.Terminal, kubeconfigSecretName string, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Pod, error) {
