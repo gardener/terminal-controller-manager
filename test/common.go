@@ -208,6 +208,8 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 
 func (e Environment) Start() {
 	go func() {
+		defer ginkgo.GinkgoRecover()
+
 		err := e.K8sManager.Start(ctrl.SetupSignalHandler())
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}()
