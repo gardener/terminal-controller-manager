@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
@@ -73,9 +74,10 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 		},
 	}
 
+	noSideEffects := admissionregistrationv1.SideEffectClassNone
 	webhookInstallOptions := envtest.WebhookInstallOptions{
-		MutatingWebhooks: []client.Object{
-			&admissionregistrationv1.MutatingWebhookConfiguration{
+		MutatingWebhooks: []admissionregistrationv1.MutatingWebhookConfiguration{
+			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-mutating-webhook-configuration",
 					Labels: map[string]string{
@@ -96,13 +98,15 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 								Path: &terminalMutatingWebhookPath,
 							},
 						},
-						Rules: rules,
+						Rules:                   rules,
+						AdmissionReviewVersions: []string{"v1", "v1beta1"},
+						SideEffects:             &noSideEffects,
 					},
 				},
 			},
 		},
-		ValidatingWebhooks: []client.Object{
-			&admissionregistrationv1.ValidatingWebhookConfiguration{
+		ValidatingWebhooks: []admissionregistrationv1.ValidatingWebhookConfiguration{
+			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-validating-webhook-configuration",
 					Labels: map[string]string{
@@ -123,7 +127,9 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 								Path: &terminalValidatingWebhookPath,
 							},
 						},
-						Rules: rules,
+						Rules:                   rules,
+						AdmissionReviewVersions: []string{"v1", "v1beta1"},
+						SideEffects:             &noSideEffects,
 					},
 				},
 			},
@@ -145,7 +151,9 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 					},
 				},
 			},
-			WebhookInstallOptions: webhookInstallOptions,
+			WebhookInstallOptions:    webhookInstallOptions,
+			ControlPlaneStartTimeout: 2 * time.Minute,
+			ControlPlaneStopTimeout:  2 * time.Minute,
 		},
 		GardenerAPIServer: &gardenenvtest.GardenerAPIServer{
 			StopTimeout: 2 * time.Minute,
@@ -209,7 +217,7 @@ func (e Environment) Start() {
 	d := &net.Dialer{Timeout: time.Second}
 
 	gomega.Eventually(func() error {
-		serverURL := fmt.Sprintf("%s:%d", e.GardenEnv.WebhookInstallOptions.LocalServingHost, e.GardenEnv.WebhookInstallOptions.LocalServingPort)
+		serverURL := net.JoinHostPort(e.GardenEnv.WebhookInstallOptions.LocalServingHost, strconv.Itoa(e.GardenEnv.WebhookInstallOptions.LocalServingPort))
 		conn, err := tls.DialWithDialer(d, "tcp", serverURL, &tls.Config{
 			InsecureSkipVerify: true,
 		})

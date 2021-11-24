@@ -16,8 +16,7 @@ else
   export SOURCE_PATH="$(readlink -f ${SOURCE_PATH})"
 fi
 
-ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.20"}
-KUSTOMIZE_VERSION=${KUSTOMIZE_VERSION:-"v4.3.0"}
+ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.22"}
 GO_TEST_ADDITIONAL_FLAGS=${GO_TEST_ADDITIONAL_FLAGS:-""}
 
 OS=${OS:-$(go env GOOS)}
@@ -38,7 +37,7 @@ function run_test {
   export KUBEBUILDER_ASSETS="$("bin/setup-envtest" use --use-env -p path ${ENVTEST_K8S_VERSION})"
   echo "using envtest tools installed at '$KUBEBUILDER_ASSETS'"
 
-  GO111MODULE=on go test ./... "${go_test_additional_flags}" -coverprofile cover.out
+  GO111MODULE=on go test ./... ${go_test_additional_flags} -coverprofile cover.out
 
   popd
 }

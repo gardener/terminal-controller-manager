@@ -12,8 +12,6 @@ import (
 	"os"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
-
 	v1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/controllers"
 	"github.com/gardener/terminal-controller-manager/webhooks"
@@ -30,6 +28,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
@@ -85,6 +84,7 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElectionID:       "terminal-controller-leader-election",
 		LeaderElection:         enableLeaderElection,
+		CertDir:                certDir,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -129,7 +129,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+	if err := mgr.AddReadyzCheck("readyz", mgr.GetWebhookServer().StartedChecker()); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
@@ -137,13 +137,7 @@ func main() {
 	// Setup webhooks
 	setupLog.Info("setting up webhook server")
 
-	hookServer := &webhook.Server{
-		CertDir: certDir,
-	}
-	if err := mgr.Add(hookServer); err != nil {
-		setupLog.Error(err, "unable register webhook server with manager")
-		os.Exit(1)
-	}
+	hookServer := mgr.GetWebhookServer()
 
 	setupLog.Info("registering webhooks to the webhook server")
 	hookServer.Register("/mutate-terminal", &webhook.Admission{Handler: &webhooks.TerminalMutator{
