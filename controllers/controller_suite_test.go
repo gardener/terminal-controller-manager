@@ -76,7 +76,6 @@ var _ = BeforeSuite(func() {
 
 	terminalReconciler = &TerminalReconciler{
 		ClientSet:                   NewClientSet(e.Config, e.K8sManager.GetClient(), kube),
-		Log:                         ctrl.Log.WithName("controllers").WithName("Terminal"),
 		Scheme:                      e.K8sManager.GetScheme(),
 		Recorder:                    recorder,
 		Config:                      cmConfig,
@@ -87,7 +86,6 @@ var _ = BeforeSuite(func() {
 
 	terminalHeartbeatReconciler = &TerminalHeartbeatReconciler{
 		Client:   e.K8sManager.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("TerminalHeartbeat"),
 		Recorder: recorder,
 		Config:   cmConfig,
 	}

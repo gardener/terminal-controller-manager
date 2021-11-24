@@ -103,7 +103,6 @@ func main() {
 
 	if err = (&controllers.TerminalReconciler{
 		ClientSet:                   controllers.NewClientSet(config, mgr.GetClient(), kube),
-		Log:                         ctrl.Log.WithName("controllers").WithName("Terminal"),
 		Scheme:                      mgr.GetScheme(),
 		Recorder:                    recorder,
 		Config:                      cmConfig,
@@ -115,7 +114,6 @@ func main() {
 
 	if err = (&controllers.TerminalHeartbeatReconciler{
 		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("TerminalHeartbeat"),
 		Recorder: recorder,
 		Config:   cmConfig,
 	}).SetupWithManager(mgr, cmConfig.Controllers.TerminalHeartbeat); err != nil {
