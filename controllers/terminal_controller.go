@@ -16,43 +16,36 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/oauth2/google"
-
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-
+	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/utils"
 
-	"k8s.io/apimachinery/pkg/util/wait"
-
-	"github.com/go-logr/logr"
-
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	"golang.org/x/oauth2/google"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
+	"k8s.io/client-go/tools/record"
 	watchtools "k8s.io/client-go/tools/watch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
-
-	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 )
 
 // TerminalReconciler reconciles a Terminal object
@@ -60,7 +53,6 @@ type TerminalReconciler struct {
 	Scheme *runtime.Scheme
 	*ClientSet
 	Recorder                    record.EventRecorder
-	Log                         logr.Logger
 	Config                      *extensionsv1alpha1.ControllerManagerConfiguration
 	ReconcilerCountPerNamespace map[string]int
 	mutex                       sync.RWMutex
@@ -148,7 +140,7 @@ func (r *TerminalReconciler) decreaseCounterForNamespace(namespace string) {
 
 func (r *TerminalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if err := r.increaseCounterForNamespace(req.Namespace); err != nil {
-		r.Log.Info("maximum parallel reconciles reached for namespace - requeuing the req", "namespace", req.Namespace, "name", req.Name)
+		log.FromContext(ctx).Info("maximum parallel reconciles reached for namespace - requeuing the req")
 
 		return ctrl.Result{
 			RequeueAfter: wait.Jitter(time.Duration(int64(100*time.Millisecond)), 50), // requeue after 100ms - 5s
@@ -197,7 +189,7 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 				return ctrl.Result{}, targetClientSetErr
 			}
 
-			r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
+			r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
 			// our finalizer is present, so lets handle our external dependency
 
 			if deletionErrors := r.deleteExternalDependency(ctx, targetClientSet, hostClientSet, t); deletionErrors != nil {
@@ -205,14 +197,14 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 				// if fail to delete the external dependency here, return with error
 				// so that it can be retried
 				for _, deletionErr := range deletionErrors {
-					r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Description)
+					r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Description)
 					errStrings = append(errStrings, deletionErr.Description)
 				}
 
 				return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
 			}
 
-			r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
+			r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
 
 			// remove our finalizer from the list and update it.
 			finalizers.Delete(extensionsv1alpha1.TerminalName)
@@ -235,7 +227,7 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 
 	err = r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t)
 	if err != nil {
-		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -252,7 +244,7 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 	labelsSet, err := t.NewLabelsSet()
 	if err != nil {
 		// the needed labels will be set eventually, requeue won't change that
-		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Transient problem - %s. Skipping...", err.Error())
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Transient problem - %s. Skipping...", err.Error())
 
 		return ctrl.Result{}, nil
 	}
@@ -260,26 +252,26 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 	annotationsSet, err := t.NewAnnotationsSet()
 	if err != nil {
 		// the needed annotations will be set eventually, requeue won't change that
-		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Transient problem - %s. Skipping...", err.Error())
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Transient problem - %s. Skipping...", err.Error())
 
 		return ctrl.Result{}, nil
 	}
 
-	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
+	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
 
 	if err := r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t, labelsSet, annotationsSet); err != nil {
-		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
 		return ctrl.Result{}, errors.New(err.Description)
 	}
 
-	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
+	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
 
 	return ctrl.Result{}, nil
 }
 
-func (r *TerminalReconciler) recordEventAndLog(t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
+func (r *TerminalReconciler) recordEventAndLog(ctx context.Context, t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
 	r.Recorder.Eventf(t, eventType, reason, messageFmt, args...)
-	r.Log.Info(fmt.Sprintf(messageFmt, args...), "namespace", t.Namespace, "name", t.Name)
+	log.FromContext(ctx).Info(fmt.Sprintf(messageFmt, args...))
 }
 
 func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Context, gardenClientSet *ClientSet, t *extensionsv1alpha1.Terminal) error {
@@ -288,7 +280,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 		"terminal": "admission-configuration",
 	}).String()
 
-	mutatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
+	mutatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
 		return errors.New(err.Error())
 	}
@@ -312,7 +304,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 		return fmt.Errorf("terminal %s has been created before mutating webhook was configured. Deleting resource", t.ObjectMeta.Name)
 	}
 
-	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
+	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
 		return errors.New(err.Error())
 	}
@@ -364,7 +356,7 @@ func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context
 			return formatError("Failed to delete access token", err)
 		}
 	} else {
-		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
 	}
 
 	return nil
@@ -390,7 +382,7 @@ func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, 
 			}
 		}
 	} else {
-		r.recordEventAndLog(t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in host cluster for terminal identifier: %s", t.Spec.Identifier)
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in host cluster for terminal identifier: %s", t.Spec.Identifier)
 	}
 
 	return nil
@@ -1019,7 +1011,8 @@ func deleteSecret(ctx context.Context, cs *ClientSet, namespace string, name str
 	return deleteObj(ctx, cs, secret)
 }
 
-// GenerateKubeconfigFromTokenSecret generates a kubeconfig using the provided
+// GenerateKubeconfigFromTokenSecret generates a kubeconfig using the bearer token from the provided secret to authenticate against the provided server.
+// If the server points to localhost, the kubernetes default service is used instead as server.
 func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace string, server string, secret *corev1.Secret) ([]byte, error) {
 	if server == "" {
 		return nil, errors.New("api server host is required")
@@ -1032,10 +1025,10 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 
 	token, ok := secret.Data[corev1.ServiceAccountTokenKey]
 	if !ok {
-		return nil, errors.New("no " + corev1.ServiceAccountTokenKey + " found on secret")
+		return nil, fmt.Errorf("no %s data key found on secret", corev1.ServiceAccountTokenKey)
 	}
 
-	kubeConfig := &clientcmdv1.Config{
+	kubeconfig := &clientcmdv1.Config{
 		APIVersion: "v1",
 		Kind:       "Config",
 		Preferences: clientcmdv1.Preferences{
@@ -1072,7 +1065,7 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 		CurrentContext: clusterName,
 	}
 
-	return yaml.Marshal(kubeConfig)
+	return yaml.Marshal(kubeconfig)
 }
 
 func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *ClientSet, t *extensionsv1alpha1.Terminal, kubeconfigSecretName string, labelsSet *labels.Set, annotationsSet *utils.Set) (*corev1.Pod, error) {

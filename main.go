@@ -12,28 +12,25 @@ import (
 	"os"
 	"time"
 
-	"github.com/gardener/terminal-controller-manager/webhooks"
-
-	"k8s.io/apimachinery/pkg/util/validation/field"
-
-	"gopkg.in/yaml.v2"
-
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
-
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/record"
-
-	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	v1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/controllers"
+	"github.com/gardener/terminal-controller-manager/webhooks"
+
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	"gopkg.in/yaml.v2"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	// +kubebuilder:scaffold:imports
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 var (
@@ -43,25 +40,33 @@ var (
 
 func init() {
 	// +kubebuilder:scaffold:scheme
-	_ = clientgoscheme.AddToScheme(scheme)
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	_ = v1alpha1.AddToScheme(scheme)
-	_ = gardencorev1beta1.AddToScheme(scheme)
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(gardencorev1beta1.AddToScheme(scheme))
 }
 
 func main() {
 	var (
 		metricsAddr          string
 		enableLeaderElection bool
+		probeAddr            string
 		certDir              string
 		configFile           string
 	)
 
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
-		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
+		"Enable leader election for controller manager. "+
+			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&certDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "CertDir is the directory that contains the server key and certificate.")
 	flag.StringVar(&configFile, "config-file", "/etc/terminal-controller-manager/config.yaml", "The path to the configuration file.")
+
+	opts := zap.Options{
+		Development: true,
+	}
+	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	cmConfig, err := readControllerManagerConfiguration(configFile)
@@ -70,15 +75,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctrl.SetLogger(zap.New(func(o *zap.Options) {
-		o.Development = cmConfig.Logger.Development
-	}))
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		LeaderElectionID:   "terminal-controller-leader-election",
-		LeaderElection:     enableLeaderElection,
+		Scheme:                 scheme,
+		MetricsBindAddress:     metricsAddr,
+		Port:                   9443,
+		HealthProbeBindAddress: probeAddr,
+		LeaderElectionID:       "terminal-controller-leader-election",
+		LeaderElection:         enableLeaderElection,
+		CertDir:                certDir,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -97,7 +103,6 @@ func main() {
 
 	if err = (&controllers.TerminalReconciler{
 		ClientSet:                   controllers.NewClientSet(config, mgr.GetClient(), kube),
-		Log:                         ctrl.Log.WithName("controllers").WithName("Terminal"),
 		Scheme:                      mgr.GetScheme(),
 		Recorder:                    recorder,
 		Config:                      cmConfig,
@@ -109,7 +114,6 @@ func main() {
 
 	if err = (&controllers.TerminalHeartbeatReconciler{
 		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("TerminalHeartbeat"),
 		Recorder: recorder,
 		Config:   cmConfig,
 	}).SetupWithManager(mgr, cmConfig.Controllers.TerminalHeartbeat); err != nil {
@@ -118,17 +122,20 @@ func main() {
 	}
 	// +kubebuilder:scaffold:builder
 
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		setupLog.Error(err, "unable to set up health check")
+		os.Exit(1)
+	}
+
+	if err := mgr.AddReadyzCheck("readyz", mgr.GetWebhookServer().StartedChecker()); err != nil {
+		setupLog.Error(err, "unable to set up ready check")
+		os.Exit(1)
+	}
+
 	// Setup webhooks
 	setupLog.Info("setting up webhook server")
 
-	hookServer := &webhook.Server{
-		Port:    9443,
-		CertDir: certDir,
-	}
-	if err := mgr.Add(hookServer); err != nil {
-		setupLog.Error(err, "unable register webhook server with manager")
-		os.Exit(1)
-	}
+	hookServer := mgr.GetWebhookServer()
 
 	setupLog.Info("registering webhooks to the webhook server")
 	hookServer.Register("/mutate-terminal", &webhook.Admission{Handler: &webhooks.TerminalMutator{
@@ -172,9 +179,6 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 				MaxObjectSize: 10 * 1024,
 			},
 		},
-		Logger: v1alpha1.ControllerManagerLoggerConfiguration{
-			Development: true,
-		},
 		HonourServiceAccountRefHostCluster:   true,
 		HonourServiceAccountRefTargetCluster: true,
 		HonourProjectMemberships:             true,
@@ -196,7 +200,10 @@ func readFile(configFile string, cfg *v1alpha1.ControllerManagerConfiguration) e
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+
+	defer func() {
+		utilruntime.HandleError(f.Close())
+	}()
 
 	decoder := yaml.NewDecoder(f)
 

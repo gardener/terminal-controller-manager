@@ -5,6 +5,4 @@
 # overwrites defaults
 kind: ControllerManagerConfiguration
 apiVersion: v1alpha1
-logger:
-  development: false
 honourServiceAccountRefHostCluster: false # recommended to be disabled for multi-cluster overlay

@@ -2,10 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-version: "2"
 domain: gardener.cloud
+layout:
+- go.kubebuilder.io/v3
+projectName: terminal-controller-manager
 repo: github.com/gardener/terminal-controller-manager
 resources:
-- group: extensions
-  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: gardener.cloud
+  group: dashboard
   kind: Terminal
+  path: github.com/gardener/terminal-controller-manager/api/v1alpha1
+  version: v1alpha1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
+version: "3"

@@ -10,19 +10,17 @@ import (
 	"fmt"
 	"time"
 
-	kErros "k8s.io/apimachinery/pkg/api/errors"
-
+	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
-	rbacv1 "k8s.io/api/rbac/v1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 )
 
 var _ = Describe("Terminal Controller", func() {
@@ -55,10 +53,10 @@ var _ = Describe("Terminal Controller", func() {
 		terminalHeartbeatReconciler.injectConfig(cmConfig)
 
 		suffix = test.StringWithCharset(randomLength, charset)
-		terminalNamespace = fmt.Sprintf("%s%s", "test-terminal-namespace-", suffix)
-		hostNamespace = fmt.Sprintf("%s%s", "test-host-serviceaccount-namespace-", suffix)
-		targetNamespace = fmt.Sprintf("%s%s", "test-target-serviceaccount-namespace-", suffix)
-		terminalName = fmt.Sprintf("%s%s", "test-terminal-", suffix)
+		terminalNamespace = fmt.Sprintf("test-terminal-namespace-%s", suffix)
+		hostNamespace = fmt.Sprintf("test-host-serviceaccount-namespace-%s", suffix)
+		targetNamespace = fmt.Sprintf("test-target-serviceaccount-namespace-%s", suffix)
+		terminalName = fmt.Sprintf("test-terminal-%s", suffix)
 
 		terminalKey = types.NamespacedName{Name: terminalName, Namespace: terminalNamespace}
 		hostServiceAccountKey = types.NamespacedName{Name: HostServiceAccountName, Namespace: hostNamespace}
@@ -76,7 +74,7 @@ var _ = Describe("Terminal Controller", func() {
 			Spec: dashboardv1alpha1.TerminalSpec{
 				Host: dashboardv1alpha1.HostCluster{
 					Credentials: dashboardv1alpha1.ClusterCredentials{
-						ServiceAccountRef: &v1.ObjectReference{
+						ServiceAccountRef: &corev1.ObjectReference{
 							Kind:      rbacv1.ServiceAccountKind,
 							Name:      hostServiceAccountKey.Name,
 							Namespace: hostServiceAccountKey.Namespace,
@@ -92,7 +90,7 @@ var _ = Describe("Terminal Controller", func() {
 				},
 				Target: dashboardv1alpha1.TargetCluster{
 					Credentials: dashboardv1alpha1.ClusterCredentials{
-						ServiceAccountRef: &v1.ObjectReference{
+						ServiceAccountRef: &corev1.ObjectReference{
 							Kind:      rbacv1.ServiceAccountKind,
 							Name:      targetServiceAccountKey.Name,
 							Namespace: targetServiceAccountKey.Namespace,
@@ -109,17 +107,17 @@ var _ = Describe("Terminal Controller", func() {
 		namespaces := []string{terminalNamespace, hostNamespace, targetNamespace}
 		for _, namespace := range namespaces {
 			terminalNamespaceKey := types.NamespacedName{Name: namespace}
-			test.CreateObject(ctx, k8sClient, &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, terminalNamespaceKey, timeout, interval)
+			e.CreateObject(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, terminalNamespaceKey, timeout, interval)
 		}
 
 		By("By creating host serviceaccount")
-		test.CreateServiceAccount(ctx, k8sClient, HostServiceAccountName, hostNamespace, timeout, interval)
+		e.AddClusterAdminServiceAccount(ctx, HostServiceAccountName, hostNamespace, timeout, interval)
 		By("By creating target serviceaccount")
-		test.CreateServiceAccount(ctx, k8sClient, TargetServiceAccountName, targetNamespace, timeout, interval)
+		e.AddClusterAdminServiceAccount(ctx, TargetServiceAccountName, targetNamespace, timeout, interval)
 	})
 
 	JustBeforeEach(func() {
-		terminalCreationError = k8sClient.Create(ctx, terminal)
+		terminalCreationError = e.K8sClient.Create(ctx, terminal)
 	})
 
 	Context("terminal lifecycle", func() {
@@ -134,7 +132,7 @@ var _ = Describe("Terminal Controller", func() {
 
 				Eventually(func() bool {
 					t := &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, t)
+					err := e.K8sClient.Get(ctx, terminalKey, t)
 					if kErros.IsNotFound(err) {
 						return true
 					}
@@ -150,18 +148,18 @@ var _ = Describe("Terminal Controller", func() {
 				By("Expecting terminal to be created")
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, terminal)
+					err := e.K8sClient.Get(ctx, terminalKey, terminal)
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
 				By("clearing the last heartbeat time")
 				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
-				error := k8sClient.Update(ctx, terminal)
-				Expect(error).To(Not(HaveOccurred()))
+				err := e.K8sClient.Update(ctx, terminal)
+				Expect(err).To(Not(HaveOccurred()))
 
 				Eventually(func() bool {
 					t := &dashboardv1alpha1.Terminal{}
-					err := k8sClient.Get(ctx, terminalKey, t)
+					err := e.K8sClient.Get(ctx, terminalKey, t)
 					if kErros.IsNotFound(err) {
 						return true
 					}

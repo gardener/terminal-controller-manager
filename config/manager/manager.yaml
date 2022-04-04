@@ -24,19 +24,37 @@ spec:
   replicas: 1
   template:
     metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
       labels:
         control-plane: controller-manager
     spec:
       securityContext:
+        runAsNonRoot: true
         runAsUser: 65532
       containers:
       - command:
         - /manager
         args:
-        - "--enable-leader-election"
+        - "--leader-elect"
         - "--config-file=/etc/terminal-controller-manager/config.yaml"
+        - "--zap-devel=false"
         image: controller:latest
         name: manager
+        securityContext:
+          allowPrivilegeEscalation: false
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
         resources:
           limits:
             cpu: 200m
@@ -44,12 +62,10 @@ spec:
           requests:
             cpu: 100m
             memory: 100Mi
-        securityContext:
-          runAsNonRoot: true
-          allowPrivilegeEscalation: false
         volumeMounts:
           - mountPath: /etc/terminal-controller-manager
             name: manager-config
+      serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
       volumes:
         - configMap:

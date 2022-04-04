@@ -1,0 +1,13 @@
+# More info: https://docs.docker.com/engine/reference/builder/#dockerignore-file
+# Ignore everything
+**
+
+# Exclude files relevant for build
+!api/v1alpha1/*.go
+!controllers/*.go
+!test/*.go
+!utils/*.go
+!webhooks/*.go
+!main.go
+!go.mod
+!go.sum

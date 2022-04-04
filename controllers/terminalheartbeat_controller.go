@@ -12,23 +12,20 @@ import (
 	"sync"
 	"time"
 
-	"sigs.k8s.io/controller-runtime/pkg/controller"
+	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
-
-	"github.com/go-logr/logr"
-	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // TerminalHeartbeatReconciler reconciles a TerminalHeartbeat object
 type TerminalHeartbeatReconciler struct {
 	client.Client
-	Log         logr.Logger
 	Recorder    record.EventRecorder
 	Config      *extensionsv1alpha1.ControllerManagerConfiguration
 	configMutex sync.RWMutex
@@ -102,7 +99,7 @@ func (r *TerminalHeartbeatReconciler) Reconcile(ctx context.Context, req ctrl.Re
 }
 
 func (r *TerminalHeartbeatReconciler) deleteTerminal(ctx context.Context, t *extensionsv1alpha1.Terminal) error {
-	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting terminal resource due to missing heartbeat")
+	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting terminal resource due to missing heartbeat")
 
 	deleteCtx, cancelFunc := context.WithTimeout(ctx, time.Duration(30*time.Second))
 	defer cancelFunc()
@@ -111,12 +108,12 @@ func (r *TerminalHeartbeatReconciler) deleteTerminal(ctx context.Context, t *ext
 		return err
 	}
 
-	r.recordEventAndLog(t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted terminal resource")
+	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted terminal resource")
 
 	return nil
 }
 
-func (r *TerminalHeartbeatReconciler) recordEventAndLog(t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
+func (r *TerminalHeartbeatReconciler) recordEventAndLog(ctx context.Context, t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
 	r.Recorder.Eventf(t, eventType, reason, messageFmt, args)
-	r.Log.Info(fmt.Sprintf(messageFmt, args...), "namespace", t.Namespace, "name", t.Name)
+	log.FromContext(ctx).Info(fmt.Sprintf(messageFmt, args...))
 }

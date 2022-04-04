@@ -16,25 +16,19 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	//+kubebuilder:scaffold:imports
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 var (
-	k8sClient  client.Client
-	testEnv    *envtest.Environment
-	ctx        context.Context
-	cancel     context.CancelFunc
-	k8sManager ctrl.Manager
-	cmConfig   *v1alpha1.ControllerManagerConfiguration
-	mutator    *TerminalMutator
-	validator  *TerminalValidator
+	e         test.Environment
+	ctx       context.Context
+	cancel    context.CancelFunc
+	cmConfig  *v1alpha1.ControllerManagerConfiguration
+	mutator   *TerminalMutator
+	validator *TerminalValidator
 )
 
 func TestAPIs(t *testing.T) {
@@ -59,16 +53,13 @@ var _ = BeforeSuite(func() {
 		Config: cmConfig,
 	}
 
-	environment := test.New(cmConfig, mutator, validator)
-	testEnv = environment.Env
-	k8sManager = environment.K8sManager
-	k8sClient = environment.K8sClient
-	environment.Start()
+	e = test.New(cmConfig, mutator, validator)
+	e.Start()
 }, 60)
 
 var _ = AfterSuite(func() {
 	cancel()
 	By("tearing down the test environment")
-	err := testEnv.Stop()
+	err := e.GardenEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 }, 10)
