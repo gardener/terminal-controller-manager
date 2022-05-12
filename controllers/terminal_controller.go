@@ -972,7 +972,12 @@ func createOrUpdateKubeconfig(ctx context.Context, targetClientSet *ClientSet, h
 		server = targetClientSet.Host
 	}
 
-	kubeconfig, err := GenerateKubeconfigFromTokenSecret(clusterName, contextNamespace, server, accessSecret)
+	var caData []byte
+	if t.Spec.Target.APIServer != nil {
+		caData = t.Spec.Target.APIServer.CAData
+	}
+
+	kubeconfig, err := GenerateKubeconfigFromTokenSecret(clusterName, contextNamespace, server, caData, accessSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -1013,7 +1018,7 @@ func deleteSecret(ctx context.Context, cs *ClientSet, namespace string, name str
 
 // GenerateKubeconfigFromTokenSecret generates a kubeconfig using the bearer token from the provided secret to authenticate against the provided server.
 // If the server points to localhost, the kubernetes default service is used instead as server.
-func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace string, server string, secret *corev1.Secret) ([]byte, error) {
+func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace string, server string, caData []byte, secret *corev1.Secret) ([]byte, error) {
 	if server == "" {
 		return nil, errors.New("api server host is required")
 	}
@@ -1040,7 +1045,7 @@ func GenerateKubeconfigFromTokenSecret(clusterName string, contextNamespace stri
 				Cluster: clientcmdv1.Cluster{
 					Server:                   server,
 					InsecureSkipTLSVerify:    false,
-					CertificateAuthorityData: secret.Data[corev1.ServiceAccountRootCAKey],
+					CertificateAuthorityData: caData,
 				},
 			},
 		},

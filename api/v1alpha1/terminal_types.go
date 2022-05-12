@@ -62,7 +62,7 @@ func init() {
 	SchemeBuilder.Register(&Terminal{}, &TerminalList{})
 }
 
-// Host defines the desired state of the resources related to the host cluster
+// HostCluster defines the desired state of the resources related to the host cluster
 type HostCluster struct {
 	// ClusterCredentials define the credentials to the host cluster
 	Credentials ClusterCredentials `json:"credentials"`
@@ -163,6 +163,11 @@ type APIServer struct {
 	// Server is the address of the target kubernetes cluster (https://hostname:port). The address should be accessible from the terminal pod within the host cluster.
 	// +optional
 	Server string `json:"server,omitempty"`
+
+	// CAData holds PEM-encoded bytes (typically read from a root certificates bundle).
+	// +optional
+	// +nullable
+	CAData []byte `json:"caData"`
 }
 
 // BindingKind describes the desired role binding
