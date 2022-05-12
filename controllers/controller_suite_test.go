@@ -15,7 +15,7 @@ import (
 	"github.com/gardener/terminal-controller-manager/test"
 	"github.com/gardener/terminal-controller-manager/webhooks"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,7 +23,6 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -49,9 +48,7 @@ func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	SetDefaultEventuallyTimeout(30 * time.Second)
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Controller Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -92,8 +89,8 @@ var _ = BeforeSuite(func() {
 	err = terminalHeartbeatReconciler.SetupWithManager(e.K8sManager, cmConfig.Controllers.TerminalHeartbeat)
 	Expect(err).ToNot(HaveOccurred())
 
-	e.Start()
-}, 60)
+	e.Start(ctx)
+})
 
 // TODO reuse from main
 func CreateRecorder(kubeClient kubernetes.Interface, scheme *runtime.Scheme) record.EventRecorder {
@@ -108,4 +105,4 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := e.GardenEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
-}, 5)
+})
