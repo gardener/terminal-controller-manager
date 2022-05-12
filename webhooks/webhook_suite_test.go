@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/test"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/test"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to

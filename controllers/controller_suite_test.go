@@ -11,10 +11,6 @@ import (
 	"testing"
 	"time"
 
-	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/test"
-	"github.com/gardener/terminal-controller-manager/webhooks"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +19,10 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/test"
+	"github.com/gardener/terminal-controller-manager/webhooks"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to

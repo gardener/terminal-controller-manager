@@ -16,9 +16,6 @@ import (
 	"sync"
 	"time"
 
-	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/utils"
-
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"golang.org/x/oauth2/google"
 	corev1 "k8s.io/api/core/v1"
@@ -46,6 +43,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
+
+	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/utils"
 )
 
 // TerminalReconciler reconciles a Terminal object

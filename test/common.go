@@ -18,8 +18,6 @@ import (
 	"strconv"
 	"time"
 
-	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
-
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	gardenenvtest "github.com/gardener/gardener/pkg/envtest"
 	"github.com/onsi/ginkgo/v2"
@@ -39,6 +37,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 )
 
 var (
