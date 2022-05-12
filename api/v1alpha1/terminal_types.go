@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gardener/terminal-controller-manager/utils"
-
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/gardener/terminal-controller-manager/utils"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!

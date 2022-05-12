@@ -18,11 +18,9 @@ import (
 	"strconv"
 	"time"
 
-	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
-
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	gardenenvtest "github.com/gardener/gardener/pkg/envtest"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,6 +37,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 )
 
 var (
@@ -76,7 +76,7 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 
 	noSideEffects := admissionregistrationv1.SideEffectClassNone
 	webhookInstallOptions := envtest.WebhookInstallOptions{
-		MutatingWebhooks: []admissionregistrationv1.MutatingWebhookConfiguration{
+		MutatingWebhooks: []*admissionregistrationv1.MutatingWebhookConfiguration{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-mutating-webhook-configuration",
@@ -105,7 +105,7 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 				},
 			},
 		},
-		ValidatingWebhooks: []admissionregistrationv1.ValidatingWebhookConfiguration{
+		ValidatingWebhooks: []*admissionregistrationv1.ValidatingWebhookConfiguration{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-validating-webhook-configuration",
@@ -206,11 +206,11 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 	}
 }
 
-func (e Environment) Start() {
+func (e Environment) Start(ctx context.Context) {
 	go func() {
 		defer ginkgo.GinkgoRecover()
 
-		err := e.K8sManager.Start(ctrl.SetupSignalHandler())
+		err := e.K8sManager.Start(ctx)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	}()
 
@@ -336,8 +336,7 @@ func (e Environment) CreateObject(ctx context.Context, obj client.Object, key ty
 	}, timeout, interval).Should(gomega.BeTrue())
 }
 
-var seededRand *rand.Rand = rand.New(
-	rand.NewSource(time.Now().UnixNano()))
+var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 func StringWithCharset(length int, charset string) string {
 	b := make([]byte, length)

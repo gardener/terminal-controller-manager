@@ -19,7 +19,7 @@ fi
 GOLANGCI_LINT_ADDITIONAL_FLAGS=${GOLANGCI_LINT_ADDITIONAL_FLAGS:-""}
 
 # Install golangci-lint (linting tool)
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.42.1
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.46.1
 
 function run_lint {
   local component=$1
@@ -29,7 +29,7 @@ function run_lint {
 
   pushd "$target_dir"
 
-  golangci-lint run ./... -E whitespace,wsl --skip-files "zz_generated.*" ${golangci_lint_additional_flags}
+  golangci-lint -v run ./... ${golangci_lint_additional_flags}
 
   popd
 }

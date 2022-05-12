@@ -11,13 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/test"
-
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
+
+	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/test"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -35,9 +34,7 @@ func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	SetDefaultEventuallyTimeout(30 * time.Second)
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Webhook Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Webhook Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -54,12 +51,12 @@ var _ = BeforeSuite(func() {
 	}
 
 	e = test.New(cmConfig, mutator, validator)
-	e.Start()
-}, 60)
+	e.Start(ctx)
+})
 
 var _ = AfterSuite(func() {
 	cancel()
 	By("tearing down the test environment")
 	err := e.GardenEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
-}, 10)
+})

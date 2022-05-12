@@ -10,17 +10,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/test"
-
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/test"
 )
 
 var _ = Describe("Terminal Controller", func() {

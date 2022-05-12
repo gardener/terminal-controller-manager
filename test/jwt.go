@@ -10,7 +10,8 @@ package test
 
 import (
 	"crypto"
-	"crypto/rsa"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
@@ -45,10 +46,10 @@ func NewJWTTokenGenerator(iss string, privateKey interface{}) (*JwtTokenGenerato
 	)
 
 	switch pk := privateKey.(type) {
-	case *rsa.PrivateKey:
-		signer, err = signerFromRSAPrivateKey(pk)
+	case *ecdsa.PrivateKey:
+		signer, err = signerFromECDSAPrivateKey(pk)
 		if err != nil {
-			return nil, fmt.Errorf("could not generate signer for RSA keypair: %v", err)
+			return nil, fmt.Errorf("could not generate signer for ECDSA keypair: %v", err)
 		}
 	default:
 		return nil, fmt.Errorf("unknown private key type %T, must be *rsa.PrivateKey, *ecdsa.PrivateKey, or jose.OpaqueSigner", privateKey)
@@ -58,39 +59,6 @@ func NewJWTTokenGenerator(iss string, privateKey interface{}) (*JwtTokenGenerato
 		iss:    iss,
 		signer: signer,
 	}, nil
-}
-
-func signerFromRSAPrivateKey(keyPair *rsa.PrivateKey) (jose.Signer, error) {
-	keyID, err := keyIDFromPublicKey(&keyPair.PublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive keyID: %v", err)
-	}
-
-	// IMPORTANT: If this function is updated to support additional key sizes,
-	// algorithmForPublicKey in serviceaccount/openidmetadata.go must also be
-	// updated to support the same key sizes. Today we only support RS256.
-
-	// Wrap the RSA keypair in a JOSE JWK with the designated key ID.
-	privateJWK := &jose.JSONWebKey{
-		Algorithm: string(jose.RS256),
-		Key:       keyPair,
-		KeyID:     keyID,
-		Use:       "sig",
-	}
-
-	signer, err := jose.NewSigner(
-		jose.SigningKey{
-			Algorithm: jose.RS256,
-			Key:       privateJWK,
-		},
-		nil,
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create signer: %v", err)
-	}
-
-	return signer, nil
 }
 
 // keyIDFromPublicKey derives a key ID non-reversibly from a public key.
@@ -115,6 +83,47 @@ func keyIDFromPublicKey(publicKey interface{}) (string, error) {
 	keyID := base64.RawURLEncoding.EncodeToString(publicKeyDERHash)
 
 	return keyID, nil
+}
+
+func signerFromECDSAPrivateKey(keyPair *ecdsa.PrivateKey) (jose.Signer, error) {
+	var alg jose.SignatureAlgorithm
+
+	switch keyPair.Curve {
+	case elliptic.P256():
+		alg = jose.ES256
+	case elliptic.P384():
+		alg = jose.ES384
+	case elliptic.P521():
+		alg = jose.ES512
+	default:
+		return nil, fmt.Errorf("unknown private key curve, must be 256, 384, or 521")
+	}
+
+	keyID, err := keyIDFromPublicKey(&keyPair.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive keyID: %v", err)
+	}
+
+	// Wrap the ECDSA keypair in a JOSE JWK with the designated key ID.
+	privateJWK := &jose.JSONWebKey{
+		Algorithm: string(alg),
+		Key:       keyPair,
+		KeyID:     keyID,
+		Use:       "sig",
+	}
+
+	signer, err := jose.NewSigner(
+		jose.SigningKey{
+			Algorithm: alg,
+			Key:       privateJWK,
+		},
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create signer: %v", err)
+	}
+
+	return signer, nil
 }
 
 func LegacyClaims(serviceAccount corev1.ServiceAccount, secret corev1.Secret) (*jwt.Claims, interface{}) {

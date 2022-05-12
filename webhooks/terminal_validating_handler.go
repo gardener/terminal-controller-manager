@@ -13,8 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -26,6 +24,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 )
 
 // TerminalValidator handles Terminal

@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package v1alpha1
 
 import (
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 )
 
 // These tests are written in BDD-style using Ginkgo framework. Refer to
