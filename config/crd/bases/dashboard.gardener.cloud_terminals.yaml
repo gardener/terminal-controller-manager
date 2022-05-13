@@ -231,8 +231,7 @@ spec:
                 properties:
                   apiServer:
                     description: APIServer references the kube-apiserver of the target
-                      cluster. If APIServer is set, either APIServer.ServiceRef or
-                      APIServer.Server has to be set
+                      cluster.
                     properties:
                       caData:
                         description: CAData holds PEM-encoded bytes (typically read

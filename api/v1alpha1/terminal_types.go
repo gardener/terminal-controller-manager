@@ -105,7 +105,7 @@ type TargetCluster struct {
 	// Deprecated: use APIServer.ServiceRef instead
 	APIServerServiceRef *corev1.ObjectReference `json:"apiServerServiceRef,omitempty"`
 
-	// APIServer references the kube-apiserver of the target cluster. If APIServer is set, either APIServer.ServiceRef or APIServer.Server has to be set
+	// APIServer references the kube-apiserver of the target cluster.
 	// +optional
 	APIServer *APIServer `json:"apiServer,omitempty"`
 
@@ -154,7 +154,7 @@ type ProjectMembership struct {
 	Roles []string `json:"roles"`
 }
 
-// APIServer references the kube-apiserver. If APIServer is set, either ServiceRef or Server has to be set
+// APIServer references the kube-apiserver.
 type APIServer struct {
 	// ServiceRef is a reference to the kube-apiserver service on the host cluster that points to the kube-apiserver of the target cluster. If no namespace is set on the object reference, it is defaulted to Spec.Host.Namespace.
 	// +optional

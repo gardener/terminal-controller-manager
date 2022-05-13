@@ -197,12 +197,6 @@ func validateRequiredAPIServerFields(t *v1alpha1.Terminal) error {
 	}
 
 	if t.Spec.Target.APIServer != nil {
-		if t.Spec.Target.APIServer.ServiceRef == nil && t.Spec.Target.APIServer.Server == "" {
-			return field.Required(
-				field.NewPath("spec", "target", "apiServer", "server"),
-				"field or "+field.NewPath("spec", "target", "apiServer", "serviceRef").String()+" field is required when "+field.NewPath("spec", "target", "apiServer").String()+" is set")
-		}
-
 		if t.Spec.Target.APIServer.ServiceRef != nil {
 			return validateRequiredField(&t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name"))
 		}
