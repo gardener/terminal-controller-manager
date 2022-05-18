@@ -6,7 +6,7 @@
 IMG ?= eu.gcr.io/gardener-project/gardener/terminal-controller-manager
 
 # Kube RBAC Proxy image to use
-IMG_RBAC_PROXY ?= quay.io/brancz/kube-rbac-proxy:v0.8.0
+IMG_RBAC_PROXY ?= quay.io/brancz/kube-rbac-proxy:v0.12.0
 
 REPO_ROOT           := $(shell git rev-parse --show-toplevel)
 VERSION             := $(shell cat "$(REPO_ROOT)/VERSION")
@@ -113,15 +113,15 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy-rt
 deploy-rt: apply-image kustomize ## Multi-cluster use case: Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-	kustomize build config/overlay/multi-cluster/runtime | kubectl apply -f -
+	$(KUSTOMIZE) build config/overlay/multi-cluster/runtime | kubectl apply -f -
 
 .PHONY: deploy-virtual
 deploy-virtual: apply-image kustomize ## Multi-cluster use case: Deploy crd, admission configurations etc. in the configured Kubernetes cluster
-	kustomize build config/overlay/multi-cluster/virtual-garden | kubectl apply -f -
+	$(KUSTOMIZE) build config/overlay/multi-cluster/virtual-garden | kubectl apply -f -
 
 .PHONY: deploy-singlecluster
 deploy-singlecluster: apply-image ## Single-cluster use case: Deploy crd, admission configurations, controller etc. in the configured Kubernetes cluster
-	kustomize build config/overlay/single-cluster | kubectl apply -f -
+	$(KUSTOMIZE) build config/overlay/single-cluster | kubectl apply -f -
 
 .PHONY: apply-image
 apply-image: manifests kustomize ## Apply terminal controller and kube-rbac-proxy images according to the variables IMG and IMG_RBAC_PROXY
