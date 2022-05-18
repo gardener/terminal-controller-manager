@@ -1,10 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.7.0
+    controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
   name: terminals.dashboard.gardener.cloud
 spec:
@@ -37,8 +36,8 @@ spec:
             description: TerminalSpec defines the desired state of Terminal
             properties:
               host:
-                description: Host defines the desired state of the resources related
-                  to the host cluster
+                description: HostCluster defines the desired state of the resources
+                  related to the host cluster
                 properties:
                   credentials:
                     description: ClusterCredentials define the credentials to the
@@ -232,9 +231,14 @@ spec:
                 properties:
                   apiServer:
                     description: APIServer references the kube-apiserver of the target
-                      cluster. If APIServer is set, either APIServer.ServiceRef or
-                      APIServer.Server has to be set
+                      cluster.
                     properties:
+                      caData:
+                        description: CAData holds PEM-encoded bytes (typically read
+                          from a root certificates bundle).
+                        format: byte
+                        nullable: true
+                        type: string
                       server:
                         description: Server is the address of the target kubernetes
                           cluster (https://hostname:port). The address should be accessible

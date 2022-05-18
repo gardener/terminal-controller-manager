@@ -208,6 +208,19 @@ var _ = Describe("Validating Webhook", func() {
 				Expect(terminalCreationError).To(Not(HaveOccurred()))
 			})
 		})
+
+		Context("api server - serviceRef, server and caData fields", func() {
+			BeforeEach(func() {
+				terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+					ServiceRef: nil,
+					Server:     "",
+					CAData:     nil,
+				}
+			})
+			It("should allow to not specify serviceRef, server and caData", func() {
+				Expect(terminalCreationError).To(Not(HaveOccurred()))
+			})
+		})
 	})
 
 	Describe("UPDATE succeeds", func() {
@@ -523,16 +536,6 @@ var _ = Describe("Validating Webhook", func() {
 						}
 					})
 					AssertFailedBehavior("spec.target.apiServerServiceRef.name: Required value")
-				})
-
-				Context("serviceRef and server field", func() {
-					BeforeEach(func() {
-						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
-							ServiceRef: nil,
-							Server:     "",
-						}
-					})
-					AssertFailedBehavior("spec.target.apiServer.server: Required value: field or spec.target.apiServer.serviceRef field is required when spec.target.apiServer is set")
 				})
 
 				Context("serviceRef and server field", func() {
