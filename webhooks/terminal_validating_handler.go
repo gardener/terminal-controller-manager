@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -205,6 +206,15 @@ func validateRequiredAPIServerFields(t *v1alpha1.Terminal) error {
 	return nil
 }
 
+func toAuthZExtraValue(authNVal map[string]authenticationv1.ExtraValue) map[string]authorizationv1.ExtraValue {
+	authZVal := make(map[string]authorizationv1.ExtraValue)
+	for k, v := range authNVal {
+		authZVal[k] = authorizationv1.ExtraValue(v)
+	}
+
+	return authZVal
+}
+
 func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) error {
 	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.getConfig().HonourServiceAccountRefTargetCluster); err != nil {
 		return err
@@ -219,12 +229,28 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 			return field.Forbidden(fldPath.Child("serviceAccountRef"), "field is forbidden by configuration")
 		}
 
-		if cred.SecretRef == nil {
-			return field.Required(fldPath.Child("secretRef"), "field is required")
+		if cred.ShootRef == nil && cred.SecretRef == nil {
+			return field.Required(fldPath.Child("secretRef"), "field requires either ShootRef or SecretRef to be set")
 		}
 	} else {
-		if cred.SecretRef == nil && cred.ServiceAccountRef == nil {
-			return field.Required(fldPath, "field requires either SecretRef or ServiceAccountRef to be set")
+		if cred.ShootRef == nil && cred.SecretRef == nil && cred.ServiceAccountRef == nil {
+			return field.Required(fldPath, "field requires either ShootRef, SecretRef or ServiceAccountRef to be set")
+		}
+	}
+
+	if cred.ShootRef != nil {
+		fldValidations := &[]fldValidation{
+			{
+				value:   &cred.ShootRef.Name,
+				fldPath: fldPath.Child("shootRef", "name"),
+			},
+			{
+				value:   &cred.ShootRef.Namespace,
+				fldPath: fldPath.Child("shootRef", "namespace"),
+			},
+		}
+		if err := validateRequiredFields(fldValidations); err != nil {
+			return err
 		}
 	}
 
@@ -349,6 +375,12 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 
 // canGetCredential returns true if the user can read the referenced secret and or the referenced service account and all the secrets within the namespace of the service account
 func (h *TerminalValidator) canGetCredential(ctx context.Context, userInfo authenticationv1.UserInfo, cred v1alpha1.ClusterCredentials) (bool, error) {
+	if allowed, err := h.canCreateShootsAdminKubeconfigAccessReview(ctx, userInfo, cred.ShootRef); err != nil {
+		return false, err
+	} else if !allowed {
+		return false, nil
+	}
+
 	if allowed, err := h.canGetSecretAccessReview(ctx, userInfo, cred.SecretRef); err != nil {
 		return false, err
 	} else if !allowed {
@@ -356,6 +388,31 @@ func (h *TerminalValidator) canGetCredential(ctx context.Context, userInfo authe
 	}
 
 	return h.canGetServiceAccountAndSecretAccessReview(ctx, userInfo, cred.ServiceAccountRef)
+}
+
+func (h *TerminalValidator) canCreateShootsAdminKubeconfigAccessReview(ctx context.Context, userInfo authenticationv1.UserInfo, ref *v1alpha1.ShootRef) (bool, error) {
+	if ref == nil {
+		return true, nil
+	}
+
+	subjectAccessReview := &authorizationv1.SubjectAccessReview{
+		Spec: authorizationv1.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Group:     gardencorev1beta1.GroupName,
+				Resource:  "shoots/adminkubeconfig",
+				Verb:      "create",
+				Name:      ref.Name,
+				Namespace: ref.Namespace,
+			},
+			User:   userInfo.Username,
+			Groups: userInfo.Groups,
+			UID:    userInfo.UID,
+			Extra:  toAuthZExtraValue(userInfo.Extra),
+		},
+	}
+	err := h.client.Create(ctx, subjectAccessReview)
+
+	return subjectAccessReview.Status.Allowed, err
 }
 
 func (h *TerminalValidator) canGetSecretAccessReview(ctx context.Context, userInfo authenticationv1.UserInfo, ref *corev1.SecretReference) (bool, error) {
@@ -375,7 +432,7 @@ func (h *TerminalValidator) canGetSecretAccessReview(ctx context.Context, userIn
 			User:   userInfo.Username,
 			Groups: userInfo.Groups,
 			UID:    userInfo.UID,
-			// Extra:  userInfo.Extra, // TODO convert / cast
+			Extra:  toAuthZExtraValue(userInfo.Extra),
 		},
 	}
 	err := h.client.Create(ctx, subjectAccessReview)
@@ -400,7 +457,7 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 			User:   userInfo.Username,
 			Groups: userInfo.Groups,
 			UID:    userInfo.UID,
-			// Extra:  userInfo.Extra, // TODO convert / cast
+			Extra:  toAuthZExtraValue(userInfo.Extra),
 		},
 	}
 
@@ -425,7 +482,7 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 			User:   userInfo.Username,
 			Groups: userInfo.Groups,
 			UID:    userInfo.UID,
-			// Extra:  userInfo.Extra, // TODO convert / cast
+			Extra:  toAuthZExtraValue(userInfo.Extra),
 		},
 	}
 	err = h.client.Create(ctx, accessReviewSecret)
