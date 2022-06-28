@@ -13,7 +13,6 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -28,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/keyutil"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,11 +45,10 @@ var (
 )
 
 type Environment struct {
-	GardenEnv      *gardenenvtest.GardenerTestEnvironment
-	K8sManager     ctrl.Manager
-	Config         *rest.Config
-	K8sClient      client.Client
-	tokenGenerator *JwtTokenGenerator
+	GardenEnv  *gardenenvtest.GardenerTestEnvironment
+	K8sManager ctrl.Manager
+	Config     *rest.Config
+	K8sClient  client.Client
 }
 
 func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator admission.Handler, validator admission.Handler) Environment {
@@ -191,18 +188,11 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 	hookServer.Register(terminalMutatingWebhookPath, &webhook.Admission{Handler: mutator})
 	hookServer.Register(terminalValidatingWebhookPath, &webhook.Admission{Handler: validator})
 
-	// create JwtTokenGenerator for service account token generation as no kube-controller is running when using env-test without using an "existing" cluster
-	privateKey, err := keyutil.PrivateKeyFromFile(path.Join(gardenTestEnv.ControlPlane.APIServer.CertDir, "sa-signer.key"))
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	tokenGenerator, err := NewJWTTokenGenerator(LegacyIssuer, privateKey)
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
 	return Environment{
 		gardenTestEnv,
 		k8sManager,
 		cfg,
 		k8sClient,
-		tokenGenerator,
 	}
 }
 
@@ -284,48 +274,6 @@ func (e Environment) AddServiceAccount(ctx context.Context, sa ServiceAccount, t
 		crbKey := client.ObjectKeyFromObject(crb)
 		e.CreateObject(ctx, crb, crbKey, timeout, interval)
 	}
-
-	e.EnsureServiceAccountToken(ctx, serviceAccount, timeout, interval)
-}
-
-func (e Environment) EnsureServiceAccountToken(ctx context.Context, serviceAccount *corev1.ServiceAccount, timeout time.Duration, interval time.Duration) {
-	tokenSecretName := serviceAccount.Name + "-token"
-	tokenSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      tokenSecretName,
-			Namespace: serviceAccount.Namespace,
-			Annotations: map[string]string{
-				corev1.ServiceAccountNameKey: serviceAccount.Name,
-				corev1.ServiceAccountUIDKey:  string(serviceAccount.UID),
-			},
-		},
-		Data: map[string][]byte{
-			"token":                        []byte(""),
-			corev1.ServiceAccountRootCAKey: e.Config.CAData,
-		},
-		Type: corev1.SecretTypeServiceAccountToken,
-	}
-
-	token, err := e.tokenGenerator.GenerateToken(LegacyClaims(*serviceAccount, *tokenSecret))
-	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-	tokenSecret.Data["token"] = []byte(token)
-
-	secretTokenKey := client.ObjectKeyFromObject(tokenSecret)
-	e.CreateObject(ctx, tokenSecret, secretTokenKey, timeout, interval)
-
-	serviceAccount.Secrets = []corev1.ObjectReference{
-		{
-			Kind:            "Secret",
-			Namespace:       serviceAccount.Namespace,
-			Name:            tokenSecretName,
-			UID:             "",
-			APIVersion:      "",
-			ResourceVersion: "",
-			FieldPath:       "",
-		},
-	}
-	gomega.Expect(e.K8sClient.Update(ctx, serviceAccount)).Should(gomega.Succeed())
 }
 
 func (e Environment) CreateObject(ctx context.Context, obj client.Object, key types.NamespacedName, timeout time.Duration, interval time.Duration) {
