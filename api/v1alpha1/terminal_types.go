@@ -329,6 +329,10 @@ type TerminalControllerConfiguration struct {
 
 	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run per Namespace (independent of the user who created the Terminal resource). Defaults to 3.
 	MaxConcurrentReconcilesPerNamespace int `yaml:"maxConcurrentReconcilesPerNamespace"`
+
+	// TokenRequestExpirationSeconds is the requested duration of validity of the access token request.
+	// The token issuer may return a token with a different validity duration.
+	TokenRequestExpirationSeconds *int64 `yaml:"tokenRequestExpirationSeconds"`
 }
 
 // TerminalHeartbeatControllerConfiguration defines the configuration of the TerminalHeartbeat controller.
@@ -475,6 +479,9 @@ const (
 
 	// KubeconfigSecretResourceNamePrefix is a name prefix for the kubeconfig secret used within the terminal pod.
 	KubeconfigSecretResourceNamePrefix = "term-kubeconfig-"
+
+	// TokenSecretResourceNamePrefix is a name prefix for the token secret that is mounted to the terminal pod.
+	TokenSecretResourceNamePrefix = "term-token-"
 
 	// TerminalAttachResourceNamePrefix is a name prefix for resources related to attach to the terminal pod.
 	TerminalAttachResourceNamePrefix = "term-attach-"
