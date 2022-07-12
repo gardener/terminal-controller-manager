@@ -9,6 +9,7 @@ Source: https://github.com/gardener/terminal-controller-manager
 Files:
   .ci/**
   config/secret/tls/.gitignore
+  config/rbac/role.yaml
   .gitignore
   CODEOWNERS
   go.mod

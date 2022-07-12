@@ -152,9 +152,6 @@ var _ = Describe("Terminal Controller", func() {
 							return err == nil
 						}, timeout, interval).Should(BeTrue())
 
-						By("By ensuring service account token as no kube-controller is running for AccessServiceAccount to be created")
-						e.EnsureServiceAccountToken(ctx, accessServiceAccount, timeout, interval)
-
 						By("Waiting for terminal to be ready")
 						Eventually(func() bool {
 							terminal = &dashboardv1alpha1.Terminal{}
@@ -223,9 +220,6 @@ var _ = Describe("Terminal Controller", func() {
 							return err == nil
 						}, timeout, interval).Should(BeTrue())
 
-						By("By ensuring service account token as no kube-controller is running for AccessServiceAccount to be created")
-						e.EnsureServiceAccountToken(ctx, accessServiceAccount, timeout, interval)
-
 						By("Waiting for terminal to be ready")
 						Eventually(func() bool {
 							t := &dashboardv1alpha1.Terminal{}
@@ -271,9 +265,6 @@ var _ = Describe("Terminal Controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			By("By ensuring service account token as no kube-controller is running for AccessServiceAccount to be created")
-			e.EnsureServiceAccountToken(ctx, accessServiceAccount, timeout, interval)
-
 			By("Waiting for terminal to be ready")
 			Eventually(func() bool {
 				t := &dashboardv1alpha1.Terminal{}
@@ -309,9 +300,15 @@ var _ = Describe("Terminal Controller", func() {
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
-			By("Expecting kubeconfig to be removed")
+			By("Expecting kubeconfig secret to be removed")
 			Eventually(func() bool {
 				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.KubeconfigSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.Secret{})
+				return kErros.IsNotFound(err)
+			}, timeout, interval).Should(BeTrue())
+
+			By("Expecting token secret to be removed")
+			Eventually(func() bool {
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TokenSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.Secret{})
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
@@ -385,11 +382,16 @@ var _ = Describe("Terminal Controller", func() {
 				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, accessServiceAccount)
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
-			e.EnsureServiceAccountToken(ctx, accessServiceAccount, timeout, interval) // need to create a dummy token as no kube-controller is running
 
-			By("Expecting kubeconfig to be created")
+			By("Expecting kubeconfig secret to be created")
 			Eventually(func() bool {
 				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.KubeconfigSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.Secret{})
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			By("Expecting token secret to be created")
+			Eventually(func() bool {
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TokenSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.Secret{})
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 

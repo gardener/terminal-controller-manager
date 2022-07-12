@@ -9,6 +9,7 @@ package utils
 import (
 	"fmt"
 	"hash/fnv"
+	"os"
 )
 
 // Set is a map of label:value. It implements Labels.
@@ -47,4 +48,23 @@ func MergeStringMap(map1 Set, map2 Set) Set {
 	}
 
 	return out
+}
+
+// DataFromSliceOrFile returns data from the slice (if non-empty), or from the file,
+// or an error if an error occurred reading the file
+func DataFromSliceOrFile(data []byte, file string) ([]byte, error) {
+	if len(data) > 0 {
+		return data, nil
+	}
+
+	if len(file) > 0 {
+		fileData, err := os.ReadFile(file)
+		if err != nil {
+			return []byte{}, err
+		}
+
+		return fileData, nil
+	}
+
+	return nil, nil
 }
