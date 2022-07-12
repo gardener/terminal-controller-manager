@@ -45,8 +45,9 @@ spec:
                     properties:
                       secretRef:
                         description: SecretRef is a reference to a secret that contains
-                          the cluster specific credentials Either SecretRef or ServiceAccountRef
-                          is mandatory. SecretRef will be used if both refs are provided.
+                          the cluster specific credentials Either ShootRef, SecretRef
+                          or ServiceAccountRef is mandatory. ShootRef will be used
+                          if more than one ref is provided.
                         properties:
                           name:
                             description: Name is unique within a namespace to reference
@@ -95,6 +96,21 @@ spec:
                           uid:
                             description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                             type: string
+                        type: object
+                      shootRef:
+                        description: ShootRef references the shoot cluster. The admin
+                          kubeconfig retrieved from the shoots/adminkubeconfig endpoint
+                          is used
+                        properties:
+                          name:
+                            description: Name is the name of the shoot cluster
+                            type: string
+                          namespace:
+                            description: Namespace is the namespace of the shoot cluster
+                            type: string
+                        required:
+                        - name
+                        - namespace
                         type: object
                     type: object
                   namespace:
@@ -423,8 +439,9 @@ spec:
                     properties:
                       secretRef:
                         description: SecretRef is a reference to a secret that contains
-                          the cluster specific credentials Either SecretRef or ServiceAccountRef
-                          is mandatory. SecretRef will be used if both refs are provided.
+                          the cluster specific credentials Either ShootRef, SecretRef
+                          or ServiceAccountRef is mandatory. ShootRef will be used
+                          if more than one ref is provided.
                         properties:
                           name:
                             description: Name is unique within a namespace to reference
@@ -473,6 +490,21 @@ spec:
                           uid:
                             description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                             type: string
+                        type: object
+                      shootRef:
+                        description: ShootRef references the shoot cluster. The admin
+                          kubeconfig retrieved from the shoots/adminkubeconfig endpoint
+                          is used
+                        properties:
+                          name:
+                            description: Name is the name of the shoot cluster
+                            type: string
+                          namespace:
+                            description: Namespace is the namespace of the shoot cluster
+                            type: string
+                        required:
+                        - name
+                        - namespace
                         type: object
                     type: object
                   kubeconfigContextNamespace:

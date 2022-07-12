@@ -16,7 +16,10 @@ import (
 	"sync"
 	"time"
 
+	authenticationv1alpha1 "github.com/gardener/gardener/pkg/apis/authentication/v1alpha1"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	gardencoreclientset "github.com/gardener/gardener/pkg/client/core/clientset/versioned"
+	gardenscheme "github.com/gardener/gardener/pkg/client/core/clientset/versioned/scheme"
 	"golang.org/x/oauth2/google"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -136,6 +139,7 @@ func (r *TerminalReconciler) decreaseCounterForNamespace(namespace string) {
 // +kubebuilder:rbac:groups=dashboard.gardener.cloud,resources=terminals,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=dashboard.gardener.cloud,resources=terminals/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.gardener.cloud,resources=projects,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core.gardener.cloud,resources=shoots/adminkubeconfig,verbs=create
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations;mutatingwebhookconfigurations,verbs=list
 
 func (r *TerminalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -910,7 +914,9 @@ func WaitUntilTokenAvailable(ctx context.Context, cs *ClientSet, serviceAccount 
 }
 
 func clusterNameForCredential(cred extensionsv1alpha1.ClusterCredentials) (string, error) {
-	if cred.SecretRef != nil {
+	if cred.ShootRef != nil {
+		return cred.ShootRef.Name, nil
+	} else if cred.SecretRef != nil {
 		return cred.SecretRef.Name, nil
 	} else if cred.ServiceAccountRef != nil {
 		return cred.ServiceAccountRef.Name, nil
@@ -1299,7 +1305,9 @@ func NewClientSet(config *rest.Config, client client.Client, kubernetes kubernet
 }
 
 func NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, credentials extensionsv1alpha1.ClusterCredentials, honourServiceAccountRef bool, scheme *runtime.Scheme) (*ClientSet, error) {
-	if credentials.SecretRef != nil {
+	if credentials.ShootRef != nil {
+		return NewClientSetFromShootRef(ctx, cs, credentials.ShootRef, scheme)
+	} else if credentials.SecretRef != nil {
 		return NewClientSetFromSecretRef(ctx, cs, credentials.SecretRef, scheme)
 	} else if honourServiceAccountRef && credentials.ServiceAccountRef != nil {
 		return NewClientSetFromServiceAccountRef(ctx, cs, credentials.ServiceAccountRef, scheme)
@@ -1323,6 +1331,43 @@ func NewClientSetFromServiceAccountRef(ctx context.Context, cs *ClientSet, ref *
 	}
 
 	return NewClientSetFromSecret(ctx, cs.Config, secret, client.Options{
+		Scheme: scheme,
+	})
+}
+
+func NewClientSetFromShootRef(ctx context.Context, cs *ClientSet, ref *extensionsv1alpha1.ShootRef, scheme *runtime.Scheme) (*ClientSet, error) {
+	expirationSeconds := int64((10 * time.Minute).Seconds()) // lowest possible value https://github.com/gardener/gardener/blob/master/pkg/apis/authentication/validation/validation.go#L34
+	adminKubeconfigRequest := &authenticationv1alpha1.AdminKubeconfigRequest{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "AdminKubeconfigRequest",
+			APIVersion: authenticationv1alpha1.SchemeGroupVersion.String(),
+		},
+		Spec: authenticationv1alpha1.AdminKubeconfigRequestSpec{
+			ExpirationSeconds: &expirationSeconds,
+		},
+	}
+
+	gardenCore, err := gardencoreclientset.NewForConfig(cs.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &authenticationv1alpha1.AdminKubeconfigRequest{}
+
+	err = gardenCore.CoreV1beta1().RESTClient().Post().
+		Namespace(ref.Namespace).
+		Resource("shoots").
+		Name(ref.Name).
+		SubResource("adminkubeconfig").
+		VersionedParams(&metav1.CreateOptions{}, gardenscheme.ParameterCodec).
+		Body(adminKubeconfigRequest).
+		Do(ctx).
+		Into(result)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewClientSetFromBytes(result.Status.Kubeconfig, client.Options{
 		Scheme: scheme,
 	})
 }
