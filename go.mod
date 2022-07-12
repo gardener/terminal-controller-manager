@@ -40,7 +40,7 @@ require (
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/gardener/etcd-druid v0.9.0 // indirect
 	github.com/gardener/external-dns-management v0.7.18 // indirect
-	github.com/gardener/hvpa-controller v0.3.1 // indirect
+	github.com/gardener/hvpa-controller/api v0.5.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-logr/zapr v1.2.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
@@ -54,7 +54,6 @@ require (
 	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/uuid v1.1.2 // indirect
-	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -120,7 +119,7 @@ require (
 	istio.io/gogo-genproto v0.0.0-20210113155706-4daf5697332f // indirect
 	k8s.io/apiextensions-apiserver v0.24.2 // indirect
 	k8s.io/apiserver v0.24.2 // indirect
-	k8s.io/autoscaler v0.0.0-20190805135949-100e91ba756e // indirect
+	k8s.io/autoscaler/vertical-pod-autoscaler v0.10.0 // indirect
 	k8s.io/component-base v0.24.2 // indirect
 	k8s.io/helm v2.16.1+incompatible // indirect
 	k8s.io/klog v1.0.0 // indirect
@@ -134,7 +133,6 @@ require (
 )
 
 replace (
-	github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.5.5 // keep this value in sync with k8s.io/apiserver
 	google.golang.org/grpc => google.golang.org/grpc v1.40.0 // keep this value in sync with k8s.io/apiserver
-	k8s.io/client-go => k8s.io/client-go v0.23.3
+	k8s.io/client-go => k8s.io/client-go v0.24.2
 )
