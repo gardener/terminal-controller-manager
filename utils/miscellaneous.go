@@ -9,7 +9,7 @@ package utils
 import (
 	"fmt"
 	"hash/fnv"
-	"io/ioutil"
+	"os"
 )
 
 // Set is a map of label:value. It implements Labels.
@@ -58,7 +58,7 @@ func DataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 	}
 
 	if len(file) > 0 {
-		fileData, err := ioutil.ReadFile(file)
+		fileData, err := os.ReadFile(file)
 		if err != nil {
 			return []byte{}, err
 		}
