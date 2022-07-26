@@ -3,7 +3,7 @@ module github.com/gardener/terminal-controller-manager
 go 1.18
 
 require (
-	github.com/gardener/gardener v1.50.1
+	github.com/gardener/gardener v1.51.0
 	github.com/go-logr/logr v1.2.3
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.19.0
@@ -119,7 +119,7 @@ require (
 	istio.io/gogo-genproto v0.0.0-20210113155706-4daf5697332f // indirect
 	k8s.io/apiextensions-apiserver v0.24.2 // indirect
 	k8s.io/apiserver v0.24.2 // indirect
-	k8s.io/autoscaler/vertical-pod-autoscaler v0.10.0 // indirect
+	k8s.io/autoscaler/vertical-pod-autoscaler v0.11.0 // indirect
 	k8s.io/component-base v0.24.2 // indirect
 	k8s.io/helm v2.16.1+incompatible // indirect
 	k8s.io/klog v1.0.0 // indirect
