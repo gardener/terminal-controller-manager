@@ -1203,7 +1203,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 				rootVolumeName := "root-volume"
 				container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
 					Name:      rootVolumeName,
-					MountPath: "/hostroot",
+					MountPath: "/host",
 				})
 				pod.Spec.Volumes = []corev1.Volume{
 					{
