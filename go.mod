@@ -3,15 +3,15 @@ module github.com/gardener/terminal-controller-manager
 go 1.18
 
 require (
-	github.com/gardener/gardener v1.51.0
+	github.com/gardener/gardener v1.52.2
 	github.com/go-logr/logr v1.2.3
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.20.0
 	github.com/satori/go.uuid v1.2.0
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.24.2
-	k8s.io/apimachinery v0.24.2
+	k8s.io/api v0.24.3
+	k8s.io/apimachinery v0.24.3
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	sigs.k8s.io/controller-runtime v0.12.1
@@ -79,7 +79,6 @@ require (
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/cobra v1.4.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.2 // indirect
@@ -114,19 +113,17 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	istio.io/api v0.0.0-20220304035241-8c47cbbea144 // indirect
-	istio.io/client-go v1.12.5 // indirect
-	istio.io/gogo-genproto v0.0.0-20210113155706-4daf5697332f // indirect
-	k8s.io/apiextensions-apiserver v0.24.2 // indirect
-	k8s.io/apiserver v0.24.2 // indirect
+	istio.io/api v0.0.0-20220512181135-e8ec1e1d89de // indirect
+	istio.io/client-go v1.14.0 // indirect
+	k8s.io/apiextensions-apiserver v0.24.3 // indirect
+	k8s.io/apiserver v0.24.3 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.11.0 // indirect
-	k8s.io/component-base v0.24.2 // indirect
+	k8s.io/component-base v0.24.3 // indirect
 	k8s.io/helm v2.16.1+incompatible // indirect
-	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.60.1 // indirect
-	k8s.io/kube-aggregator v0.24.2 // indirect
+	k8s.io/kube-aggregator v0.24.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // indirect
-	k8s.io/metrics v0.24.2 // indirect
+	k8s.io/metrics v0.24.3 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
