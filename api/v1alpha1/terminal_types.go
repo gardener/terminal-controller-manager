@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/gardener/terminal-controller-manager/utils"
+	"github.com/gardener/terminal-controller-manager/internal/utils"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -277,9 +277,9 @@ type ShootRef struct {
 
 // LastError indicates the last occurred error for an operation on a resource.
 type LastError struct {
-	// A human readable message indicating details about the last error.
+	// Description is a human-readable message indicating details about the last error.
 	Description string `json:"description"`
-	// Well-defined error codes of the last error(s).
+	// Codes are well-defined error codes of the last error(s).
 	// +optional
 	Codes []ErrorCode `json:"codes,omitempty"`
 }

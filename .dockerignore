@@ -6,7 +6,9 @@
 !api/v1alpha1/*.go
 !controllers/*.go
 !test/*.go
-!utils/*.go
+!internal/*.go
+!internal/gardenclient/*.go
+!internal/utils/*.go
 !webhooks/*.go
 !main.go
 !go.mod

@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/utils"
+	"github.com/gardener/terminal-controller-manager/internal/utils"
 )
 
 // TerminalMutator handles Terminal

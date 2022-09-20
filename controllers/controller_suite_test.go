@@ -21,6 +21,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
 	"github.com/gardener/terminal-controller-manager/test"
 	"github.com/gardener/terminal-controller-manager/webhooks"
 )
@@ -72,7 +73,7 @@ var _ = BeforeSuite(func() {
 	recorder := CreateRecorder(kube, e.K8sManager.GetScheme())
 
 	terminalReconciler = &TerminalReconciler{
-		ClientSet:                   NewClientSet(e.Config, e.K8sManager.GetClient(), kube),
+		ClientSet:                   gardenclient.NewClientSet(e.Config, e.K8sManager.GetClient(), kube),
 		Scheme:                      e.K8sManager.GetScheme(),
 		Recorder:                    recorder,
 		Config:                      cmConfig,

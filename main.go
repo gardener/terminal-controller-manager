@@ -30,6 +30,7 @@ import (
 
 	v1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/controllers"
+	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
 	"github.com/gardener/terminal-controller-manager/webhooks"
 )
 
@@ -102,7 +103,7 @@ func main() {
 	recorder := CreateRecorder(kube)
 
 	if err = (&controllers.TerminalReconciler{
-		ClientSet:                   controllers.NewClientSet(config, mgr.GetClient(), kube),
+		ClientSet:                   gardenclient.NewClientSet(config, mgr.GetClient(), kube),
 		Scheme:                      mgr.GetScheme(),
 		Recorder:                    recorder,
 		Config:                      cmConfig,
