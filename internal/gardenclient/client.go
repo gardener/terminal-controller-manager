@@ -146,12 +146,12 @@ func NewClientSet(config *rest.Config, client client.Client, kubernetes kubernet
 	return &ClientSet{config, client, kubernetes}
 }
 
-func NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, credentials extensionsv1alpha1.ClusterCredentials, honourServiceAccountRef bool, expirationSeconds *int64, scheme *runtime.Scheme) (*ClientSet, error) {
+func NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, credentials extensionsv1alpha1.ClusterCredentials, honourServiceAccountRef *bool, expirationSeconds *int64, scheme *runtime.Scheme) (*ClientSet, error) {
 	if credentials.ShootRef != nil {
 		return NewClientSetFromShootRef(ctx, cs, credentials.ShootRef, scheme)
 	} else if credentials.SecretRef != nil {
 		return NewClientSetFromSecretRef(ctx, cs, credentials.SecretRef, scheme)
-	} else if honourServiceAccountRef && credentials.ServiceAccountRef != nil {
+	} else if utils.NotNilAndTrue(honourServiceAccountRef) && credentials.ServiceAccountRef != nil {
 		return NewClientSetFromServiceAccountRef(ctx, cs, credentials.ServiceAccountRef, expirationSeconds, scheme)
 	} else {
 		return nil, errors.New("no cluster credentials provided")

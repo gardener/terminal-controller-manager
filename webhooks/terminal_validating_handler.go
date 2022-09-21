@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/internal/utils"
 )
 
 // TerminalValidator handles Terminal
@@ -223,8 +224,8 @@ func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) er
 	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.getConfig().HonourServiceAccountRefHostCluster)
 }
 
-func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef bool) error {
-	if !honourServiceAccountRef {
+func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef *bool) error {
+	if !utils.NotNilAndTrue(honourServiceAccountRef) {
 		if cred.ServiceAccountRef != nil {
 			return field.Forbidden(fldPath.Child("serviceAccountRef"), "field is forbidden by configuration")
 		}
@@ -351,7 +352,7 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 	fldPath = fldPath.Child("projectMemberships")
 
 	for index, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
-		if !h.getConfig().HonourProjectMemberships {
+		if !utils.NotNilAndTrue(h.getConfig().HonourProjectMemberships) {
 			return field.Forbidden(fldPath, "field is forbidden by configuration")
 		}
 

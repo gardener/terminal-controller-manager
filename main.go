@@ -23,6 +23,7 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -180,9 +181,9 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 				MaxObjectSize: 10 * 1024,
 			},
 		},
-		HonourServiceAccountRefHostCluster:   true,
-		HonourServiceAccountRefTargetCluster: true,
-		HonourProjectMemberships:             true,
+		HonourServiceAccountRefHostCluster:   pointer.BoolPtr(true),
+		HonourServiceAccountRefTargetCluster: pointer.BoolPtr(true),
+		HonourProjectMemberships:             pointer.BoolPtr(true),
 	}
 
 	if err := readFile(configFile, &cfg); err != nil {

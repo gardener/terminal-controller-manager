@@ -76,7 +76,7 @@ type HostCluster struct {
 	// If true, the mutating webhook makes sure that a temporary namespace is set; in this case you cannot choose the namespace
 	// This field should be false if Namespace is set. You cannot define the name of the temporary namespace.
 	// +optional
-	TemporaryNamespace bool `json:"temporaryNamespace,omitempty"`
+	TemporaryNamespace *bool `json:"temporaryNamespace,omitempty"`
 
 	Pod Pod `json:"pod"`
 }
@@ -95,7 +95,7 @@ type TargetCluster struct {
 	// If true, the mutating webhook makes sure that a temporary namespace is set; in this case you cannot choose the namespace
 	// This field should be false if Namespace is set. You cannot define the name of the temporary namespace.
 	// +optional
-	TemporaryNamespace bool `json:"temporaryNamespace,omitempty"`
+	TemporaryNamespace *bool `json:"temporaryNamespace,omitempty"`
 
 	// KubeconfigContextNamespace is a reference to the namespace within the host cluster that should be used as default in the kubeconfig context
 	KubeconfigContextNamespace string `json:"kubeconfigContextNamespace"`
@@ -302,16 +302,16 @@ type ControllerManagerConfiguration struct {
 	// It is recommended to be set to false for multi-cluster setups, in case pods are refused on the (virtual) cluster where the terminal resources are stored.
 	// Defaults to true.
 	// +optional
-	HonourServiceAccountRefHostCluster bool `yaml:"honourServiceAccountRefHostCluster"`
+	HonourServiceAccountRefHostCluster *bool `yaml:"honourServiceAccountRefHostCluster,omitempty"`
 	// HonourServiceAccountRefTargetCluster defines if `target.credentials.serviceAccountRef` property should be honoured.
 	// Defaults to true.
 	// +optional
-	HonourServiceAccountRefTargetCluster bool `yaml:"honourServiceAccountRefTargetCluster"`
+	HonourServiceAccountRefTargetCluster *bool `yaml:"honourServiceAccountRefTargetCluster,omitempty"`
 	// HonourProjectMemberships defines if `target.authorization.projectMemberships` property should be honoured.
 	// It is recommended to be set to false in case no gardener API server extension is registered for the (virtual) cluster where the terminal resources are stored.
 	// Defaults to true.
 	// +optional
-	HonourProjectMemberships bool `yaml:"honourProjectMemberships"`
+	HonourProjectMemberships *bool `yaml:"honourProjectMemberships,omitempty"`
 }
 
 // ControllerManagerControllerConfiguration defines the configuration of the controllers.

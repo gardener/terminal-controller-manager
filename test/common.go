@@ -312,8 +312,8 @@ func DefaultConfiguration() *dashboardv1alpha1.ControllerManagerConfiguration {
 				MaxObjectSize: 10 * 1024,
 			},
 		},
-		HonourServiceAccountRefHostCluster:   true,
-		HonourServiceAccountRefTargetCluster: true,
-		HonourProjectMemberships:             true,
+		HonourServiceAccountRefHostCluster:   pointer.BoolPtr(true),
+		HonourServiceAccountRefTargetCluster: pointer.BoolPtr(true),
+		HonourProjectMemberships:             pointer.BoolPtr(true),
 	}
 }
