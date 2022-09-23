@@ -490,6 +490,15 @@ func deleteAttachPodSecret(ctx context.Context, hostClientSet *gardenclient.Clie
 }
 
 func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) *extensionsv1alpha1.LastError {
+	if pointer.BoolDeref(r.getConfig().HonourCleanupProjectMembership, false) {
+		if pointer.BoolDeref(t.Spec.Target.CleanupProjectMembership, false) &&
+			t.Spec.Target.Credentials.ServiceAccountRef != nil && utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.ServiceAccountNameAllowList, t.Spec.Target.Credentials.ServiceAccountRef.Name) {
+			if err := ensureServiceAccountMembershipCleanup(ctx, targetClientSet, *t.Spec.Target.Credentials.ServiceAccountRef); err != nil {
+				return formatError("failed to add referenced label to target Service Account referenced in Terminal: %w", err)
+			}
+		}
+	}
+
 	if err := r.createOrUpdateAttachPodSecret(ctx, hostClientSet, t, labelSet, annotationSet); err != nil {
 		return formatError("Failed to create or update resources needed for attaching to a pod", err)
 	}
@@ -501,6 +510,33 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 
 	if _, err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, secretNames, labelSet, annotationSet); err != nil {
 		return formatError("Failed to create or update terminal pod", err)
+	}
+
+	return nil
+}
+
+// ensureServiceAccountMembershipCleanup adds the TerminalReference label and also adds the ExternalTerminalName finalizer.
+// This ensures that the ServiceAccountReconciler is able to cleanup the poject membership of the ServiceAccount once it is
+// no longer referenced by any terminal resource
+func ensureServiceAccountMembershipCleanup(ctx context.Context, clientSet *gardenclient.ClientSet, ref corev1.ObjectReference) error {
+	serviceAccount := &corev1.ServiceAccount{}
+	if err := clientSet.Get(ctx, client.ObjectKey{Name: ref.Name, Namespace: ref.Namespace}, serviceAccount); err != nil {
+		return err
+	}
+
+	if controllerutil.ContainsFinalizer(serviceAccount, extensionsv1alpha1.ExternalTerminalName) && serviceAccount.Labels[extensionsv1alpha1.TerminalReference] == "true" {
+		return nil
+	}
+
+	patch := client.MergeFrom(serviceAccount.DeepCopy())
+
+	// add finalizer so that ServiceAccountReconciler has a chance to cleanup the project membership in case of ServiceAccount deletion
+	controllerutil.AddFinalizer(serviceAccount, extensionsv1alpha1.ExternalTerminalName)
+
+	metav1.SetMetaDataLabel(&serviceAccount.ObjectMeta, extensionsv1alpha1.TerminalReference, "true")
+
+	if err := clientSet.Patch(ctx, serviceAccount, patch); err != nil {
+		return fmt.Errorf("failed to add referred label to ServiceAccount referenced in Terminal: %w", err)
 	}
 
 	return nil

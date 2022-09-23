@@ -58,7 +58,7 @@ func GetProjectByNamespace(ctx context.Context, c client.Client, namespace strin
 	}
 
 	if len(projectList.Items) == 0 {
-		return nil, errors.New("failed to fetch project by namespace")
+		return nil, fmt.Errorf("failed to fetch project by namespace: %s", namespace)
 	}
 
 	return &projectList.Items[0], nil
@@ -66,7 +66,7 @@ func GetProjectByNamespace(ctx context.Context, c client.Client, namespace strin
 
 // RemoveServiceAccountFromProjectMember removes the service account from the members of the project
 func RemoveServiceAccountFromProjectMember(ctx context.Context, c client.Client, project *gardencorev1beta1.Project, serviceAccount types.NamespacedName) error {
-	isProjectMember, index := isMember(project.Spec.Members, serviceAccount)
+	isProjectMember, index := IsMember(project.Spec.Members, serviceAccount)
 	if !isProjectMember {
 		// already removed
 		return nil
@@ -80,7 +80,7 @@ func RemoveServiceAccountFromProjectMember(ctx context.Context, c client.Client,
 
 // AddServiceAccountAsProjectMember adds the service account as member to the project with the given roles
 func AddServiceAccountAsProjectMember(ctx context.Context, c client.Client, project *gardencorev1beta1.Project, serviceAccount *corev1.ServiceAccount, roles []string) error {
-	isProjectMember, _ := isMember(project.Spec.Members, client.ObjectKeyFromObject(serviceAccount))
+	isProjectMember, _ := IsMember(project.Spec.Members, client.ObjectKeyFromObject(serviceAccount))
 	if isProjectMember {
 		// will not attempt to update
 		return nil
@@ -114,7 +114,8 @@ func AddServiceAccountAsProjectMember(ctx context.Context, c client.Client, proj
 	return nil
 }
 
-func isMember(members []gardencorev1beta1.ProjectMember, serviceAccount types.NamespacedName) (bool, int) {
+// IsMember returns true together with the index in case the passed service account NamespacedName is contained in the ProjectMember list
+func IsMember(members []gardencorev1beta1.ProjectMember, serviceAccount types.NamespacedName) (bool, int) {
 	for index, member := range members {
 		isServiceAccountKindMember := member.APIGroup == "" && member.Kind == rbacv1.ServiceAccountKind && member.Namespace == serviceAccount.Namespace && member.Name == serviceAccount.Name
 		isUserKindMember := member.APIGroup == rbacv1.GroupName && member.Kind == rbacv1.UserKind && member.Name == "system:serviceaccount:"+serviceAccount.Namespace+":"+serviceAccount.Name

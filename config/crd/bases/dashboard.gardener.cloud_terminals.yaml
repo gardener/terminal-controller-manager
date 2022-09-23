@@ -433,6 +433,13 @@ spec:
                     - RoleBinding
                     - ""
                     type: string
+                  cleanupProjectMembership:
+                    description: CleanupProjectMembership indicates if the service
+                      account referenced by credentials.serviceAccountRef should be
+                      removed as project member if not referenced anymore by a Terminal
+                      resource. If true, the credentials.serviceAccountRef.namespace
+                      must be the same as the Terminal resource.
+                    type: boolean
                   credentials:
                     description: ClusterCredentials define the credentials to the
                       target cluster

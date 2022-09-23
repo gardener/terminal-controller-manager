@@ -306,6 +306,12 @@ func DefaultConfiguration() *dashboardv1alpha1.ControllerManagerConfiguration {
 				MaxConcurrentReconciles: 1,
 				TimeToLive:              dashboardv1alpha1.Duration{Duration: time.Duration(5) * time.Minute},
 			},
+			ServiceAccount: dashboardv1alpha1.ServiceAccountControllerConfiguration{
+				MaxConcurrentReconciles: 1,
+				ServiceAccountNameAllowList: []string{
+					"dashboard-webterminal",
+				},
+			},
 		},
 		Webhooks: dashboardv1alpha1.ControllerManagerWebhookConfiguration{
 			TerminalValidation: dashboardv1alpha1.TerminalValidatingWebhookConfiguration{
@@ -315,5 +321,6 @@ func DefaultConfiguration() *dashboardv1alpha1.ControllerManagerConfiguration {
 		HonourServiceAccountRefHostCluster:   pointer.BoolPtr(true),
 		HonourServiceAccountRefTargetCluster: pointer.BoolPtr(true),
 		HonourProjectMemberships:             pointer.BoolPtr(true),
+		HonourCleanupProjectMembership:       pointer.BoolPtr(true),
 	}
 }

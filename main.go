@@ -12,6 +12,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gardener/gardener/pkg/api/indexer"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
@@ -122,6 +123,16 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TerminalHeartbeat")
 		os.Exit(1)
 	}
+
+	if err = (&controllers.ServiceAccountReconciler{
+		Client:   mgr.GetClient(),
+		Recorder: recorder,
+		Config:   cmConfig,
+		Log:      ctrl.Log.WithName("controllers").WithName("ServiceAccount"),
+	}).SetupWithManager(mgr, cmConfig.Controllers.ServiceAccount); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ServiceAccount")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -148,9 +159,16 @@ func main() {
 		Config: cmConfig,
 	}})
 
+	ctx := ctrl.SetupSignalHandler()
+
+	if err = indexer.AddProjectNamespace(ctx, mgr.GetFieldIndexer()); err != nil {
+		setupLog.Error(err, "unable to add project namespace field indexer")
+		os.Exit(1)
+	}
+
 	setupLog.Info("starting manager")
 
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
@@ -175,6 +193,9 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 				MaxConcurrentReconciles: 1,
 				TimeToLive:              v1alpha1.Duration{Duration: time.Duration(5) * time.Minute},
 			},
+			ServiceAccount: v1alpha1.ServiceAccountControllerConfiguration{
+				MaxConcurrentReconciles: 1,
+			},
 		},
 		Webhooks: v1alpha1.ControllerManagerWebhookConfiguration{
 			TerminalValidation: v1alpha1.TerminalValidatingWebhookConfiguration{
@@ -184,6 +205,7 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 		HonourServiceAccountRefHostCluster:   pointer.BoolPtr(true),
 		HonourServiceAccountRefTargetCluster: pointer.BoolPtr(true),
 		HonourProjectMemberships:             pointer.BoolPtr(true),
+		HonourCleanupProjectMembership:       pointer.BoolPtr(false),
 	}
 
 	if err := readFile(configFile, &cfg); err != nil {
