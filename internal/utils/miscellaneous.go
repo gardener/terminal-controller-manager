@@ -68,7 +68,3 @@ func DataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 
 	return nil, nil
 }
-
-func NotNilAndTrue(value *bool) bool {
-	return value != nil && *value
-}

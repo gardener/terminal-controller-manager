@@ -22,12 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/internal/utils"
 )
 
 // TerminalValidator handles Terminal
@@ -225,7 +225,7 @@ func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) er
 }
 
 func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef *bool) error {
-	if !utils.NotNilAndTrue(honourServiceAccountRef) {
+	if !pointer.BoolDeref(honourServiceAccountRef, false) {
 		if cred.ServiceAccountRef != nil {
 			return field.Forbidden(fldPath.Child("serviceAccountRef"), "field is forbidden by configuration")
 		}
@@ -352,7 +352,7 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 	fldPath = fldPath.Child("projectMemberships")
 
 	for index, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
-		if !utils.NotNilAndTrue(h.getConfig().HonourProjectMemberships) {
+		if !pointer.BoolDeref(h.getConfig().HonourProjectMemberships, false) {
 			return field.Forbidden(fldPath, "field is forbidden by configuration")
 		}
 

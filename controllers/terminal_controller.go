@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -361,7 +362,7 @@ func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, 
 			return formatError("failed to delete token secret for target cluster", err)
 		}
 
-		if utils.NotNilAndTrue(t.Spec.Host.TemporaryNamespace) {
+		if pointer.BoolDeref(t.Spec.Host.TemporaryNamespace, false) {
 			if err := hostClientSet.DeleteNamespace(ctx, *t.Spec.Host.Namespace); err != nil {
 				return formatError("failed to delete temporary namespace on host cluster", err)
 			}
@@ -399,7 +400,7 @@ func (r *TerminalReconciler) deleteAccessToken(ctx context.Context, targetClient
 			}
 		}
 
-		if utils.NotNilAndTrue(r.getConfig().HonourProjectMemberships) {
+		if pointer.BoolDeref(r.getConfig().HonourProjectMemberships, false) {
 			for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
 				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
 					if err := r.removeServiceAccountFromProjectMember(ctx, targetClientSet, projectMembership, serviceAccount); err != nil {
@@ -422,7 +423,7 @@ func (r *TerminalReconciler) deleteAccessToken(ctx context.Context, targetClient
 		}
 	}
 
-	if utils.NotNilAndTrue(t.Spec.Target.TemporaryNamespace) {
+	if pointer.BoolDeref(t.Spec.Target.TemporaryNamespace, false) {
 		if err := targetClientSet.DeleteNamespace(ctx, *t.Spec.Target.Namespace); err != nil {
 			return err
 		}
@@ -506,7 +507,7 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 }
 
 func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) error {
-	if t.Spec.Host.TemporaryNamespace != nil && *t.Spec.Host.TemporaryNamespace {
+	if pointer.BoolDeref(t.Spec.Host.TemporaryNamespace, false) {
 		if _, err := hostClientSet.CreateOrUpdateNamespace(ctx, *t.Spec.Host.Namespace, labelSet, annotationSet); err != nil {
 			return err
 		}
@@ -614,7 +615,7 @@ func (r *TerminalReconciler) createOrUpdateAdminKubeconfigAndTokenSecrets(ctx co
 }
 
 func (r *TerminalReconciler) createOrUpdateAccessServiceAccountAndRequestToken(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (string, error) {
-	if utils.NotNilAndTrue(t.Spec.Target.TemporaryNamespace) {
+	if pointer.BoolDeref(t.Spec.Target.TemporaryNamespace, false) {
 		if _, err := targetClientSet.CreateOrUpdateNamespace(ctx, *t.Spec.Target.Namespace, labelSet, annotationSet); err != nil {
 			return "", err
 		}
@@ -653,7 +654,7 @@ func (r *TerminalReconciler) createOrUpdateAccessServiceAccountAndRequestToken(c
 			}
 		}
 
-		if utils.NotNilAndTrue(r.getConfig().HonourProjectMemberships) {
+		if pointer.BoolDeref(r.getConfig().HonourProjectMemberships, false) {
 			for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
 				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
 					project := &gardencorev1beta1.Project{}
