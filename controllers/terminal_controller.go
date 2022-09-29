@@ -117,7 +117,7 @@ func (r *TerminalReconciler) decreaseCounterForNamespace(namespace string) {
 }
 
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;
-// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;patch;
 // +kubebuilder:rbac:groups="",resources=serviceaccounts/token,verbs=create;
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
