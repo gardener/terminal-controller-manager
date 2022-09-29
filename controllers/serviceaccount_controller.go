@@ -94,7 +94,7 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 				return false
 			}
 
-			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.ServiceAccountNameAllowList, obj.Name)
+			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, obj.Name)
 			if !nameAllowed {
 				log.Info("service account name is not on allow-list -> event will be ignored")
 				return false
@@ -126,7 +126,7 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 				return false
 			}
 
-			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.ServiceAccountNameAllowList, old.Name)
+			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, old.Name)
 			if !nameAllowed {
 				log.Info("service account name is not on allow-list -> event will be ignored")
 				return false
@@ -166,7 +166,7 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 				return false
 			}
 
-			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.ServiceAccountNameAllowList, obj.Name)
+			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, obj.Name)
 			if !nameAllowed {
 				log.Info("service account name is not on allow-list -> event will be ignored")
 				return false
@@ -248,7 +248,7 @@ func (r *ServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.ServiceAccountNameAllowList, req.Name)
+	nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, req.Name)
 	if !nameAllowed {
 		log.Info("service account name is not on allow-list and thus will not be reconciled. Removing terminal reference label and finalizer")
 		return ctrl.Result{}, r.removeTerminalReferenceLabelAndFinalizer(ctx, req)

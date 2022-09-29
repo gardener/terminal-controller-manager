@@ -361,9 +361,9 @@ type ServiceAccountControllerConfiguration struct {
 	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
 	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
 
-	// ServiceAccountNameAllowList is a list of service account names that are allowed to be cleaned up as project members.
+	// AllowedServiceAccountNames is a list of service account names that are allowed to be cleaned up as project members.
 	// If the list is empty all names are considered as allowed
-	ServiceAccountNameAllowList []string `yaml:"serviceAccountNameAllowList"`
+	AllowedServiceAccountNames []string `yaml:"allowedServiceAccountNames"`
 }
 
 // Duration is a wrapper around time.Duration which supports correct

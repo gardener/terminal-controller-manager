@@ -492,7 +492,7 @@ func deleteAttachPodSecret(ctx context.Context, hostClientSet *gardenclient.Clie
 func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) *extensionsv1alpha1.LastError {
 	if pointer.BoolDeref(r.getConfig().HonourCleanupProjectMembership, false) {
 		if pointer.BoolDeref(t.Spec.Target.CleanupProjectMembership, false) &&
-			t.Spec.Target.Credentials.ServiceAccountRef != nil && utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.ServiceAccountNameAllowList, t.Spec.Target.Credentials.ServiceAccountRef.Name) {
+			t.Spec.Target.Credentials.ServiceAccountRef != nil && utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, t.Spec.Target.Credentials.ServiceAccountRef.Name) {
 			if err := ensureServiceAccountMembershipCleanup(ctx, targetClientSet, *t.Spec.Target.Credentials.ServiceAccountRef); err != nil {
 				return formatError("failed to add referenced label to target Service Account referenced in Terminal: %w", err)
 			}

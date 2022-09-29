@@ -306,7 +306,7 @@ func DefaultConfiguration() *dashboardv1alpha1.ControllerManagerConfiguration {
 			},
 			ServiceAccount: dashboardv1alpha1.ServiceAccountControllerConfiguration{
 				MaxConcurrentReconciles: 1,
-				ServiceAccountNameAllowList: []string{
+				AllowedServiceAccountNames: []string{
 					"test-target-serviceaccount",
 				},
 			},
