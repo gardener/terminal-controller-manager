@@ -16,6 +16,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
@@ -80,7 +81,7 @@ var _ = Describe("Validating Webhook", func() {
 						},
 					},
 					Namespace:          &hostNamespace,
-					TemporaryNamespace: false,
+					TemporaryNamespace: nil,
 					Pod: dashboardv1alpha1.Pod{
 						Container: &dashboardv1alpha1.Container{
 							Image: "foo",
@@ -96,7 +97,7 @@ var _ = Describe("Validating Webhook", func() {
 						},
 					},
 					Namespace:                  &targetNamespace,
-					TemporaryNamespace:         false,
+					TemporaryNamespace:         nil,
 					KubeconfigContextNamespace: "default",
 				},
 			},
@@ -350,7 +351,7 @@ var _ = Describe("Validating Webhook", func() {
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Target.TemporaryNamespace = true
+					terminal.Spec.Target.TemporaryNamespace = pointer.BoolPtr(true)
 					err := e.K8sClient.Update(ctx, terminal)
 
 					Expect(err).To(HaveOccurred())
@@ -367,7 +368,7 @@ var _ = Describe("Validating Webhook", func() {
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Host.TemporaryNamespace = true
+					terminal.Spec.Host.TemporaryNamespace = pointer.BoolPtr(true)
 					err := e.K8sClient.Update(ctx, terminal)
 
 					Expect(err).To(HaveOccurred())
@@ -484,7 +485,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("project membership project name", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = true
+						cmConfig.HonourProjectMemberships = pointer.BoolPtr(true)
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
@@ -499,7 +500,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("project membership no roles", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = true
+						cmConfig.HonourProjectMemberships = pointer.BoolPtr(true)
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
@@ -514,7 +515,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("project membership empty role name", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = true
+						cmConfig.HonourProjectMemberships = pointer.BoolPtr(true)
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
@@ -600,7 +601,7 @@ var _ = Describe("Validating Webhook", func() {
 				Context("honour service account ref disabled", func() {
 					Context("secret ref required (host credential)", func() {
 						BeforeEach(func() {
-							cmConfig.HonourServiceAccountRefHostCluster = false
+							cmConfig.HonourServiceAccountRefHostCluster = nil
 							terminal.Spec.Host.Credentials.ServiceAccountRef = nil
 							terminal.Spec.Host.Credentials.SecretRef = nil
 						})
@@ -608,7 +609,7 @@ var _ = Describe("Validating Webhook", func() {
 					})
 					Context("secret ref required (target credential)", func() {
 						BeforeEach(func() {
-							cmConfig.HonourServiceAccountRefTargetCluster = false
+							cmConfig.HonourServiceAccountRefTargetCluster = nil
 							terminal.Spec.Target.Credentials.ServiceAccountRef = nil
 							terminal.Spec.Target.Credentials.SecretRef = nil
 						})
@@ -716,7 +717,7 @@ var _ = Describe("Validating Webhook", func() {
 			Context("target authorization", func() {
 				Context("project membership", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = false
+						cmConfig.HonourProjectMemberships = nil
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
@@ -730,7 +731,7 @@ var _ = Describe("Validating Webhook", func() {
 				})
 				Context("service account ref (host credential)", func() {
 					BeforeEach(func() {
-						cmConfig.HonourServiceAccountRefHostCluster = false
+						cmConfig.HonourServiceAccountRefHostCluster = nil
 						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "foo",
 							Name:      "bar",
@@ -740,7 +741,7 @@ var _ = Describe("Validating Webhook", func() {
 				})
 				Context("service account ref (target credential)", func() {
 					BeforeEach(func() {
-						cmConfig.HonourServiceAccountRefTargetCluster = false
+						cmConfig.HonourServiceAccountRefTargetCluster = nil
 						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "foo",
 							Name:      "bar",

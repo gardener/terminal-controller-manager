@@ -17,6 +17,7 @@ import (
 	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
@@ -80,7 +81,7 @@ var _ = Describe("Terminal Controller", func() {
 						},
 					},
 					Namespace:          &hostNamespace,
-					TemporaryNamespace: false,
+					TemporaryNamespace: nil,
 					Pod: dashboardv1alpha1.Pod{
 						Container: &dashboardv1alpha1.Container{
 							Image: "foo",
@@ -96,7 +97,7 @@ var _ = Describe("Terminal Controller", func() {
 						},
 					},
 					Namespace:                  &targetNamespace,
-					TemporaryNamespace:         false,
+					TemporaryNamespace:         nil,
 					KubeconfigContextNamespace: "default",
 				},
 			},
@@ -125,10 +126,10 @@ var _ = Describe("Terminal Controller", func() {
 				Context("host namespace", func() {
 					BeforeEach(func() {
 						terminal.Spec.Host.Namespace = nil
-						terminal.Spec.Host.TemporaryNamespace = true
+						terminal.Spec.Host.TemporaryNamespace = pointer.BoolPtr(true)
 
 						terminal.Spec.Target.Namespace = nil
-						terminal.Spec.Target.TemporaryNamespace = true
+						terminal.Spec.Target.TemporaryNamespace = pointer.BoolPtr(true)
 					})
 					It("Should delete temporary host and target host namespace", func() {
 						Expect(terminalCreationError).Should(Not(HaveOccurred()))
@@ -194,10 +195,10 @@ var _ = Describe("Terminal Controller", func() {
 				Context("host and target namespace", func() {
 					BeforeEach(func() {
 						terminal.Spec.Host.Namespace = nil
-						terminal.Spec.Host.TemporaryNamespace = true
+						terminal.Spec.Host.TemporaryNamespace = pointer.BoolPtr(true)
 
 						terminal.Spec.Target.Namespace = nil
-						terminal.Spec.Target.TemporaryNamespace = true
+						terminal.Spec.Target.TemporaryNamespace = pointer.BoolPtr(true)
 					})
 					It("Should create temporary host and target namespace", func() {
 						Expect(terminalCreationError).Should(Not(HaveOccurred()))

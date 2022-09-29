@@ -81,7 +81,7 @@ var _ = Describe("Terminal Controller", func() {
 						},
 					},
 					Namespace:          &hostNamespace,
-					TemporaryNamespace: false,
+					TemporaryNamespace: nil,
 					Pod: dashboardv1alpha1.Pod{
 						Container: &dashboardv1alpha1.Container{
 							Image: "foo",
@@ -97,7 +97,7 @@ var _ = Describe("Terminal Controller", func() {
 						},
 					},
 					Namespace:                  &targetNamespace,
-					TemporaryNamespace:         false,
+					TemporaryNamespace:         nil,
 					KubeconfigContextNamespace: "default",
 				},
 			},
