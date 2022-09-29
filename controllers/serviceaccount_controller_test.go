@@ -219,6 +219,15 @@ var _ = Describe("ServiceAccount Controller", func() {
 			By("Ensuring that service account is member of the project")
 			Consistently(isTargetServiceAccountMember).Should(BeTrue())
 
+			By("Expecting that terminal reference label is present")
+			Eventually(func() bool {
+				targetServiceAccount := &corev1.ServiceAccount{}
+				if err := e.K8sClient.Get(ctx, targetServiceAccountKey, targetServiceAccount); err != nil {
+					return false
+				}
+				return targetServiceAccount.Labels[dashboardv1alpha1.TerminalReference] == "true"
+			}, timeout, interval).Should(BeTrue())
+
 			By("Deleting the terminal")
 			err = e.K8sClient.Delete(ctx, terminal)
 			Expect(err).To(Not(HaveOccurred()))
