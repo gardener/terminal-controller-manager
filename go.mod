@@ -3,7 +3,7 @@ module github.com/gardener/terminal-controller-manager
 go 1.18
 
 require (
-	github.com/gardener/gardener v1.56.0
+	github.com/gardener/gardener v1.56.1
 	github.com/go-logr/logr v1.2.3
 	github.com/onsi/ginkgo/v2 v2.2.0
 	github.com/onsi/gomega v1.20.2
@@ -130,6 +130,6 @@ require (
 )
 
 replace (
-	google.golang.org/grpc => google.golang.org/grpc v1.40.0 // keep this value in sync with k8s.io/apiserver
-	k8s.io/client-go => k8s.io/client-go v0.24.4
+	google.golang.org/grpc => google.golang.org/grpc v1.47.0 // keep this value in sync with k8s.io/apiserver
+	k8s.io/client-go => k8s.io/client-go v0.25.0
 )
