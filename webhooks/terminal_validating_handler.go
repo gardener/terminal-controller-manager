@@ -76,7 +76,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		changedBySameUser := userFromAnnotations == admissionReq.UserInfo.Username
 
 		if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] != oldT.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] && !changedBySameUser {
-			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "you are not allowed to change this field").Error(), nil
+			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), fmt.Sprintf("%s is not allowed to change this field", userInfo.Username)).Error(), nil
 		}
 	}
 
@@ -116,13 +116,13 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	if allowed, err := h.canGetCredential(ctx, userInfo, t.Spec.Target.Credentials); err != nil {
 		return false, err.Error(), nil
 	} else if !allowed {
-		return false, field.Forbidden(field.NewPath("spec", "target", "credentials"), "you are not allowed to read target credential").Error(), nil
+		return false, field.Forbidden(field.NewPath("spec", "target", "credentials"), fmt.Sprintf("%s is not allowed to read target credential", userInfo.Username)).Error(), nil
 	}
 
 	if allowed, err := h.canGetCredential(ctx, userInfo, t.Spec.Host.Credentials); err != nil {
 		return false, err.Error(), nil
 	} else if !allowed {
-		return false, field.Forbidden(field.NewPath("spec", "host", "credentials"), "you are not allowed to read host credential").Error(), nil
+		return false, field.Forbidden(field.NewPath("spec", "host", "credentials"), fmt.Sprintf("%s is not allowed to read host credential", userInfo.Username)).Error(), nil
 	}
 
 	if pointer.BoolDeref(t.Spec.Target.CleanupProjectMembership, false) {
@@ -141,7 +141,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		if allowed, err := h.canManageProjectMembers(ctx, userInfo, t.Namespace); err != nil {
 			return false, err.Error(), nil
 		} else if !allowed {
-			return false, field.Forbidden(field.NewPath("spec", "target", "cleanupProjectMembership"), "you are not allowed to manage project members").Error(), nil
+			return false, field.Forbidden(field.NewPath("spec", "target", "cleanupProjectMembership"), fmt.Sprintf("%s is not allowed to manage project members", userInfo.Username)).Error(), nil
 		}
 	}
 
