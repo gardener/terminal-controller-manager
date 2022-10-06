@@ -47,11 +47,11 @@ func (r *ServiceAccountReconciler) SetupWithManager(mgr ctrl.Manager, config ext
 		Watches(&source.Kind{Type: &extensionsv1alpha1.Terminal{}},
 			handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
 				// request reconciliation for service accounts that are referenced in deleted terminals and for which CleanupProjectMembership was set to true.
-				log := r.Log.WithValues("terminal", client.ObjectKeyFromObject(obj))
+				logger := r.Log.WithValues("terminal", client.ObjectKeyFromObject(obj))
 
 				terminal, ok := obj.(*extensionsv1alpha1.Terminal)
 				if !ok {
-					log.Error(nil, "object cannot be converted to Terminal")
+					logger.Error(nil, "object cannot be converted to Terminal")
 					return []reconcile.Request{}
 				}
 
@@ -81,22 +81,22 @@ func (r *ServiceAccountReconciler) SetupWithManager(mgr ctrl.Manager, config ext
 func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
-			log := r.Log.WithValues("event", e)
+			logger := r.Log.WithValues("event", e)
 
 			if e.Object == nil {
-				log.Error(nil, "Create event has no runtime object to create")
+				logger.Error(nil, "Create event has no runtime object to create")
 				return false
 			}
 
 			obj, ok := e.Object.(*corev1.ServiceAccount)
 			if !ok {
-				log.Error(nil, "Update event runtime object cannot be converted to ServiceAccount")
+				logger.Error(nil, "Update event runtime object cannot be converted to ServiceAccount")
 				return false
 			}
 
 			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, obj.Name)
 			if !nameAllowed {
-				log.Info("service account name is not on allow-list -> event will be ignored")
+				logger.Info("service account name is not on allow-list -> event will be ignored")
 				return false
 			}
 
@@ -108,33 +108,33 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 			return false
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			log := r.Log.WithValues("event", e)
+			logger := r.Log.WithValues("event", e)
 
 			if e.ObjectOld == nil {
-				log.Error(nil, "Update event has no old runtime object to update")
+				logger.Error(nil, "Update event has no old runtime object to update")
 				return false
 			}
 
 			if e.ObjectNew == nil {
-				log.Error(nil, "Update event has no new runtime object for update")
+				logger.Error(nil, "Update event has no new runtime object for update")
 				return false
 			}
 
 			old, ok := e.ObjectOld.(*corev1.ServiceAccount)
 			if !ok {
-				log.Error(nil, "Update event old runtime object cannot be converted to ServiceAccount")
+				logger.Error(nil, "Update event old runtime object cannot be converted to ServiceAccount")
 				return false
 			}
 
 			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, old.Name)
 			if !nameAllowed {
-				log.Info("service account name is not on allow-list -> event will be ignored")
+				logger.Info("service account name is not on allow-list -> event will be ignored")
 				return false
 			}
 
 			new, ok := e.ObjectNew.(*corev1.ServiceAccount)
 			if !ok {
-				log.Error(nil, "Update event new runtime object cannot be converted to ServiceAccount")
+				logger.Error(nil, "Update event new runtime object cannot be converted to ServiceAccount")
 				return false
 			}
 
@@ -153,22 +153,22 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			log := r.Log.WithValues("event", e)
+			logger := r.Log.WithValues("event", e)
 
 			if e.Object == nil {
-				log.Error(nil, "Create event has no runtime object to create")
+				logger.Error(nil, "Create event has no runtime object to create")
 				return false
 			}
 
 			obj, ok := e.Object.(*corev1.ServiceAccount)
 			if !ok {
-				log.Error(nil, "Update event runtime object cannot be converted to ServiceAccount")
+				logger.Error(nil, "Update event runtime object cannot be converted to ServiceAccount")
 				return false
 			}
 
 			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, obj.Name)
 			if !nameAllowed {
-				log.Info("service account name is not on allow-list -> event will be ignored")
+				logger.Info("service account name is not on allow-list -> event will be ignored")
 				return false
 			}
 
@@ -196,16 +196,16 @@ func (r *ServiceAccountReconciler) terminalPredicate() predicate.Funcs {
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			log := r.Log.WithValues("event", e)
+			logger := r.Log.WithValues("event", e)
 
 			if e.Object == nil {
-				log.Error(nil, "Delete event has no old runtime object to update")
+				logger.Error(nil, "Delete event has no old runtime object to update")
 				return false
 			}
 
 			terminal, ok := e.Object.(*extensionsv1alpha1.Terminal)
 			if !ok {
-				log.Error(nil, "Delete event runtime object cannot be converted to Terminal")
+				logger.Error(nil, "Delete event runtime object cannot be converted to Terminal")
 				return false
 			}
 
@@ -231,7 +231,7 @@ func (r *ServiceAccountReconciler) getConfig() *extensionsv1alpha1.ControllerMan
 
 // Reconcile implements reconcile.Reconciler.
 func (r *ServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("serviceAccount", req.NamespacedName)
+	logger := r.Log.WithValues("serviceAccount", req.NamespacedName)
 
 	{ // serviceAccount-variable scope
 		serviceAccount := &corev1.ServiceAccount{}
@@ -242,7 +242,7 @@ func (r *ServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 
 		if serviceAccount.Labels[extensionsv1alpha1.TerminalReference] != "true" {
-			log.Info("service account is not labeled to have a terminal reference. Removing finalizer")
+			logger.Info("service account is not labeled to have a terminal reference. Removing finalizer")
 
 			return ctrl.Result{}, r.removeFinalizer(ctx, req)
 		}
@@ -250,7 +250,7 @@ func (r *ServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, req.Name)
 	if !nameAllowed {
-		log.Info("service account name is not on allow-list and thus will not be reconciled. Removing terminal reference label and finalizer")
+		logger.Info("service account name is not on allow-list and thus will not be reconciled. Removing terminal reference label and finalizer")
 		return ctrl.Result{}, r.removeTerminalReferenceLabelAndFinalizer(ctx, req)
 	}
 
@@ -278,7 +278,7 @@ func (r *ServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	if referenced {
-		log.Info("ServiceAccount is still in use. Defer project membership cleanup")
+		logger.Info("ServiceAccount is still in use. Defer project membership cleanup")
 		// nothing to do for now as it is still referenced. A reconcile request will be created once a terminal was deleted
 		return ctrl.Result{}, nil
 	}
