@@ -232,6 +232,7 @@ func (r *ServiceAccountReconciler) getConfig() *extensionsv1alpha1.ControllerMan
 // Reconcile implements reconcile.Reconciler.
 func (r *ServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := r.Log.WithValues("serviceAccount", req.NamespacedName)
+	logger.Info("Reconciling ServiceAccount")
 
 	{ // serviceAccount-variable scope
 		serviceAccount := &corev1.ServiceAccount{}
@@ -286,10 +287,14 @@ func (r *ServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	projectNamespace := req.Namespace
 
 	if pointer.BoolDeref(r.getConfig().HonourCleanupProjectMembership, false) {
+		logger.Info("Removing ServiceAccount from project member list")
+
 		if err := r.removeServiceAccountFromProjectMember(ctx, req.NamespacedName, projectNamespace); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
+
+	logger.Info("Done. Removing finalizer")
 
 	return ctrl.Result{}, r.removeFinalizer(ctx, req)
 }
