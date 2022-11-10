@@ -68,3 +68,18 @@ func DataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 
 	return nil, nil
 }
+
+// IsAllowed returns true in case the allowList is empty or if the value is included in the list
+func IsAllowed(allowList []string, value string) bool {
+	if len(allowList) == 0 {
+		return true
+	}
+
+	for _, allowedValue := range allowList {
+		if allowedValue == value {
+			return true
+		}
+	}
+
+	return false
+}

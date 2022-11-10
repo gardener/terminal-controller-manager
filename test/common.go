@@ -238,7 +238,6 @@ type ServiceAccount struct {
 }
 
 // AddClusterAdminServiceAccount adds a service account and creates a ClusterRoleBinding for this service account and cluster-admin ClusterRole.
-// It also ensures to create a valid service account token (as no kube-controller is running which usually takes care of this part)
 func (e Environment) AddClusterAdminServiceAccount(ctx context.Context, name string, namespace string, timeout time.Duration, interval time.Duration) {
 	e.AddServiceAccount(ctx, ServiceAccount{
 		Name:      name,
@@ -252,7 +251,6 @@ func (e Environment) AddClusterAdminServiceAccount(ctx context.Context, name str
 }
 
 // AddServiceAccount adds a service account and optionally also creates a ClusterRoleBinding for this service account for the given RoleRef of the passed ServiceAccount.
-// It also ensures to create a valid service account token (as no kube-controller is running which usually takes care of this part)
 func (e Environment) AddServiceAccount(ctx context.Context, sa ServiceAccount, timeout time.Duration, interval time.Duration) {
 	serviceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: sa.Name, Namespace: sa.Namespace}}
 	key := client.ObjectKeyFromObject(serviceAccount)
@@ -306,14 +304,21 @@ func DefaultConfiguration() *dashboardv1alpha1.ControllerManagerConfiguration {
 				MaxConcurrentReconciles: 1,
 				TimeToLive:              dashboardv1alpha1.Duration{Duration: time.Duration(5) * time.Minute},
 			},
+			ServiceAccount: dashboardv1alpha1.ServiceAccountControllerConfiguration{
+				MaxConcurrentReconciles: 1,
+				AllowedServiceAccountNames: []string{
+					"test-target-serviceaccount",
+				},
+			},
 		},
 		Webhooks: dashboardv1alpha1.ControllerManagerWebhookConfiguration{
 			TerminalValidation: dashboardv1alpha1.TerminalValidatingWebhookConfiguration{
 				MaxObjectSize: 10 * 1024,
 			},
 		},
-		HonourServiceAccountRefHostCluster:   pointer.BoolPtr(true),
-		HonourServiceAccountRefTargetCluster: pointer.BoolPtr(true),
-		HonourProjectMemberships:             pointer.BoolPtr(true),
+		HonourServiceAccountRefHostCluster:   pointer.Bool(true),
+		HonourServiceAccountRefTargetCluster: pointer.Bool(true),
+		HonourProjectMemberships:             pointer.Bool(true),
+		HonourCleanupProjectMembership:       pointer.Bool(true),
 	}
 }

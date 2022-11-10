@@ -86,6 +86,11 @@ type TargetCluster struct {
 	// ClusterCredentials define the credentials to the target cluster
 	Credentials ClusterCredentials `json:"credentials"`
 
+	// CleanupProjectMembership indicates if the service account referenced by credentials.serviceAccountRef should be removed as project member if not referenced anymore by a Terminal resource.
+	// If true, the credentials.serviceAccountRef.namespace must be the same as the Terminal resource.
+	// +optional
+	CleanupProjectMembership *bool `json:"cleanupProjectMembership,omitempty"`
+
 	// Namespace is a reference to the namespace within the target cluster in which the resources should be placed.
 	// This field should not be set if TemporaryNamespace is set to true
 	// +optional
@@ -312,6 +317,11 @@ type ControllerManagerConfiguration struct {
 	// Defaults to true.
 	// +optional
 	HonourProjectMemberships *bool `yaml:"honourProjectMemberships,omitempty"`
+	// HonourCleanupProjectMembership defines if `target.credential.serviceAccountRef.cleanupProjectMembership` property should be honoured.
+	// It is recommended to be set to false in case no gardener API server extension is registered for the (virtual) cluster where the terminal resources are stored.
+	// Defaults to false.
+	// +optional
+	HonourCleanupProjectMembership *bool `yaml:"honourCleanupProjectMembership,omitempty"`
 }
 
 // ControllerManagerControllerConfiguration defines the configuration of the controllers.
@@ -320,6 +330,8 @@ type ControllerManagerControllerConfiguration struct {
 	Terminal TerminalControllerConfiguration `yaml:"terminal"`
 	// TerminalHeartbeat defines the configuration of the TerminalHeartbeat controller.
 	TerminalHeartbeat TerminalHeartbeatControllerConfiguration `yaml:"terminalHeartbeat"`
+	// ServiceAccount defines the configuration of the ServiceAccount controller.
+	ServiceAccount ServiceAccountControllerConfiguration `yaml:"serviceAccount"`
 }
 
 // TerminalControllerConfiguration defines the configuration of the Terminal controller.
@@ -342,6 +354,16 @@ type TerminalHeartbeatControllerConfiguration struct {
 
 	// TimeToLive is the duration a Terminal resource can live without receiving a heartbeat with the "dashboard.gardener.cloud/operation=keepalive" annotation. Defaults to 5m.
 	TimeToLive Duration `yaml:"timeToLive"`
+}
+
+// ServiceAccountControllerConfiguration defines the configuration of the ServiceAccount controller.
+type ServiceAccountControllerConfiguration struct {
+	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
+	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+
+	// AllowedServiceAccountNames is a list of service account names that are allowed to be cleaned up as project members.
+	// If the list is empty all names are considered as allowed
+	AllowedServiceAccountNames []string `yaml:"allowedServiceAccountNames"`
 }
 
 // Duration is a wrapper around time.Duration which supports correct
@@ -434,6 +456,10 @@ const (
 	// when performing a delete request on a resource.
 	TerminalName = "terminal"
 
+	// ExternalTerminalName is the value in a Kubernetes core resources `.metadata.finalizers[]` array on which the
+	// Terminal will react when performing a delete request on a resource.
+	ExternalTerminalName = "gardener.cloud/terminal"
+
 	// Component is the label key for the component
 	Component = "component"
 
@@ -450,6 +476,10 @@ const (
 
 	// ShootOperation is a constant for an annotation on a Shoot in a failed state indicating that an operation shall be performed.
 	TerminalOperation = "dashboard.gardener.cloud/operation"
+
+	// TerminalReference is a label used to identify service accounts which are referred by a target or host .credential.serviceAccountRef of a Terminal (necessarily in the same namespace).
+	// and for which cleanupProjectMembership is set to true
+	TerminalReference = "reference.dashboard.gardener.cloud/terminal"
 
 	// Description is the key for an annotation whose value contains the description for this resource
 	// of the user that created the resource.

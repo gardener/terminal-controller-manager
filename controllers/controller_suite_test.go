@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gardener/gardener/pkg/api/indexer"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -43,6 +44,7 @@ var (
 	validator                   *webhooks.TerminalValidator
 	terminalReconciler          *TerminalReconciler
 	terminalHeartbeatReconciler *TerminalHeartbeatReconciler
+	serviceAccountReconciler    *ServiceAccountReconciler
 )
 
 func TestAPIs(t *testing.T) {
@@ -90,6 +92,18 @@ var _ = BeforeSuite(func() {
 	err = terminalHeartbeatReconciler.SetupWithManager(e.K8sManager, cmConfig.Controllers.TerminalHeartbeat)
 	Expect(err).ToNot(HaveOccurred())
 
+	serviceAccountReconciler = &ServiceAccountReconciler{
+		Client:   e.K8sManager.GetClient(),
+		Recorder: recorder,
+		Config:   cmConfig,
+		Log:      ctrl.Log.WithName("controllers").WithName("ServiceAccount"),
+	}
+	err = serviceAccountReconciler.SetupWithManager(e.K8sManager, cmConfig.Controllers.ServiceAccount)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = indexer.AddProjectNamespace(ctx, e.K8sManager.GetFieldIndexer())
+	Expect(err).ToNot(HaveOccurred())
+
 	e.Start(ctx)
 })
 
@@ -104,6 +118,9 @@ func CreateRecorder(kubeClient kubernetes.Interface, scheme *runtime.Scheme) rec
 var _ = AfterSuite(func() {
 	cancel()
 	By("tearing down the test environment")
+	if e.GardenEnv == nil {
+		return
+	}
 	err := e.GardenEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })

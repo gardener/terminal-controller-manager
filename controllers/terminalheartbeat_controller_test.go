@@ -23,7 +23,7 @@ import (
 	"github.com/gardener/terminal-controller-manager/test"
 )
 
-var _ = Describe("Terminal Controller", func() {
+var _ = Describe("Terminal Heartbeat Controller", func() {
 
 	const (
 		HostServiceAccountName   = "test-host-serviceaccount"

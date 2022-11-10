@@ -351,7 +351,7 @@ var _ = Describe("Validating Webhook", func() {
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Target.TemporaryNamespace = pointer.BoolPtr(true)
+					terminal.Spec.Target.TemporaryNamespace = pointer.Bool(true)
 					err := e.K8sClient.Update(ctx, terminal)
 
 					Expect(err).To(HaveOccurred())
@@ -368,7 +368,7 @@ var _ = Describe("Validating Webhook", func() {
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Host.TemporaryNamespace = pointer.BoolPtr(true)
+					terminal.Spec.Host.TemporaryNamespace = pointer.Bool(true)
 					err := e.K8sClient.Update(ctx, terminal)
 
 					Expect(err).To(HaveOccurred())
@@ -485,7 +485,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("project membership project name", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = pointer.BoolPtr(true)
+						cmConfig.HonourProjectMemberships = pointer.Bool(true)
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
@@ -500,7 +500,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("project membership no roles", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = pointer.BoolPtr(true)
+						cmConfig.HonourProjectMemberships = pointer.Bool(true)
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
@@ -515,7 +515,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("project membership empty role name", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = pointer.BoolPtr(true)
+						cmConfig.HonourProjectMemberships = pointer.Bool(true)
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{

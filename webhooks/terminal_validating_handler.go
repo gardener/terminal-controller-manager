@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
 )
 
 // TerminalValidator handles Terminal
@@ -75,7 +76,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		changedBySameUser := userFromAnnotations == admissionReq.UserInfo.Username
 
 		if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] != oldT.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] && !changedBySameUser {
-			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), "you are not allowed to change this field").Error(), nil
+			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), fmt.Sprintf("%s is not allowed to change this field", userInfo.Username)).Error(), nil
 		}
 	}
 
@@ -115,13 +116,33 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	if allowed, err := h.canGetCredential(ctx, userInfo, t.Spec.Target.Credentials); err != nil {
 		return false, err.Error(), nil
 	} else if !allowed {
-		return false, field.Forbidden(field.NewPath("spec", "target", "credentials"), "you are not allowed to read target credential").Error(), nil
+		return false, field.Forbidden(field.NewPath("spec", "target", "credentials"), fmt.Sprintf("%s is not allowed to read target credential", userInfo.Username)).Error(), nil
 	}
 
 	if allowed, err := h.canGetCredential(ctx, userInfo, t.Spec.Host.Credentials); err != nil {
 		return false, err.Error(), nil
 	} else if !allowed {
-		return false, field.Forbidden(field.NewPath("spec", "host", "credentials"), "you are not allowed to read host credential").Error(), nil
+		return false, field.Forbidden(field.NewPath("spec", "host", "credentials"), fmt.Sprintf("%s is not allowed to read host credential", userInfo.Username)).Error(), nil
+	}
+
+	if pointer.BoolDeref(t.Spec.Target.CleanupProjectMembership, false) {
+		if !pointer.BoolDeref(h.getConfig().HonourCleanupProjectMembership, false) {
+			return false, field.Forbidden(field.NewPath("spec", "target", "cleanupProjectMembership"), "field is forbidden by configuration").Error(), nil
+		}
+
+		if t.Spec.Target.Credentials.ServiceAccountRef == nil {
+			return false, field.Required(field.NewPath("spec", "target", "credentials", "serviceAccountRef"), "field is required").Error(), nil
+		}
+
+		if t.Spec.Target.Credentials.ServiceAccountRef.Namespace != t.Namespace {
+			return false, field.Invalid(field.NewPath("spec", "target", "credentials", "serviceAccountRef", "namespace"), t.Spec.Target.Credentials.ServiceAccountRef.Namespace, "only allowed to reference serviceaccount within the same namespace when cleanupProjectMembership is enabled").Error(), nil
+		}
+
+		if allowed, err := h.canManageProjectMembers(ctx, userInfo, t.Namespace); err != nil {
+			return false, err.Error(), nil
+		} else if !allowed {
+			return false, field.Forbidden(field.NewPath("spec", "target", "cleanupProjectMembership"), fmt.Sprintf("%s is not allowed to manage project members", userInfo.Username)).Error(), nil
+		}
 	}
 
 	return true, "allowed to be admitted", nil
@@ -391,6 +412,16 @@ func (h *TerminalValidator) canGetCredential(ctx context.Context, userInfo authe
 	return h.canGetServiceAccountAndSecretAccessReview(ctx, userInfo, cred.ServiceAccountRef)
 }
 
+// canManageProjectMembers returns true if the user can manage ServiceAccount members for the project of the given namespace
+func (h *TerminalValidator) canManageProjectMembers(ctx context.Context, userInfo authenticationv1.UserInfo, namespace string) (bool, error) {
+	project, err := gardenclient.GetProjectByNamespace(ctx, h.client, namespace)
+	if err != nil {
+		return false, err
+	}
+
+	return h.canManageProjectMembersAccessReview(ctx, userInfo, *project)
+}
+
 func (h *TerminalValidator) canCreateShootsAdminKubeconfigAccessReview(ctx context.Context, userInfo authenticationv1.UserInfo, ref *v1alpha1.ShootRef) (bool, error) {
 	if ref == nil {
 		return true, nil
@@ -489,6 +520,26 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 	err = h.client.Create(ctx, accessReviewSecret)
 
 	return accessReviewSecret.Status.Allowed, err
+}
+
+func (h *TerminalValidator) canManageProjectMembersAccessReview(ctx context.Context, userInfo authenticationv1.UserInfo, project gardencorev1beta1.Project) (bool, error) {
+	subjectAccessReview := &authorizationv1.SubjectAccessReview{
+		Spec: authorizationv1.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Group:    gardencorev1beta1.GroupName,
+				Resource: "projects",
+				Verb:     "patch", // manage-members verb is only relevant when adding/removing humans
+				Name:     project.Name,
+			},
+			User:   userInfo.Username,
+			Groups: userInfo.Groups,
+			UID:    userInfo.UID,
+			Extra:  toAuthZExtraValue(userInfo.Extra),
+		},
+	}
+	err := h.client.Create(ctx, subjectAccessReview)
+
+	return subjectAccessReview.Status.Allowed, err
 }
 
 var _ admission.Handler = &TerminalValidator{}
