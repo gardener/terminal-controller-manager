@@ -217,7 +217,7 @@ var _ = Describe("ServiceAccount Controller", func() {
 			}
 
 			By("Ensuring that service account is member of the project")
-			Consistently(isTargetServiceAccountMember).Should(BeTrue())
+			Expect(isTargetServiceAccountMember()).To(BeTrue())
 
 			By("Expecting that terminal reference label is present")
 			Eventually(func() bool {
