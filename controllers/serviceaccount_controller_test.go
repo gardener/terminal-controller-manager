@@ -105,7 +105,7 @@ var _ = Describe("ServiceAccount Controller", func() {
 					Namespace:                  &targetNamespace,
 					TemporaryNamespace:         nil,
 					KubeconfigContextNamespace: "default",
-					CleanupProjectMembership:   pointer.BoolPtr(true),
+					CleanupProjectMembership:   pointer.Bool(true),
 				},
 			},
 		}

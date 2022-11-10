@@ -126,10 +126,10 @@ var _ = Describe("Terminal Controller", func() {
 				Context("host namespace", func() {
 					BeforeEach(func() {
 						terminal.Spec.Host.Namespace = nil
-						terminal.Spec.Host.TemporaryNamespace = pointer.BoolPtr(true)
+						terminal.Spec.Host.TemporaryNamespace = pointer.Bool(true)
 
 						terminal.Spec.Target.Namespace = nil
-						terminal.Spec.Target.TemporaryNamespace = pointer.BoolPtr(true)
+						terminal.Spec.Target.TemporaryNamespace = pointer.Bool(true)
 					})
 					It("Should delete temporary host and target host namespace", func() {
 						Expect(terminalCreationError).Should(Not(HaveOccurred()))
@@ -195,10 +195,10 @@ var _ = Describe("Terminal Controller", func() {
 				Context("host and target namespace", func() {
 					BeforeEach(func() {
 						terminal.Spec.Host.Namespace = nil
-						terminal.Spec.Host.TemporaryNamespace = pointer.BoolPtr(true)
+						terminal.Spec.Host.TemporaryNamespace = pointer.Bool(true)
 
 						terminal.Spec.Target.Namespace = nil
-						terminal.Spec.Target.TemporaryNamespace = pointer.BoolPtr(true)
+						terminal.Spec.Target.TemporaryNamespace = pointer.Bool(true)
 					})
 					It("Should create temporary host and target namespace", func() {
 						Expect(terminalCreationError).Should(Not(HaveOccurred()))

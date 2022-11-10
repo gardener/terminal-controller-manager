@@ -202,10 +202,10 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 				MaxObjectSize: 10 * 1024,
 			},
 		},
-		HonourServiceAccountRefHostCluster:   pointer.BoolPtr(true),
-		HonourServiceAccountRefTargetCluster: pointer.BoolPtr(true),
-		HonourProjectMemberships:             pointer.BoolPtr(true),
-		HonourCleanupProjectMembership:       pointer.BoolPtr(false),
+		HonourServiceAccountRefHostCluster:   pointer.Bool(true),
+		HonourServiceAccountRefTargetCluster: pointer.Bool(true),
+		HonourProjectMemberships:             pointer.Bool(true),
+		HonourCleanupProjectMembership:       pointer.Bool(false),
 	}
 
 	if err := readFile(configFile, &cfg); err != nil {
