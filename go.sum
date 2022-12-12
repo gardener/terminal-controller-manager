@@ -144,8 +144,8 @@ github.com/fsnotify/fsnotify v1.5.4 h1:jRbGcIw6P2Meqdwuo0H1p6JVLbL5DHKAKlYndzMwV
 github.com/fsnotify/fsnotify v1.5.4/go.mod h1:OVB6XrOHzAwXMpEM7uPOzcehqUV2UqJxmVXmkdnm1bU=
 github.com/gardener/etcd-druid v0.12.3 h1:FBpsEe+FrBwJ1a2VhaPlXjZsfIAcHGSsF5DvDOcDnbM=
 github.com/gardener/etcd-druid v0.12.3/go.mod h1:EJF6z4Ghv2FGUe1UzZWOEF1MxCA186fxvjBO44oSJX4=
-github.com/gardener/gardener v1.59.1 h1:tyVrgjz/QkdR9JbtOnxVHQF2wlJemv+eY9pGkTT9wFo=
-github.com/gardener/gardener v1.59.1/go.mod h1:4vopE/Pg4LJud1CRg80rAcp94v83MJIgktlHNcSKO84=
+github.com/gardener/gardener v1.61.3 h1:5sd3hE0s5ZAbAwHYhL4A8oRYwD4iWZAUfxAk+/YZlwQ=
+github.com/gardener/gardener v1.61.3/go.mod h1:xkR1xRgI4PzSXWtwVUh/y6tBt5K0QSCR5FjneSKx89w=
 github.com/gardener/hvpa-controller/api v0.5.0 h1:f4F3O7YUrenwh4S3TgPREPiB287JjjUiUL18OqPLyAA=
 github.com/gardener/hvpa-controller/api v0.5.0/go.mod h1:QQl3ELkCaki+8RhXl0FZMfvnm0WCGwGJlGmrxJj6lvM=
 github.com/getkin/kin-openapi v0.76.0/go.mod h1:660oXbgy5JFMKreazJaQTw7o+X00qeSyhcnluiMv+Xg=
@@ -915,8 +915,8 @@ google.golang.org/genproto v0.0.0-20210828152312-66f60bf46e71/go.mod h1:eFjDcFEc
 google.golang.org/genproto v0.0.0-20210831024726-fe130286e0e2/go.mod h1:eFjDcFEctNawg4eG61bRv87N7iHBWyVhJu7u1kqDUXY=
 google.golang.org/genproto v0.0.0-20210903162649-d08c68adba83/go.mod h1:eFjDcFEctNawg4eG61bRv87N7iHBWyVhJu7u1kqDUXY=
 google.golang.org/genproto v0.0.0-20210924002016-3dee208752a0/go.mod h1:5CzLGKJ67TSI2B9POpiiyGha0AjJvZIUgRMt1dSmuhc=
-google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 h1:hrbNEivu7Zn1pxvHk6MBrq9iE22woVILTHqexqBxe6I=
-google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21/go.mod h1:RAyBrSAP7Fh3Nc84ghnVLDPuV51xc9agzmm4Ph6i0Q4=
+google.golang.org/genproto v0.0.0-20220628213854-d9e0b6570c03 h1:W70HjnmXFJm+8RNjOpIDYW2nKsSi/af0VvIZUtYkwuU=
+google.golang.org/genproto v0.0.0-20220628213854-d9e0b6570c03/go.mod h1:KEWEmljWE5zPzLBa/oHl6DaEt9LmfH6WtH1OHIvleBA=
 google.golang.org/grpc v1.47.0 h1:9n77onPX5F3qfFCqjy9dhn8PbNQsIKeVU04J9G7umt8=
 google.golang.org/grpc v1.47.0/go.mod h1:vN9eftEi1UMyUsIF80+uQXhHjbXYbm0uXoFCACuMGWk=
 google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.1.0/go.mod h1:6Kw0yEErY5E/yWrBtf03jp27GLLJujG4z/JK95pnjjw=
@@ -970,10 +970,10 @@ honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWh
 honnef.co/go/tools v0.0.1-2019.2.3/go.mod h1:a3bituU0lyd329TUQxRnasdCoJDkEUEAqEt0JzvZhAg=
 honnef.co/go/tools v0.0.1-2020.1.3/go.mod h1:X/FiERA/W4tHapMX5mGpAtMSVEeEUOyHaw9vFzvIQ3k=
 honnef.co/go/tools v0.0.1-2020.1.4/go.mod h1:X/FiERA/W4tHapMX5mGpAtMSVEeEUOyHaw9vFzvIQ3k=
-istio.io/api v0.0.0-20220512181135-e8ec1e1d89de h1:xYxUL/LyuJ5yb0o/d2GXseYjx9HIBpLHLArp2Zd8d+M=
-istio.io/api v0.0.0-20220512181135-e8ec1e1d89de/go.mod h1:00myJeQGWma4Y5pboJ+MM4P2uqEWulKA1duC8kYN5Wo=
-istio.io/client-go v1.14.0 h1:KKXMnxXx3U2866OP8FBYlJhjKdI3yIUQnt8L6hSzDHE=
-istio.io/client-go v1.14.0/go.mod h1:C7K0CKQlvY84yQKkZhxQbD1riqvnsgXJm3jF5GOmzNg=
+istio.io/api v0.0.0-20221013011440-bc935762d2b9 h1:oDY95NgV77atZrCMx7i3XaSPL/OSirRI8jWWsiHA4GI=
+istio.io/api v0.0.0-20221013011440-bc935762d2b9/go.mod h1:hQkF0Q19MCmfOTre/Sg4KvrwwETq45oaFplnBm2p4j8=
+istio.io/client-go v1.15.3 h1:Zyd4ZVYCImWlPs+7yGye//K7l0j4UM06cqmQm5v8JX4=
+istio.io/client-go v1.15.3/go.mod h1:7M4mYZ9o9UVQQEwWihAq//EK9Ak0a/pUfOvP7b3I+XM=
 k8s.io/api v0.17.0/go.mod h1:npsyOePkeP0CPwyGfXDHxvypiYMJxBWAMpQxCaJ4ZxI=
 k8s.io/api v0.18.3/go.mod h1:UOaMwERbqJMfeeeHc8XJKawj4P9TgDRnViIqqBeH2QA=
 k8s.io/api v0.18.8/go.mod h1:d/CXqwWv+Z2XEG1LgceeDmHQwpUJhROPx16SlxJgERY=
