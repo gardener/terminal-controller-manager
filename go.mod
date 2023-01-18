@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/gardener/gardener v1.59.1
 	github.com/go-logr/logr v1.2.3
-	github.com/onsi/ginkgo/v2 v2.6.1
+	github.com/onsi/ginkgo/v2 v2.7.0
 	github.com/onsi/gomega v1.24.2
 	github.com/satori/go.uuid v1.2.0
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
