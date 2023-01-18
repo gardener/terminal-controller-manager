@@ -17,9 +17,9 @@ terminal-controller-manager:
             image: 'eu.gcr.io/gardener-project/gardener/terminal-controller-manager'
     steps:
       check:
-        image: 'golang:1.19.4'
+        image: 'golang:1.19.5'
       test:
-        image: 'golang:1.19.4'
+        image: 'golang:1.19.5'
   jobs:
     head-update:
       traits:
