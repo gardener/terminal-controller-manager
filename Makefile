@@ -6,7 +6,7 @@
 IMG ?= eu.gcr.io/gardener-project/gardener/terminal-controller-manager
 
 # Kube RBAC Proxy image to use
-IMG_RBAC_PROXY ?= quay.io/brancz/kube-rbac-proxy:v0.13.1
+IMG_RBAC_PROXY ?= quay.io/brancz/kube-rbac-proxy:v0.14.0
 
 REPO_ROOT           := $(shell git rev-parse --show-toplevel)
 VERSION             := $(shell cat "$(REPO_ROOT)/VERSION")
