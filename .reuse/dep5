@@ -8,9 +8,14 @@ Source: https://github.com/gardener/terminal-controller-manager
 
 Files:
   .ci/**
+  .github/*
   config/secret/tls/.gitignore
   config/rbac/role.yaml
+  config/crd/bases/dashboard.gardener.cloud_terminals.yaml
+  .dockerignore
+  .gimps.yaml
   .gitignore
+  .golangci.yaml
   CODEOWNERS
   go.mod
   go.sum
