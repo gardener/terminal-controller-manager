@@ -262,7 +262,8 @@ func NewClientSetFromSecret(ctx context.Context, config *rest.Config, secret *co
 			return nil, fmt.Errorf("no auth info found with name %s", context.AuthInfo)
 		}
 
-		if authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "gcp" {
+		if (authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "gcp") ||
+			(authInfo.Exec != nil && authInfo.Exec.Command == "gke-gcloud-auth-plugin") {
 			gsaKey, ok := secret.Data[DataKeyServiceaccountJSON]
 			if !ok {
 				return nil, fmt.Errorf("%q required in secret for gcp authentication provider", DataKeyServiceaccountJSON)
