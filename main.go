@@ -16,6 +16,7 @@ import (
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -23,14 +24,16 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/component-base/config"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	v1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
+	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/controllers"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
 	"github.com/gardener/terminal-controller-manager/webhooks"
@@ -51,18 +54,10 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr          string
-		enableLeaderElection bool
-		probeAddr            string
-		certDir              string
-		configFile           string
+		certDir    string
+		configFile string
 	)
 
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&certDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "CertDir is the directory that contains the server key and certificate.")
 	flag.StringVar(&configFile, "config-file", "/etc/terminal-controller-manager/config.yaml", "The path to the configuration file.")
 
@@ -72,22 +67,29 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
 	cmConfig, err := readControllerManagerConfiguration(configFile)
 	if err != nil {
-		fmt.Printf("error reading config: %s", err.Error()) // Logger not yet set up
+		setupLog.Error(err, "error reading config")
 		os.Exit(1)
 	}
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
+		HealthProbeBindAddress: fmt.Sprintf("%s:%d", cmConfig.Server.HealthProbes.BindAddress, cmConfig.Server.HealthProbes.Port),
+		MetricsBindAddress:     fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
 		Port:                   9443,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElectionID:       "terminal-controller-leader-election",
-		LeaderElection:         enableLeaderElection,
 		CertDir:                certDir,
+
+		LeaderElection:                cmConfig.LeaderElection.LeaderElect,
+		LeaderElectionResourceLock:    cmConfig.LeaderElection.ResourceLock,
+		LeaderElectionID:              cmConfig.LeaderElection.ResourceName,
+		LeaderElectionNamespace:       cmConfig.LeaderElection.ResourceNamespace,
+		LeaderElectionReleaseOnCancel: true,
+		LeaseDuration:                 &cmConfig.LeaderElection.LeaseDuration.Duration,
+		RenewDeadline:                 &cmConfig.LeaderElection.RenewDeadline.Duration,
+		RetryPeriod:                   &cmConfig.LeaderElection.RetryPeriod.Duration,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -184,6 +186,16 @@ func CreateRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
 func readControllerManagerConfiguration(configFile string) (*v1alpha1.ControllerManagerConfiguration, error) {
 	// Default configuration
 	cfg := v1alpha1.ControllerManagerConfiguration{
+		Server: v1alpha1.ServerConfiguration{
+			HealthProbes: &v1alpha1.Server{
+				BindAddress: "",
+				Port:        8081,
+			},
+			Metrics: &v1alpha1.Server{
+				BindAddress: "",
+				Port:        8080,
+			},
+		},
 		Controllers: v1alpha1.ControllerManagerControllerConfiguration{
 			Terminal: v1alpha1.TerminalControllerConfiguration{
 				MaxConcurrentReconciles:             15,
@@ -206,6 +218,16 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 		HonourServiceAccountRefTargetCluster: pointer.Bool(true),
 		HonourProjectMemberships:             pointer.Bool(true),
 		HonourCleanupProjectMembership:       pointer.Bool(false),
+
+		LeaderElection: &config.LeaderElectionConfiguration{
+			LeaderElect:       true,
+			LeaseDuration:     metav1.Duration{Duration: 15 * time.Second},
+			RenewDeadline:     metav1.Duration{Duration: 10 * time.Second},
+			RetryPeriod:       metav1.Duration{Duration: 2 * time.Second},
+			ResourceLock:      resourcelock.LeasesResourceLock,
+			ResourceName:      "terminal-controller-leader-election",
+			ResourceNamespace: "terminal-system",
+		},
 	}
 
 	if err := readFile(configFile, &cfg); err != nil {

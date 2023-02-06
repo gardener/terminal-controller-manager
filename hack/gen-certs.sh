@@ -4,24 +4,32 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-path_tls_output="../config/secret/tls"
-path_tls_config="../tls"
+script_dir=$(readlink -f "$(dirname "$0")")
 
-ca_name="terminal-ca"
-cert_name="terminal-controller-manager-tls"
+# make sure that the local tmp directory exists, otherwise readlink will fail
+mkdir -p $(readlink -f $script_dir/../tmp)
 
-cd "$(dirname "$0")"
+output_path=$(readlink -f ${TLS_OUTPUT_PATH:-$script_dir/../tmp/tls})
+config_path=$(readlink -f "${TLS_CONFIG_PATH:-$script_dir/../tls}")
+ca_name=${CA_NAME:-ca}
+cert_name=${CERT_NAME:-terminal-admission-controller-tls}
 
-cfssl gencert \
-  -initca "$path_tls_config/$ca_name-csr.json" | cfssljson -bare "$path_tls_output/$ca_name" -
+if [[ ! -f "$output_path/$ca_name.pem" || ! -f "$output_path/$cert_name.pem" ]]; then
+  mkdir -p "$output_path"
+  echo "> Generating ca and server certificate. Output dir: $output_path"
 
-cfssl gencert \
+  cfssl gencert \
+    -initca "$config_path/$ca_name-csr.json" | cfssljson -bare "$output_path/$ca_name" -
+
+  cfssl gencert \
     -profile=server \
-    -ca="$path_tls_output/$ca_name.pem" \
-    -ca-key="$path_tls_output/$ca_name-key.pem" \
-    -config="$path_tls_config/ca-config.json" \
-    "$path_tls_config/$cert_name-config.json" | cfssljson -bare "$path_tls_output/$cert_name"
+    -ca="$output_path/$ca_name.pem" \
+    -ca-key="$output_path/$ca_name-key.pem" \
+    -config="$config_path/ca-config.json" \
+    "$config_path/$cert_name-config.json" | cfssljson -bare "$output_path/$cert_name"
+else
+  echo "> Certificates $output_path/$cert_name.pem and $output_path/$ca_name.pem already exist. Skipping generation."
+fi
 
-# cleanup csr files
-rm $path_tls_output/$ca_name.csr
-rm $path_tls_output/$cert_name.csr
+rm -f "$output_path/$ca_name.csr"
+rm -f "$output_path/$cert_name.csr"

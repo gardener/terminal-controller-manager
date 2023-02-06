@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2021 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: dashboard.gardener.cloud/v1alpha1
+kind: Terminal
+metadata:
+  annotations:
+    dashboard.gardener.cloud/operation: keepalive
+  namespace: garden-local
+  name: term-cp
+spec:
+  host:
+    credentials:
+      serviceAccountRef:
+        name: cluster-admin
+        namespace: gardentmp
+    namespace: shoot--local--local
+    pod:
+      labels:
+        networking.gardener.cloud/to-dns: allowed
+        networking.gardener.cloud/to-runtime-apiserver: allowed
+        networking.gardener.cloud/to-public-networks: allowed
+      container:
+        image: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.21.0
+        args:
+          - watch
+          - kubectl
+          - get
+          - pods
+  target:
+    credentials:
+      serviceAccountRef:
+        name: cluster-admin
+        namespace: gardentmp
+    kubeconfigContextNamespace: shoot--local--local
+    namespace: shoot--local--local
+    authorization:
+      roleBindings:
+        - nameSuffix: -ca
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: cluster-admin
+          bindingKind: RoleBinding

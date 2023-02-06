@@ -9,29 +9,18 @@ set -o pipefail
 
 # For the check step concourse will set the following environment variables:
 # SOURCE_PATH - path to component repository root directory.
-
-if [[ -z "${SOURCE_PATH}" ]]; then
-  export SOURCE_PATH="$(readlink -f "$(dirname ${0})/..")"
-else
-  export SOURCE_PATH="$(readlink -f ${SOURCE_PATH})"
+if [ -z "$SOURCE_PATH" ]; then
+  SOURCE_PATH="$(dirname "$0")/.."
 fi
+export SOURCE_PATH="$(readlink -f "$SOURCE_PATH")"
 
+GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-v1.51.2}
 GOLANGCI_LINT_ADDITIONAL_FLAGS=${GOLANGCI_LINT_ADDITIONAL_FLAGS:-""}
 
 # Install golangci-lint (linting tool)
-curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.51.2
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin $GOLANGCI_LINT_VERSION
 
-function run_lint {
-  local component=$1
-  local target_dir=$2
-  local golangci_lint_additional_flags=$3
-  echo "> Lint $component"
-
-  pushd "$target_dir"
-
-  golangci-lint -v run ./... ${golangci_lint_additional_flags}
-
-  popd
-}
-
-run_lint terminal-controller-manager "${SOURCE_PATH}" "${GOLANGCI_LINT_ADDITIONAL_FLAGS}"
+echo "> Running golangci-lint for $SOURCE_PATH"
+pushd "$SOURCE_PATH" > /dev/null
+golangci-lint -v run ./... ${GOLANGCI_LINT_ADDITIONAL_FLAGS}
+popd > /dev/null

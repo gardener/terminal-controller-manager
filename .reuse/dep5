@@ -9,9 +9,11 @@ Source: https://github.com/gardener/terminal-controller-manager
 Files:
   .ci/**
   .github/*
-  config/secret/tls/.gitignore
-  config/rbac/role.yaml
-  config/crd/bases/dashboard.gardener.cloud_terminals.yaml
+  charts/*/Chart.yaml
+  charts/*/values.yaml
+  charts/*/templates/*.yaml
+  charts/*/templates/*/*.yaml
+  charts/terminal/charts/application/crd-gen/*.yaml
   .dockerignore
   .gimps.yaml
   .gitignore
@@ -20,6 +22,7 @@ Files:
   go.mod
   go.sum
   *.json
+  *.tpl
   VERSION
 Copyright: 2021 SAP SE or an SAP affiliate company and Gardener contributors
 License: Apache-2.0

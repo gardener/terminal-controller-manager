@@ -10,11 +10,10 @@ set -o pipefail
 # For the check step concourse will set the following environment variables:
 # SOURCE_PATH - path to component repository root directory.
 
-if [[ -z "${SOURCE_PATH}" ]]; then
-  export SOURCE_PATH="$(readlink -f "$(dirname ${0})/..")"
-else
-  export SOURCE_PATH="$(readlink -f ${SOURCE_PATH})"
+if [ -z "$SOURCE_PATH" ]; then
+  SOURCE_PATH="$(dirname "$0")/.."
 fi
+export SOURCE_PATH="$(readlink -f "$SOURCE_PATH")"
 
 export GOLANGCI_LINT_ADDITIONAL_FLAGS="--verbose --timeout 2m"
 

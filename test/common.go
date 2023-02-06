@@ -78,7 +78,8 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-mutating-webhook-configuration",
 					Labels: map[string]string{
-						"terminal": "admission-configuration",
+						"app.kubernetes.io/name":      "terminal",
+						"app.kubernetes.io/component": "admission-controller",
 					},
 				},
 				TypeMeta: metav1.TypeMeta{
@@ -107,7 +108,8 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-validating-webhook-configuration",
 					Labels: map[string]string{
-						"terminal": "admission-configuration",
+						"app.kubernetes.io/name":      "terminal",
+						"app.kubernetes.io/component": "admission-controller",
 					},
 				},
 				TypeMeta: metav1.TypeMeta{
@@ -137,7 +139,7 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 
 	gardenTestEnv := &gardenenvtest.GardenerTestEnvironment{
 		Environment: &envtest.Environment{
-			CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
+			CRDDirectoryPaths: []string{filepath.Join("..", "charts", "terminal", "charts", "application", "crd-gen")},
 			ControlPlane: envtest.ControlPlane{
 				APIServer: &envtest.APIServer{
 					SecureServing: envtest.SecureServing{
