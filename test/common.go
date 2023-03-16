@@ -89,7 +89,7 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 					{
 						Name:           "test-mutating-create-update-terminal.gardener.cloud",
 						FailurePolicy:  &failPolicy,
-						TimeoutSeconds: pointer.Int32Ptr(10),
+						TimeoutSeconds: pointer.Int32(10),
 						ClientConfig: admissionregistrationv1.WebhookClientConfig{
 							Service: &admissionregistrationv1.ServiceReference{
 								Path: &terminalMutatingWebhookPath,
@@ -118,7 +118,7 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 					{
 						Name:           "test-validating-create-update-terminal.gardener.cloud",
 						FailurePolicy:  &failPolicy,
-						TimeoutSeconds: pointer.Int32Ptr(10),
+						TimeoutSeconds: pointer.Int32(10),
 						ClientConfig: admissionregistrationv1.WebhookClientConfig{
 							Service: &admissionregistrationv1.ServiceReference{
 								Path: &terminalValidatingWebhookPath,
