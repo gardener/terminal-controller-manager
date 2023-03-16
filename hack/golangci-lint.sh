@@ -22,5 +22,5 @@ curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/insta
 
 echo "> Running golangci-lint for $SOURCE_PATH"
 pushd "$SOURCE_PATH" > /dev/null
-golangci-lint -v run ./... ${GOLANGCI_LINT_ADDITIONAL_FLAGS}
+$(go env GOPATH)/bin/golangci-lint -v run ./... ${GOLANGCI_LINT_ADDITIONAL_FLAGS}
 popd > /dev/null
