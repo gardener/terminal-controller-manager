@@ -1,0 +1,16 @@
+{
+    "CN": "terminal-admission-controller.terminal-system.svc.cluster.local",
+    "hosts": [
+        "terminal-admission-controller",
+        "terminal-admission-controller.terminal-system",
+        "terminal-admission-controller.terminal-system.svc",
+        "terminal-admission-controller.terminal-system.svc.cluster",
+        "terminal-admission-controller.terminal-system.svc.cluster.local"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+    ]
+}

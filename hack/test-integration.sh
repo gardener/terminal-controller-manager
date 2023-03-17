@@ -10,11 +10,10 @@ set -o pipefail
 # For the check step concourse will set the following environment variables:
 # SOURCE_PATH - path to component repository root directory.
 
-if [[ -z "${SOURCE_PATH}" ]]; then
-  export SOURCE_PATH="$(readlink -f "$(dirname ${0})/..")"
-else
-  export SOURCE_PATH="$(readlink -f ${SOURCE_PATH})"
+if [ -z "$SOURCE_PATH" ]; then
+  SOURCE_PATH="$(dirname "$0")/.."
 fi
+export SOURCE_PATH="$(readlink -f "$SOURCE_PATH")"
 
 ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.25"}
 GO_TEST_ADDITIONAL_FLAGS=${GO_TEST_ADDITIONAL_FLAGS:-""}
@@ -22,7 +21,7 @@ GO_TEST_ADDITIONAL_FLAGS=${GO_TEST_ADDITIONAL_FLAGS:-""}
 OS=${OS:-$(go env GOOS)}
 ARCH=${ARCH:-$(go env GOARCH)}
 
-function run_test {
+run_test() {
   local component=$1
   local target_dir=$2
   local go_test_additional_flags=$3
@@ -35,7 +34,7 @@ function run_test {
 
   # --use-env allows overwriting the envtest tools path via the KUBEBUILDER_ASSETS env var just like it was before
   export KUBEBUILDER_ASSETS="$("bin/setup-envtest" use --use-env -p path ${ENVTEST_K8S_VERSION})"
-  echo "using envtest tools installed at '$KUBEBUILDER_ASSETS'"
+  echo "> Using envtest tools installed at '$KUBEBUILDER_ASSETS'"
 
   GO111MODULE=on go test ./... ${go_test_additional_flags} -coverprofile cover.out
 

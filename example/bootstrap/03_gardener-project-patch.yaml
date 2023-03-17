@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and Gardener contributors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: core.gardener.cloud/v1beta1
+kind: Project
+metadata:
+  name: local
+spec:
+  members:
+    - kind: ServiceAccount
+      name: robot
+      namespace: garden-local
+      role: admin
+      roles:
+        - serviceaccountmanager

@@ -116,17 +116,6 @@ func (r *TerminalReconciler) decreaseCounterForNamespace(namespace string) {
 	}
 }
 
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;
-// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;update;patch;
-// +kubebuilder:rbac:groups="",resources=serviceaccounts/token,verbs=create;
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
-// +kubebuilder:rbac:groups=dashboard.gardener.cloud,resources=terminals,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=dashboard.gardener.cloud,resources=terminals/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=core.gardener.cloud,resources=projects,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=core.gardener.cloud,resources=shoots/adminkubeconfig,verbs=create
-// +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations;mutatingwebhookconfigurations,verbs=list
-
 func (r *TerminalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if err := r.increaseCounterForNamespace(req.Namespace); err != nil {
 		log.FromContext(ctx).Info("maximum parallel reconciles reached for namespace - requeuing the req")
@@ -263,7 +252,8 @@ func (r *TerminalReconciler) recordEventAndLog(ctx context.Context, t *extension
 func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Context, gardenClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) error {
 	webhookConfigurationOptions := metav1.ListOptions{}
 	webhookConfigurationOptions.LabelSelector = labels.SelectorFromSet(map[string]string{
-		"terminal": "admission-configuration",
+		"app.kubernetes.io/name":      "terminal",
+		"app.kubernetes.io/component": "admission-controller",
 	}).String()
 
 	mutatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)

@@ -1,0 +1,232 @@
+apiVersion: {{ include "deploymentversion" . }}
+kind: Deployment
+metadata:
+  name: terminal-controller-manager
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: terminal
+    app.kubernetes.io/component: controller-manager
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+    app.kubernetes.io/managed-by: "{{ .Release.Service }}"
+spec:
+  replicas: {{ .Values.global.controller.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: terminal
+      app.kubernetes.io/component: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+        checksum/configmap-terminal-config: {{ include (print .Template.BasePath "/controller-manager/configmap.yaml") . | sha256sum }}
+        checksum/secert-admission-webhook-cert: {{ include (print .Template.BasePath "/admission-controller/secret-admission-webhook-cert.yaml") . | sha256sum }}
+        {{- if .Values.global.controller.manager.kubeconfig }}
+        checksum/secret-kubeconfig-manager: {{ include (print .Template.BasePath "/controller-manager/secret-kubeconfig-manager.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.global.controller.kubeRBACProxy.kubeconfig }}
+        checksum/secret-kubeconfig-kube-rbac-proxy: {{ include (print .Template.BasePath "/controller-manager/secret-kubeconfig-kube-rbac-proxy.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.global.controller.podAnnotations }}
+        {{- toYaml .Values.global.controller.podAnnotations | nindent 8 }}
+        {{- end }}
+      labels:
+        app.kubernetes.io/name: terminal
+        app.kubernetes.io/component: controller-manager
+        helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+        app.kubernetes.io/instance: "{{ .Release.Name }}"
+        app.kubernetes.io/managed-by: "{{ .Release.Service }}"
+        {{- if .Values.global.controller.podLabels }}
+        {{- toYaml .Values.global.controller.podLabels | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- if or .Values.global.controller.manager.kubeconfig .Values.global.controller.kubeRBACProxy.kubeconfig }}
+      automountServiceAccountToken: false
+      {{- end }}
+      {{- if or ( not .Values.global.deployment.virtualGarden.enabled ) .Values.global.controller.manager.serviceAccountTokenVolumeProjection.enabled }}
+      serviceAccountName: {{ required ".Values.global.controller.serviceAccountName is required" .Values.global.controller.serviceAccountName }}
+      {{- else if or ( not .Values.global.deployment.virtualGarden.enabled ) .Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.enabled }}
+      serviceAccountName: {{ required ".Values.global.controller.serviceAccountName is required" .Values.global.controller.serviceAccountName }}
+      {{- else }}
+      serviceAccountName: default
+      {{- end }}
+      containers:
+      - name: kube-rbac-proxy
+        image: "{{ include "utils-templates.image" .Values.global.controller.kubeRBACProxy.image }}"
+        imagePullPolicy: {{ .Values.global.controller.kubeRBACProxy.image.pullPolicy }}
+        {{- /*
+        kube-rbac-proxy protects the /metrics endpoint.
+        This endpoint does not correspond to a resource, and is therefore treated as a non-resource-url in RBAC.
+        For non-resource-url authorizations there are no extra arguments required to be passed to the kube-rbac-proxy
+        besides the --upstream flag in order for it to perform the authorization.
+        */}}
+        args:
+        - --secure-listen-address={{ required ".Values.global.controller.kubeRBACProxy.config.server.proxy.bindAddress is required" .Values.global.controller.kubeRBACProxy.config.server.proxy.bindAddress }}:{{ required ".Values.global.controller.kubeRBACProxy.config.server.proxy.port is required" .Values.global.controller.kubeRBACProxy.config.server.proxy.port }}
+        - --upstream=http://{{ required ".Values.global.controller.manager.config.server.metrics.bindAddress is required" .Values.global.controller.manager.config.server.metrics.bindAddress }}:{{ required ".Values.global.controller.manager.config.server.metrics.port is required" .Values.global.controller.manager.config.server.metrics.port }}/
+        - --v={{ required ".Values.global.controller.kubeRBACProxy.logVerbosity" .Values.global.controller.kubeRBACProxy.logVerbosity }}
+        {{- if .Values.global.controller.kubeRBACProxy.kubeconfig }}
+        - --kubeconfig=/etc/kube-rbac-proxy/secrets/kubeconfig/kubeconfig
+        {{- end }}
+        {{- if .Values.global.controller.kubeRBACProxy.livenessProbe.enabled }}
+        {{- /*
+        The port to securely serve proxy-specific endpoints (such as '/healthz'). Uses the host from the '--secure-listen-address'.
+        */}}
+        - --proxy-endpoints-port={{ required ".Values.global.controller.kubeRBACProxy.config.server.proxy.proxyEndpointsPort" .Values.global.controller.kubeRBACProxy.config.server.proxy.proxyEndpointsPort }}
+        {{- end }}
+        ports:
+        - containerPort: {{ required ".Values.global.controller.kubeRBACProxy.config.server.proxy.port is required" .Values.global.controller.kubeRBACProxy.config.server.proxy.port }}
+          name: https
+          protocol: TCP
+        - containerPort: {{ required ".Values.global.controller.kubeRBACProxy.config.server.proxy.proxyEndpointsPort" .Values.global.controller.kubeRBACProxy.config.server.proxy.proxyEndpointsPort }}
+          name: proxy
+          protocol: TCP
+        {{- if .Values.global.controller.kubeRBACProxy.livenessProbe.enabled }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ required ".Values.global.controller.kubeRBACProxy.config.server.proxy.proxyEndpointsPort" .Values.global.controller.kubeRBACProxy.config.server.proxy.proxyEndpointsPort }}
+            scheme: HTTPS
+          initialDelaySeconds: {{ .Values.global.controller.kubeRBACProxy.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.global.controller.kubeRBACProxy.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.global.controller.kubeRBACProxy.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.global.controller.kubeRBACProxy.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.global.controller.kubeRBACProxy.livenessProbe.failureThreshold }}
+        {{- end }}
+        {{- if .Values.global.controller.kubeRBACProxy.readinessProbe.enabled }}
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ required ".Values.global.controller.kubeRBACProxy.config.server.proxy.proxyEndpointsPort is required" .Values.global.controller.kubeRBACProxy.config.server.proxy.proxyEndpointsPort }}
+            scheme: HTTPS
+          initialDelaySeconds: {{ .Values.global.controller.kubeRBACProxy.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.global.controller.kubeRBACProxy.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.global.controller.kubeRBACProxy.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.global.controller.kubeRBACProxy.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.global.controller.kubeRBACProxy.readinessProbe.failureThreshold }}
+        {{- end }}
+        resources: {{ toYaml .Values.global.controller.kubeRBACProxy.resources | trim | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        {{- if .Values.global.controller.kubeRBACProxy.kubeconfig }}
+        - mountPath: /etc/kube-rbac-proxy/secrets/kubeconfig
+          name: secret-kubeconfig-kube-rbac-proxy
+          readOnly: true
+        {{- end }}
+        {{- if .Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.enabled }}
+        - name: service-account-token-kube-rbac-proxy
+          mountPath: /var/run/secrets/projected/serviceaccount
+          readOnly: true
+        {{- end }}
+      - name: manager
+        image: "{{ include "utils-templates.image" .Values.global.controller.manager.image }}"
+        imagePullPolicy: {{ .Values.global.controller.manager.image.pullPolicy }}
+        command:
+        - /manager
+        args:
+        - --config-file=/etc/terminal-controller-manager/config.yaml
+        - --zap-devel=false
+        ports:
+        - containerPort: 9443
+          name: webhook
+          protocol: TCP
+        env:
+        {{- if .Values.global.controller.manager.kubeconfig }}
+        - name: KUBECONFIG
+          value: /etc/terminal-controller-manager/secrets/kubeconfig/kubeconfig
+        {{- end }}
+        {{- if .Values.global.controller.manager.livenessProbe.enabled }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ required ".Values.global.controller.manager.config.server.healthProbes.port is required" .Values.global.controller.manager.config.server.healthProbes.port }}
+            scheme: HTTP
+          initialDelaySeconds: {{ .Values.global.controller.manager.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.global.controller.manager.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.global.controller.manager.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.global.controller.manager.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.global.controller.manager.livenessProbe.failureThreshold }}
+        {{- end }}
+        {{- if .Values.global.controller.manager.readinessProbe.enabled }}
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: {{ required ".Values.global.controller.manager.config.server.healthProbes.port is required" .Values.global.controller.manager.config.server.healthProbes.port }}
+            scheme: HTTP
+          initialDelaySeconds: {{ .Values.global.controller.manager.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.global.controller.manager.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.global.controller.manager.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.global.controller.manager.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.global.controller.manager.readinessProbe.failureThreshold }}
+        {{- end }}
+        resources: {{ toYaml .Values.global.controller.manager.resources | trim | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        {{- if .Values.global.controller.manager.kubeconfig }}
+        - name: terminal-controller-secret-kubeconfig
+          mountPath: /etc/terminal-controller-manager/secrets/kubeconfig
+          readOnly: true
+        {{- end }}
+        {{- if .Values.global.controller.manager.serviceAccountTokenVolumeProjection.enabled }}
+        - name: service-account-token-manager
+          mountPath: /var/run/secrets/projected/serviceaccount
+          readOnly: true
+        {{- end }}
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: terminal-admission-controller-cert
+          readOnly: true
+        - mountPath: /etc/terminal-controller-manager
+          name: terminal-controller-manager-config
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+      terminationGracePeriodSeconds: 10
+      volumes:
+      {{- if .Values.global.controller.manager.kubeconfig }}
+      - name: terminal-controller-secret-kubeconfig
+        secret:
+          secretName: terminal-kubeconfig-manager
+      {{- end }}
+      {{- if .Values.global.controller.kubeRBACProxy.kubeconfig }}
+      - name: secret-kubeconfig-kube-rbac-proxy
+        secret:
+          secretName: terminal-kubeconfig-kube-rbac-proxy
+      {{- end }}
+      {{- if .Values.global.controller.manager.serviceAccountTokenVolumeProjection.enabled }}
+      - name: service-account-token-manager
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: {{ required ".Values.global.controller.manager.serviceAccountTokenVolumeProjection.expirationSeconds is required" .Values.global.controller.manager.serviceAccountTokenVolumeProjection.expirationSeconds }}
+              {{- if .Values.global.controller.manager.serviceAccountTokenVolumeProjection.audience }}
+              audience: {{ .Values.global.controller.manager.serviceAccountTokenVolumeProjection.audience }}
+              {{- end }}
+      {{- end }}
+      {{- if .Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.enabled }}
+      - name: service-account-token-kube-rbac-proxy
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: {{ required ".Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.expirationSeconds is required" .Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.expirationSeconds }}
+              {{- if .Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.audience }}
+              audience: {{ .Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.audience }}
+              {{- end }}
+      {{- end }}
+      {{- if .Values.global.admission.config.server.webhooks.tlsSecretName }}
+      - name: terminal-admission-controller-cert
+        secret:
+          secretName: {{ .Values.global.admission.config.server.webhooks.tlsSecretName }}
+      {{- else }}
+      - name: terminal-admission-controller-cert
+        secret:
+          secretName: terminal-admission-controller-cert
+      {{- end }}
+      - name: terminal-controller-manager-config
+        configMap:
+          items:
+          - key: config.yaml
+            path: config.yaml
+          name: terminal-controller-manager

@@ -7,12 +7,12 @@ require (
 	github.com/go-logr/logr v1.2.3
 	github.com/onsi/ginkgo/v2 v2.9.1
 	github.com/onsi/gomega v1.27.4
-	github.com/satori/go.uuid v1.2.0
 	golang.org/x/oauth2 v0.6.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.26.1
 	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
+	k8s.io/component-base v0.26.1
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 	sigs.k8s.io/controller-runtime v0.14.4
 	sigs.k8s.io/yaml v1.3.0
@@ -124,7 +124,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.26.1 // indirect
 	k8s.io/apiserver v0.26.1 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0 // indirect
-	k8s.io/component-base v0.26.1 // indirect
 	k8s.io/helm v2.16.1+incompatible // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kms v0.26.1 // indirect

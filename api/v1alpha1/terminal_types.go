@@ -15,6 +15,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	componentbaseconfig "k8s.io/component-base/config"
 
 	"github.com/gardener/terminal-controller-manager/internal/utils"
 )
@@ -39,6 +40,7 @@ type TerminalStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:metadata:labels="app.kubernetes.io/name=terminal";"app.kubernetes.io/component=controller-manager"
 
 // Terminal is the Schema for the terminals API
 type Terminal struct {
@@ -299,12 +301,15 @@ type ControllerManagerConfiguration struct {
 	// +optional
 	APIVersion string `yaml:"apiVersion"`
 
+	// Server defines the configuration of the HTTP server.
+	Server ServerConfiguration `yaml:"server"`
+
 	// Controllers defines the configuration of the controllers.
 	Controllers ControllerManagerControllerConfiguration `yaml:"controllers"`
 	// Webhooks defines the configuration of the admission webhooks.
 	Webhooks ControllerManagerWebhookConfiguration `yaml:"webhooks"`
 	// HonourServiceAccountRefHostCluster defines if `host.credentials.serviceAccountRef` property should be honoured.
-	// It is recommended to be set to false for multi-cluster setups, in case pods are refused on the (virtual) cluster where the terminal resources are stored.
+	// It is recommended to be set to false for multi-cluster setups, in case pods are refused on the (virtual) garden cluster where the terminal resources are stored.
 	// Defaults to true.
 	// +optional
 	HonourServiceAccountRefHostCluster *bool `yaml:"honourServiceAccountRefHostCluster,omitempty"`
@@ -313,15 +318,34 @@ type ControllerManagerConfiguration struct {
 	// +optional
 	HonourServiceAccountRefTargetCluster *bool `yaml:"honourServiceAccountRefTargetCluster,omitempty"`
 	// HonourProjectMemberships defines if `target.authorization.projectMemberships` property should be honoured.
-	// It is recommended to be set to false in case no gardener API server extension is registered for the (virtual) cluster where the terminal resources are stored.
+	// It is recommended to be set to false in case no gardener API server extension is registered for the (virtual) garden cluster where the terminal resources are stored.
 	// Defaults to true.
 	// +optional
 	HonourProjectMemberships *bool `yaml:"honourProjectMemberships,omitempty"`
 	// HonourCleanupProjectMembership defines if `target.credential.serviceAccountRef.cleanupProjectMembership` property should be honoured.
-	// It is recommended to be set to false in case no gardener API server extension is registered for the (virtual) cluster where the terminal resources are stored.
+	// It is recommended to be set to false in case no gardener API server extension is registered for the (virtual) garden cluster where the terminal resources are stored.
 	// Defaults to false.
 	// +optional
 	HonourCleanupProjectMembership *bool `yaml:"honourCleanupProjectMembership,omitempty"`
+
+	// LeaderElection defines the configuration of leader election client.
+	LeaderElection *componentbaseconfig.LeaderElectionConfiguration
+}
+
+// ServerConfiguration contains details for the HTTP(S) servers.
+type ServerConfiguration struct {
+	// HealthProbes is the configuration for serving the healthz and readyz endpoints.
+	HealthProbes *Server `yaml:"healthProbes"`
+	// Metrics is the configuration for serving the metrics endpoint.
+	Metrics *Server `yaml:"metrics"`
+}
+
+// Server contains information for HTTP(S) server configuration.
+type Server struct {
+	// BindAddress is the IP address on which to listen for the specified port.
+	BindAddress string `yaml:"bindAddress"`
+	// Port is the port on which to serve requests.
+	Port int `yaml:"port"`
 }
 
 // ControllerManagerControllerConfiguration defines the configuration of the controllers.

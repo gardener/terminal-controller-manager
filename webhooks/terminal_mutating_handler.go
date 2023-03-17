@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	uuid "github.com/satori/go.uuid"
 	admissionv1 "k8s.io/api/admission/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -41,9 +41,9 @@ func (h *TerminalMutator) mutatingTerminalFn(ctx context.Context, t *v1alpha1.Te
 	if admissionReq.Operation == admissionv1.Create {
 		t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy] = admissionReq.UserInfo.Username
 
-		uuidString := uuid.NewV4().String()
+		uuid := uuid.NewUUID()
 
-		terminalIdentifier, err := utils.ToFnvHash(uuidString)
+		terminalIdentifier, err := utils.ToFnvHash(string(uuid))
 		if err != nil {
 			return err
 		}
