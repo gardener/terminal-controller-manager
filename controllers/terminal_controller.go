@@ -1048,16 +1048,8 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 			if len(pod.Spec.Tolerations) == 0 {
 				pod.Spec.Tolerations = []corev1.Toleration{}
 			}
-			masterNodeKey := "node-role.kubernetes.io/master"
+
 			criticalAddonsKey := "CriticalAddonsOnly"
-			if !tolerationExists(pod.Spec.Tolerations, matchByKey(masterNodeKey)) {
-				pod.Spec.Tolerations = append(pod.Spec.Tolerations,
-					corev1.Toleration{
-						Key:      masterNodeKey,
-						Operator: corev1.TolerationOpExists,
-						Effect:   corev1.TaintEffectNoSchedule,
-					})
-			}
 			if !tolerationExists(pod.Spec.Tolerations, matchByKey(criticalAddonsKey)) {
 				pod.Spec.Tolerations = append(pod.Spec.Tolerations,
 					corev1.Toleration{
@@ -1072,6 +1064,14 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 			}
 			if !tolerationExists(pod.Spec.Tolerations, match(noExecuteToleration)) {
 				pod.Spec.Tolerations = append(pod.Spec.Tolerations, noExecuteToleration)
+			}
+
+			noScheduleToleration := corev1.Toleration{
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}
+			if !tolerationExists(pod.Spec.Tolerations, match(noScheduleToleration)) {
+				pod.Spec.Tolerations = append(pod.Spec.Tolerations, noScheduleToleration)
 			}
 		}
 
