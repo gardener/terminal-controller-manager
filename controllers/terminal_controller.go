@@ -1049,29 +1049,11 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 				pod.Spec.Tolerations = []corev1.Toleration{}
 			}
 
-			criticalAddonsKey := "CriticalAddonsOnly"
-			if !tolerationExists(pod.Spec.Tolerations, matchByKey(criticalAddonsKey)) {
-				pod.Spec.Tolerations = append(pod.Spec.Tolerations,
-					corev1.Toleration{
-						Key:      criticalAddonsKey,
-						Operator: corev1.TolerationOpExists,
-					})
-			}
-
-			noExecuteToleration := corev1.Toleration{
+			existsToleration := corev1.Toleration{
 				Operator: corev1.TolerationOpExists,
-				Effect:   corev1.TaintEffectNoExecute,
 			}
-			if !tolerationExists(pod.Spec.Tolerations, match(noExecuteToleration)) {
-				pod.Spec.Tolerations = append(pod.Spec.Tolerations, noExecuteToleration)
-			}
-
-			noScheduleToleration := corev1.Toleration{
-				Operator: corev1.TolerationOpExists,
-				Effect:   corev1.TaintEffectNoSchedule,
-			}
-			if !tolerationExists(pod.Spec.Tolerations, match(noScheduleToleration)) {
-				pod.Spec.Tolerations = append(pod.Spec.Tolerations, noScheduleToleration)
+			if !tolerationExists(pod.Spec.Tolerations, match(existsToleration)) {
+				pod.Spec.Tolerations = append(pod.Spec.Tolerations, existsToleration)
 			}
 		}
 
