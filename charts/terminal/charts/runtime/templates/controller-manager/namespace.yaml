@@ -8,4 +8,7 @@ metadata:
     helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     app.kubernetes.io/instance: "{{ .Release.Name }}"
     app.kubernetes.io/managed-by: "{{ .Release.Service }}"
+    {{- if ne .Release.Namespace "garden" }}
+    networking.gardener.cloud/access-target-apiserver: allowed
+    {{- end }}
 {{- end }}

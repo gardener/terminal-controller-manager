@@ -36,6 +36,15 @@ spec:
         helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
         app.kubernetes.io/instance: "{{ .Release.Name }}"
         app.kubernetes.io/managed-by: "{{ .Release.Service }}"
+        networking.gardener.cloud/to-dns: allowed
+        networking.gardener.cloud/to-runtime-apiserver: allowed
+        networking.gardener.cloud/to-public-networks: allowed
+        networking.gardener.cloud/to-private-networks: allowed
+        {{- if eq .Release.Namespace "garden" }}
+        networking.resources.gardener.cloud/to-virtual-garden-kube-apiserver-tcp-443: allowed
+        {{- else }}
+        networking.resources.gardener.cloud/to-garden-virtual-garden-kube-apiserver-tcp-443: allowed
+        {{- end }}
         {{- if .Values.global.controller.podLabels }}
         {{- toYaml .Values.global.controller.podLabels | nindent 8 }}
         {{- end }}
