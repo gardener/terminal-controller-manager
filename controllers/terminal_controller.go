@@ -1008,7 +1008,8 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 				{
 					Name: kubeconfigReadWriteVolumeName,
 					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{Medium: corev1.StorageMediumDefault}},
+						EmptyDir: &corev1.EmptyDirVolumeSource{Medium: corev1.StorageMediumDefault},
+					},
 				},
 				{
 					Name: tokenVolumeName,
