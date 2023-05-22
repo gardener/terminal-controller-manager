@@ -24,7 +24,6 @@ import (
 )
 
 var _ = Describe("Terminal Controller", func() {
-
 	const (
 		HostServiceAccountName   = "test-host-serviceaccount"
 		TargetServiceAccountName = "test-target-serviceaccount"
@@ -413,7 +412,6 @@ var _ = Describe("Terminal Controller", func() {
 				if err != nil {
 					return ""
 				}
-				//attachServiceAccountName = t.Status.AttachServiceAccountName
 				return t.Status.PodName
 			}, timeout, interval).Should(Not(BeEmpty()))
 		})

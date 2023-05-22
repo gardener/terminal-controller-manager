@@ -24,7 +24,6 @@ import (
 )
 
 var _ = Describe("Terminal Heartbeat Controller", func() {
-
 	const (
 		HostServiceAccountName   = "test-host-serviceaccount"
 		TargetServiceAccountName = "test-target-serviceaccount"

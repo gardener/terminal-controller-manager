@@ -11,8 +11,8 @@ import (
 	"time"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	"github.com/gardener/gardener/pkg/component/projectrbac"
 	"github.com/gardener/gardener/pkg/controllerutils"
-	"github.com/gardener/gardener/pkg/operation/botanist/component/projectrbac"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -29,7 +29,6 @@ import (
 )
 
 var _ = Describe("ServiceAccount Controller", func() {
-
 	const (
 		HostServiceAccountName   = "test-host-serviceaccount"
 		TargetServiceAccountName = "test-target-serviceaccount"
@@ -157,7 +156,8 @@ var _ = Describe("ServiceAccount Controller", func() {
 						"list",
 						"patch",
 						"update",
-						"watch"},
+						"watch",
+					},
 				},
 				{
 					APIGroups: []string{""},
