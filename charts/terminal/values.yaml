@@ -78,7 +78,7 @@ global:
       logVerbosity: 0
       image:
         repository: quay.io/brancz/kube-rbac-proxy
-        tag: v0.14.0
+        tag: v0.14.1
         pullPolicy: IfNotPresent
       serviceAccountTokenVolumeProjection:
         enabled: true
