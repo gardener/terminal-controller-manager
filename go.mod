@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/gardener/gardener v1.71.0
 	github.com/go-logr/logr v1.2.4
-	github.com/onsi/ginkgo/v2 v2.9.5
+	github.com/onsi/ginkgo/v2 v2.9.7
 	github.com/onsi/gomega v1.27.7
 	golang.org/x/oauth2 v0.8.0
 	gopkg.in/yaml.v2 v2.4.0
