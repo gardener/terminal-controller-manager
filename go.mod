@@ -3,7 +3,7 @@ module github.com/gardener/terminal-controller-manager
 go 1.20
 
 require (
-	github.com/gardener/gardener v1.71.0
+	github.com/gardener/gardener v1.73.0
 	github.com/go-logr/logr v1.2.4
 	github.com/onsi/ginkgo/v2 v2.9.5
 	github.com/onsi/gomega v1.27.7
@@ -40,7 +40,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fluent/fluent-operator/v2 v2.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/gardener/etcd-druid v0.15.3 // indirect
+	github.com/gardener/etcd-druid v0.18.1 // indirect
 	github.com/gardener/hvpa-controller/api v0.5.0 // indirect
 	github.com/gardener/machine-controller-manager v0.48.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
