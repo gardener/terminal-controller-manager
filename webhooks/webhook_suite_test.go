@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
@@ -50,7 +51,12 @@ var _ = BeforeSuite(func() {
 		Config: cmConfig,
 	}
 
-	e = test.New(cmConfig, mutator, validator)
+	e = test.New(mutator, validator)
+
+	mutator.Decoder = admission.NewDecoder(e.GardenEnv.Scheme)
+	validator.Decoder = admission.NewDecoder(e.GardenEnv.Scheme)
+	validator.Client = e.K8sClient
+
 	e.Start(ctx)
 })
 

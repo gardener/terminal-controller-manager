@@ -107,11 +107,7 @@ func AddServiceAccountAsProjectMember(ctx context.Context, c client.Client, proj
 
 	project.Spec.Members = append(project.Spec.Members, member)
 
-	if err := c.Update(ctx, project); err != nil {
-		return err
-	}
-
-	return nil
+	return c.Update(ctx, project)
 }
 
 // IsMember returns true together with the index in case the passed service account NamespacedName is contained in the ProjectMember list

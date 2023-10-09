@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
@@ -44,8 +43,9 @@ type ServiceAccountReconciler struct {
 func (r *ServiceAccountReconciler) SetupWithManager(mgr ctrl.Manager, config extensionsv1alpha1.ServiceAccountControllerConfiguration) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.ServiceAccount{}, builder.WithPredicates(r.serviceAccountPredicate())).
-		Watches(&source.Kind{Type: &extensionsv1alpha1.Terminal{}},
-			handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
+		Watches(
+			&extensionsv1alpha1.Terminal{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 				// request reconciliation for service accounts that are referenced in deleted terminals and for which CleanupProjectMembership was set to true.
 				logger := r.Log.WithValues("terminal", client.ObjectKeyFromObject(obj))
 
@@ -120,32 +120,32 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 				return false
 			}
 
-			old, ok := e.ObjectOld.(*corev1.ServiceAccount)
+			oldObj, ok := e.ObjectOld.(*corev1.ServiceAccount)
 			if !ok {
 				logger.Error(nil, "Update event old runtime object cannot be converted to ServiceAccount")
 				return false
 			}
 
-			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, old.Name)
+			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, oldObj.Name)
 			if !nameAllowed {
 				logger.Info("service account name is not on allow-list -> event will be ignored")
 				return false
 			}
 
-			new, ok := e.ObjectNew.(*corev1.ServiceAccount)
+			newObj, ok := e.ObjectNew.(*corev1.ServiceAccount)
 			if !ok {
 				logger.Error(nil, "Update event new runtime object cannot be converted to ServiceAccount")
 				return false
 			}
 
 			// TerminalReference label has changed to true - event should be processed
-			if old.Labels[extensionsv1alpha1.TerminalReference] != new.Labels[extensionsv1alpha1.TerminalReference] &&
-				new.Labels[extensionsv1alpha1.TerminalReference] == "true" {
+			if oldObj.Labels[extensionsv1alpha1.TerminalReference] != newObj.Labels[extensionsv1alpha1.TerminalReference] &&
+				newObj.Labels[extensionsv1alpha1.TerminalReference] == "true" {
 				return true
 			}
 
 			// ServiceAccount was marked for deletion - event should be processed
-			if old.ObjectMeta.DeletionTimestamp.IsZero() && !new.ObjectMeta.DeletionTimestamp.IsZero() {
+			if oldObj.ObjectMeta.DeletionTimestamp.IsZero() && !newObj.ObjectMeta.DeletionTimestamp.IsZero() {
 				return true
 			}
 

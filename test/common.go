@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -51,7 +52,7 @@ type Environment struct {
 	K8sClient  client.Client
 }
 
-func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator admission.Handler, validator admission.Handler) Environment {
+func New(mutator admission.Handler, validator admission.Handler) Environment {
 	logf.SetLogger(zap.New(zap.WriteTo(ginkgo.GinkgoWriter), zap.UseDevMode(true)))
 
 	ginkgo.By("bootstrapping test environment")
@@ -174,12 +175,16 @@ func New(cmConfig *dashboardv1alpha1.ControllerManagerConfiguration, mutator adm
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:             kubernetes.GardenScheme,
-		LeaderElection:     false,
-		Host:               gardenTestEnv.WebhookInstallOptions.LocalServingHost,
-		Port:               gardenTestEnv.WebhookInstallOptions.LocalServingPort,
-		CertDir:            gardenTestEnv.WebhookInstallOptions.LocalServingCertDir,
-		MetricsBindAddress: "0", // disabled
+		Scheme:         kubernetes.GardenScheme,
+		LeaderElection: false,
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port:    gardenTestEnv.WebhookInstallOptions.LocalServingPort,
+			Host:    gardenTestEnv.WebhookInstallOptions.LocalServingHost,
+			CertDir: gardenTestEnv.WebhookInstallOptions.LocalServingCertDir,
+		}),
+		Metrics: server.Options{
+			BindAddress: "0", // disabled
+		},
 	})
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
