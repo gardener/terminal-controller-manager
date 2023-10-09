@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
@@ -67,7 +68,11 @@ var _ = BeforeSuite(func() {
 		Config: cmConfig,
 	}
 
-	e = test.New(cmConfig, mutator, validator)
+	e = test.New(mutator, validator)
+
+	mutator.Decoder = admission.NewDecoder(e.GardenEnv.Scheme)
+	validator.Decoder = admission.NewDecoder(e.GardenEnv.Scheme)
+	validator.Client = e.K8sClient
 
 	kube, err := kubernetes.NewForConfig(e.Config)
 	Expect(err).ToNot(HaveOccurred())

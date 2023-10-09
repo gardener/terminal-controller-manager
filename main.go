@@ -31,7 +31,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/controllers"
@@ -78,10 +80,11 @@ func main() {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		HealthProbeBindAddress: fmt.Sprintf("%s:%d", cmConfig.Server.HealthProbes.BindAddress, cmConfig.Server.HealthProbes.Port),
-		MetricsBindAddress:     fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
-		Port:                   9443,
-		CertDir:                certDir,
-
+		Metrics: metricsserver.Options{
+			SecureServing: true,
+			BindAddress:   fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
+			CertDir:       certDir,
+		},
 		LeaderElection:                cmConfig.LeaderElection.LeaderElect,
 		LeaderElectionResourceLock:    cmConfig.LeaderElection.ResourceLock,
 		LeaderElectionID:              cmConfig.LeaderElection.ResourceName,
@@ -96,9 +99,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	config := mgr.GetConfig()
+	cfg := mgr.GetConfig()
 
-	kube, err := kubernetes.NewForConfig(config)
+	kube, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		setupLog.Error(err, "could not create kubernetes client")
 		os.Exit(1)
@@ -107,7 +110,7 @@ func main() {
 	recorder := CreateRecorder(kube)
 
 	if err = (&controllers.TerminalReconciler{
-		ClientSet:                   gardenclient.NewClientSet(config, mgr.GetClient(), kube),
+		ClientSet:                   gardenclient.NewClientSet(cfg, mgr.GetClient(), kube),
 		Scheme:                      mgr.GetScheme(),
 		Recorder:                    recorder,
 		Config:                      cmConfig,
@@ -154,11 +157,14 @@ func main() {
 
 	setupLog.Info("registering webhooks to the webhook server")
 	hookServer.Register("/mutate-terminal", &webhook.Admission{Handler: &webhooks.TerminalMutator{
-		Log: ctrl.Log.WithName("webhooks").WithName("TerminalMutation"),
+		Log:     ctrl.Log.WithName("webhooks").WithName("TerminalMutation"),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}})
 	hookServer.Register("/validate-terminal", &webhook.Admission{Handler: &webhooks.TerminalValidator{
-		Log:    ctrl.Log.WithName("webhooks").WithName("TerminalValidation"),
-		Config: cmConfig,
+		Log:     ctrl.Log.WithName("webhooks").WithName("TerminalValidation"),
+		Config:  cmConfig,
+		Client:  mgr.GetClient(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}})
 
 	ctx := ctrl.SetupSignalHandler()

@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
@@ -33,13 +32,13 @@ import (
 
 // TerminalValidator handles Terminal
 type TerminalValidator struct {
-	client      client.Client
+	Client      client.Client
 	Log         logr.Logger
 	Config      *v1alpha1.ControllerManagerConfiguration
 	configMutex sync.RWMutex
 
 	// Decoder decodes objects
-	decoder *admission.Decoder
+	Decoder *admission.Decoder
 }
 
 func (h *TerminalValidator) getConfig() *v1alpha1.ControllerManagerConfiguration {
@@ -348,11 +347,7 @@ func validateRoleBindings(t *v1alpha1.Terminal, fldPath *field.Path) error {
 		}
 	}
 
-	if err := validateUniqueRoleBindingNameSuffixes(t, fldPath); err != nil {
-		return err
-	}
-
-	return nil
+	return validateUniqueRoleBindingNameSuffixes(t, fldPath)
 }
 
 func validateUniqueRoleBindingNameSuffixes(t *v1alpha1.Terminal, fldPath *field.Path) error {
@@ -414,7 +409,7 @@ func (h *TerminalValidator) canGetCredential(ctx context.Context, userInfo authe
 
 // canManageProjectMembers returns true if the user can manage ServiceAccount members for the project of the given namespace
 func (h *TerminalValidator) canManageProjectMembers(ctx context.Context, userInfo authenticationv1.UserInfo, namespace string) (bool, error) {
-	project, err := gardenclient.GetProjectByNamespace(ctx, h.client, namespace)
+	project, err := gardenclient.GetProjectByNamespace(ctx, h.Client, namespace)
 	if err != nil {
 		return false, err
 	}
@@ -442,7 +437,7 @@ func (h *TerminalValidator) canCreateShootsAdminKubeconfigAccessReview(ctx conte
 			Extra:  toAuthZExtraValue(userInfo.Extra),
 		},
 	}
-	err := h.client.Create(ctx, subjectAccessReview)
+	err := h.Client.Create(ctx, subjectAccessReview)
 
 	return subjectAccessReview.Status.Allowed, err
 }
@@ -467,7 +462,7 @@ func (h *TerminalValidator) canGetSecretAccessReview(ctx context.Context, userIn
 			Extra:  toAuthZExtraValue(userInfo.Extra),
 		},
 	}
-	err := h.client.Create(ctx, subjectAccessReview)
+	err := h.Client.Create(ctx, subjectAccessReview)
 
 	return subjectAccessReview.Status.Allowed, err
 }
@@ -493,7 +488,7 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 		},
 	}
 
-	err := h.client.Create(ctx, accesReviewServiceAccount)
+	err := h.Client.Create(ctx, accesReviewServiceAccount)
 	if err != nil {
 		return false, err
 	}
@@ -517,7 +512,7 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 			Extra:  toAuthZExtraValue(userInfo.Extra),
 		},
 	}
-	err = h.client.Create(ctx, accessReviewSecret)
+	err = h.Client.Create(ctx, accessReviewSecret)
 
 	return accessReviewSecret.Status.Allowed, err
 }
@@ -537,7 +532,7 @@ func (h *TerminalValidator) canManageProjectMembersAccessReview(ctx context.Cont
 			Extra:  toAuthZExtraValue(userInfo.Extra),
 		},
 	}
-	err := h.client.Create(ctx, subjectAccessReview)
+	err := h.Client.Create(ctx, subjectAccessReview)
 
 	return subjectAccessReview.Status.Allowed, err
 }
@@ -559,13 +554,13 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	err := h.decoder.Decode(req, obj)
+	err := h.Decoder.Decode(req, obj)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
 	if req.AdmissionRequest.Operation != admissionv1.Create {
-		err = h.decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj)
+		err = h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj)
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
@@ -582,23 +577,4 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	return admission.ValidationResponse(allowed, reason)
-}
-
-var _ inject.Client = &TerminalValidator{}
-
-// A client will be automatically injected.
-
-// InjectClient injects the client.
-func (h *TerminalValidator) InjectClient(c client.Client) error {
-	h.client = c
-	return nil
-}
-
-// TerminalValidator implements admission.DecoderInjector.
-// A decoder will be automatically injected.
-
-// InjectDecoder injects the decoder.
-func (h *TerminalValidator) InjectDecoder(d *admission.Decoder) error {
-	h.decoder = d
-	return nil
 }
