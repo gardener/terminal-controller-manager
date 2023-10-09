@@ -76,9 +76,6 @@ spec:
         {{- if .Values.global.controller.kubeRBACProxy.kubeconfig }}
         - --kubeconfig=/etc/kube-rbac-proxy/secrets/kubeconfig/kubeconfig
         {{- end }}
-        {{- if .Values.global.controller.kubeRBACProxy.projectedKubeconfig }}
-        - --kubeconfig={{ required ".Values.global.controller.kubeRBACProxy.projectedKubeconfig.baseMountPath is required" .Values.global.controller.kubeRBACProxy.projectedKubeconfig.baseMountPath }}/kubeconfig
-        {{- end }}
         {{- if .Values.global.controller.kubeRBACProxy.livenessProbe.enabled }}
         {{- /*
         The port to securely serve proxy-specific endpoints (such as '/healthz'). Uses the host from the '--secure-listen-address'.
@@ -128,11 +125,6 @@ spec:
         {{- if .Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.enabled }}
         - name: service-account-token-kube-rbac-proxy
           mountPath: /var/run/secrets/projected/serviceaccount
-          readOnly: true
-        {{- end }}
-        {{- if .Values.global.controller.kubeRBACProxy.projectedKubeconfig }}
-        - name: kubeconfig-kube-rbac-proxy
-          mountPath: {{ required ".Values.global.controller.kubeRBACProxy.projectedKubeconfig.baseMountPath is required" .Values.global.controller.kubeRBACProxy.projectedKubeconfig.baseMountPath }}
           readOnly: true
         {{- end }}
       - name: manager
@@ -257,23 +249,6 @@ spec:
               {{- if .Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.audience }}
               audience: {{ .Values.global.controller.kubeRBACProxy.serviceAccountTokenVolumeProjection.audience }}
               {{- end }}
-      {{- end }}
-      {{- if .Values.global.controller.kubeRBACProxy.projectedKubeconfig }}
-      - name: kubeconfig-kube-rbac-proxy
-        projected:
-          sources:
-          - secret:
-              items:
-              - key: kubeconfig
-                path: kubeconfig
-              name: {{ required ".Values.global.controller.kubeRBACProxy.projectedKubeconfig.genericKubeconfigSecretName is required" .Values.global.controller.kubeRBACProxy.projectedKubeconfig.genericKubeconfigSecretName }}
-              optional: false
-          - secret:
-              items:
-              - key: token
-                path: token
-              name: {{ required ".Values.global.controller.kubeRBACProxy.projectedKubeconfig.tokenSecretName is required" .Values.global.controller.kubeRBACProxy.projectedKubeconfig.tokenSecretName }}
-              optional: false
       {{- end }}
       {{- if .Values.global.admission.config.server.webhooks.tlsSecretName }}
       - name: terminal-admission-controller-cert
