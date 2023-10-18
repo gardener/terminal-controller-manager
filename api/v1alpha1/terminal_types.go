@@ -329,7 +329,8 @@ type ControllerManagerConfiguration struct {
 	HonourCleanupProjectMembership *bool `yaml:"honourCleanupProjectMembership,omitempty"`
 
 	// LeaderElection defines the configuration of leader election client.
-	LeaderElection *componentbaseconfig.LeaderElectionConfiguration
+	// +optional
+	LeaderElection *componentbaseconfig.LeaderElectionConfiguration `yaml:"leaderElection,omitempty"`
 }
 
 // ServerConfiguration contains details for the HTTP(S) servers.
