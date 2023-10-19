@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/gardener/gardener/pkg/api/indexer"
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,7 +26,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/component-base/config"
+	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -34,6 +34,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+	"sigs.k8s.io/yaml"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/controllers"
@@ -85,7 +86,7 @@ func main() {
 			BindAddress:   fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
 			CertDir:       certDir,
 		},
-		LeaderElection:                cmConfig.LeaderElection.LeaderElect,
+		LeaderElection:                pointer.BoolDeref(cmConfig.LeaderElection.LeaderElect, true),
 		LeaderElectionResourceLock:    cmConfig.LeaderElection.ResourceLock,
 		LeaderElectionID:              cmConfig.LeaderElection.ResourceName,
 		LeaderElectionNamespace:       cmConfig.LeaderElection.ResourceNamespace,
@@ -225,8 +226,8 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 		HonourProjectMemberships:             pointer.Bool(true),
 		HonourCleanupProjectMembership:       pointer.Bool(false),
 
-		LeaderElection: &config.LeaderElectionConfiguration{
-			LeaderElect:       true,
+		LeaderElection: &componentbaseconfigv1alpha1.LeaderElectionConfiguration{
+			LeaderElect:       pointer.Bool(true),
 			LeaseDuration:     metav1.Duration{Duration: 15 * time.Second},
 			RenewDeadline:     metav1.Duration{Duration: 10 * time.Second},
 			RetryPeriod:       metav1.Duration{Duration: 2 * time.Second},
@@ -248,18 +249,17 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 }
 
 func readFile(configFile string, cfg *v1alpha1.ControllerManagerConfiguration) error {
-	f, err := os.Open(configFile)
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		utilruntime.HandleError(f.Close())
-	}()
+	jsonData, err := yaml.YAMLToJSON(data)
+	if err != nil {
+		return err
+	}
 
-	decoder := yaml.NewDecoder(f)
-
-	return decoder.Decode(cfg)
+	return json.Unmarshal(jsonData, cfg)
 }
 
 func validateConfig(cfg *v1alpha1.ControllerManagerConfiguration) error {
