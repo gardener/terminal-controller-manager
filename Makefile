@@ -11,7 +11,7 @@ IMG_MANAGER_TAG        ?= $(VERSION)-$(shell git rev-parse HEAD)
 
 # Docker image repository and tag for Kube RBAC Proxy tool
 IMG_RBAC_PROXY_REPOSITORY ?= quay.io/brancz/kube-rbac-proxy
-IMG_RBAC_PROXY_TAG        ?= v0.14.3
+IMG_RBAC_PROXY_TAG        ?= v0.15.0
 
 # Chart variables
 CREATE_NAMESPACE ?= true
