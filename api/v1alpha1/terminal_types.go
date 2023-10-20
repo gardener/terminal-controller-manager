@@ -15,7 +15,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	componentbaseconfig "k8s.io/component-base/config"
+	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
 
 	"github.com/gardener/terminal-controller-manager/internal/utils"
 )
@@ -297,98 +297,98 @@ type ErrorCode string
 // ControllerManagerConfiguration defines the configuration for the Gardener controller manager.
 type ControllerManagerConfiguration struct {
 	// +optional
-	Kind string `yaml:"kind"`
+	Kind string `json:"kind"`
 	// +optional
-	APIVersion string `yaml:"apiVersion"`
+	APIVersion string `json:"apiVersion"`
 
 	// Server defines the configuration of the HTTP server.
-	Server ServerConfiguration `yaml:"server"`
+	Server ServerConfiguration `json:"server"`
 
 	// Controllers defines the configuration of the controllers.
-	Controllers ControllerManagerControllerConfiguration `yaml:"controllers"`
+	Controllers ControllerManagerControllerConfiguration `json:"controllers"`
 	// Webhooks defines the configuration of the admission webhooks.
-	Webhooks ControllerManagerWebhookConfiguration `yaml:"webhooks"`
+	Webhooks ControllerManagerWebhookConfiguration `json:"webhooks"`
 	// HonourServiceAccountRefHostCluster defines if `host.credentials.serviceAccountRef` property should be honoured.
 	// It is recommended to be set to false for multi-cluster setups, in case pods are refused on the (virtual) garden cluster where the terminal resources are stored.
 	// Defaults to true.
 	// +optional
-	HonourServiceAccountRefHostCluster *bool `yaml:"honourServiceAccountRefHostCluster,omitempty"`
+	HonourServiceAccountRefHostCluster *bool `json:"honourServiceAccountRefHostCluster,omitempty"`
 	// HonourServiceAccountRefTargetCluster defines if `target.credentials.serviceAccountRef` property should be honoured.
 	// Defaults to true.
 	// +optional
-	HonourServiceAccountRefTargetCluster *bool `yaml:"honourServiceAccountRefTargetCluster,omitempty"`
+	HonourServiceAccountRefTargetCluster *bool `json:"honourServiceAccountRefTargetCluster,omitempty"`
 	// HonourProjectMemberships defines if `target.authorization.projectMemberships` property should be honoured.
 	// It is recommended to be set to false in case no gardener API server extension is registered for the (virtual) garden cluster where the terminal resources are stored.
 	// Defaults to true.
 	// +optional
-	HonourProjectMemberships *bool `yaml:"honourProjectMemberships,omitempty"`
+	HonourProjectMemberships *bool `json:"honourProjectMemberships,omitempty"`
 	// HonourCleanupProjectMembership defines if `target.credential.serviceAccountRef.cleanupProjectMembership` property should be honoured.
 	// It is recommended to be set to false in case no gardener API server extension is registered for the (virtual) garden cluster where the terminal resources are stored.
 	// Defaults to false.
 	// +optional
-	HonourCleanupProjectMembership *bool `yaml:"honourCleanupProjectMembership,omitempty"`
+	HonourCleanupProjectMembership *bool `json:"honourCleanupProjectMembership,omitempty"`
 
 	// LeaderElection defines the configuration of leader election client.
 	// +optional
-	LeaderElection *componentbaseconfig.LeaderElectionConfiguration `yaml:"leaderElection,omitempty"`
+	LeaderElection *componentbaseconfigv1alpha1.LeaderElectionConfiguration `json:"leaderElection,omitempty"`
 }
 
 // ServerConfiguration contains details for the HTTP(S) servers.
 type ServerConfiguration struct {
 	// HealthProbes is the configuration for serving the healthz and readyz endpoints.
-	HealthProbes *Server `yaml:"healthProbes"`
+	HealthProbes *Server `json:"healthProbes"`
 	// Metrics is the configuration for serving the metrics endpoint.
-	Metrics *Server `yaml:"metrics"`
+	Metrics *Server `json:"metrics"`
 }
 
 // Server contains information for HTTP(S) server configuration.
 type Server struct {
 	// BindAddress is the IP address on which to listen for the specified port.
-	BindAddress string `yaml:"bindAddress"`
+	BindAddress string `json:"bindAddress"`
 	// Port is the port on which to serve requests.
-	Port int `yaml:"port"`
+	Port int `json:"port"`
 }
 
 // ControllerManagerControllerConfiguration defines the configuration of the controllers.
 type ControllerManagerControllerConfiguration struct {
 	// Terminal defines the configuration of the Terminal controller.
-	Terminal TerminalControllerConfiguration `yaml:"terminal"`
+	Terminal TerminalControllerConfiguration `json:"terminal"`
 	// TerminalHeartbeat defines the configuration of the TerminalHeartbeat controller.
-	TerminalHeartbeat TerminalHeartbeatControllerConfiguration `yaml:"terminalHeartbeat"`
+	TerminalHeartbeat TerminalHeartbeatControllerConfiguration `json:"terminalHeartbeat"`
 	// ServiceAccount defines the configuration of the ServiceAccount controller.
-	ServiceAccount ServiceAccountControllerConfiguration `yaml:"serviceAccount"`
+	ServiceAccount ServiceAccountControllerConfiguration `json:"serviceAccount"`
 }
 
 // TerminalControllerConfiguration defines the configuration of the Terminal controller.
 type TerminalControllerConfiguration struct {
 	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 15.
-	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+	MaxConcurrentReconciles int `json:"maxConcurrentReconciles"`
 
 	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run per Namespace (independent of the user who created the Terminal resource). Defaults to 3.
-	MaxConcurrentReconcilesPerNamespace int `yaml:"maxConcurrentReconcilesPerNamespace"`
+	MaxConcurrentReconcilesPerNamespace int `json:"maxConcurrentReconcilesPerNamespace"`
 
 	// TokenRequestExpirationSeconds is the requested duration of validity of the access token request.
 	// The token issuer may return a token with a different validity duration.
-	TokenRequestExpirationSeconds *int64 `yaml:"tokenRequestExpirationSeconds"`
+	TokenRequestExpirationSeconds *int64 `json:"tokenRequestExpirationSeconds"`
 }
 
 // TerminalHeartbeatControllerConfiguration defines the configuration of the TerminalHeartbeat controller.
 type TerminalHeartbeatControllerConfiguration struct {
 	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
-	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+	MaxConcurrentReconciles int `json:"maxConcurrentReconciles"`
 
 	// TimeToLive is the duration a Terminal resource can live without receiving a heartbeat with the "dashboard.gardener.cloud/operation=keepalive" annotation. Defaults to 5m.
-	TimeToLive Duration `yaml:"timeToLive"`
+	TimeToLive Duration `json:"timeToLive"`
 }
 
 // ServiceAccountControllerConfiguration defines the configuration of the ServiceAccount controller.
 type ServiceAccountControllerConfiguration struct {
 	// MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 1.
-	MaxConcurrentReconciles int `yaml:"maxConcurrentReconciles"`
+	MaxConcurrentReconciles int `json:"maxConcurrentReconciles"`
 
 	// AllowedServiceAccountNames is a list of service account names that are allowed to be cleaned up as project members.
 	// If the list is empty all names are considered as allowed
-	AllowedServiceAccountNames []string `yaml:"allowedServiceAccountNames"`
+	AllowedServiceAccountNames []string `json:"allowedServiceAccountNames"`
 }
 
 // Duration is a wrapper around time.Duration which supports correct
@@ -418,13 +418,13 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // ControllerManagerWebhookConfiguration defines the configuration of the admission webhooks.
 type ControllerManagerWebhookConfiguration struct {
 	// TerminalValidation defines the configuration of the validating webhook.
-	TerminalValidation TerminalValidatingWebhookConfiguration `yaml:"terminalValidation"`
+	TerminalValidation TerminalValidatingWebhookConfiguration `json:"terminalValidation"`
 }
 
 // TerminalValidatingWebhookConfiguration defines the configuration of the validating webhook.
 type TerminalValidatingWebhookConfiguration struct {
 	// MaxObjectSize is the maximum size of a terminal resource in bytes. Defaults to 10240.
-	MaxObjectSize int `yaml:"maxObjectSize"`
+	MaxObjectSize int `json:"maxObjectSize"`
 }
 
 func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
