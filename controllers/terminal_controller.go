@@ -105,7 +105,7 @@ func (r *TerminalReconciler) decreaseCounterForNamespace(namespace string) {
 
 	c, exists := r.ReconcilerCountPerNamespace[namespace]
 	if !exists {
-		panic("entry expected!")
+		return
 	}
 
 	counter = c - 1
