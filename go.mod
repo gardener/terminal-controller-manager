@@ -3,7 +3,7 @@ module github.com/gardener/terminal-controller-manager
 go 1.21
 
 require (
-	github.com/gardener/gardener v1.82.0
+	github.com/gardener/gardener v1.82.1
 	github.com/go-logr/logr v1.2.4
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.28.0
