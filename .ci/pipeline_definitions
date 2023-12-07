@@ -1,7 +1,5 @@
 terminal-controller-manager:
-  template: 'default'
   base_definition:
-    repo: ~
     traits:
       version:
         preprocess:
@@ -13,7 +11,6 @@ terminal-controller-manager:
             inputs:
               repos:
                 source: ~ # default
-            registry: 'gcr-readwrite'
             image: 'eu.gcr.io/gardener-project/gardener/terminal-controller-manager'
             resource_labels:
             - name: 'gardener.cloud/cve-categorisation'
