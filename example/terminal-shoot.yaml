@@ -22,7 +22,7 @@ spec:
         networking.gardener.cloud/to-public-networks: allowed
         networking.gardener.cloud/to-all-shoot-apiservers: allowed
       container:
-        image: eu.gcr.io/gardener-project/gardener/ops-toolbelt:0.21.0
+        image: europe-docker.pkg.dev/gardener-project/releases/gardener/ops-toolbelt:0.25.0
   target:
     credentials:
       shootRef:
