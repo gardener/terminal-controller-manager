@@ -6,7 +6,7 @@ REPO_ROOT      := $(shell git rev-parse --show-toplevel)
 VERSION        := $(shell cat "$(REPO_ROOT)/VERSION")
 
 # Docker image repository and tag for terminal-controller-manager
-IMG_MANAGER_REPOSITORY ?= eu.gcr.io/gardener-project/gardener/terminal-controller-manager
+IMG_MANAGER_REPOSITORY ?= europe-docker.pkg.dev/gardener-project/public/gardener/terminal-controller-manager
 IMG_MANAGER_TAG        ?= $(VERSION)-$(shell git rev-parse HEAD)
 
 # Docker image repository and tag for Kube RBAC Proxy tool
