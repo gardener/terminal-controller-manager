@@ -151,9 +151,9 @@ func NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, cred
 		return NewClientSetFromSecretRef(ctx, cs, credentials.SecretRef, scheme)
 	} else if pointer.BoolDeref(honourServiceAccountRef, false) && credentials.ServiceAccountRef != nil {
 		return NewClientSetFromServiceAccountRef(ctx, cs, credentials.ServiceAccountRef, expirationSeconds, scheme)
-	} else {
-		return nil, errors.New("no cluster credentials provided")
 	}
+
+	return nil, errors.New("no cluster credentials provided")
 }
 
 func NewClientSetFromServiceAccountRef(ctx context.Context, cs *ClientSet, ref *corev1.ObjectReference, expirationSeconds *int64, scheme *runtime.Scheme) (*ClientSet, error) {

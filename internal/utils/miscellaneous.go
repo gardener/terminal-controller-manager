@@ -7,9 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package utils
 
 import (
-	"fmt"
 	"hash/fnv"
 	"os"
+	"strconv"
 )
 
 // Set is a map of label:value. It implements Labels.
@@ -23,7 +23,7 @@ func ToFnvHash(value string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprint(fnvHash.Sum64()), nil
+	return strconv.FormatUint(fnvHash.Sum64(), 10), nil
 }
 
 // MergeStringMap combines given maps, and does not check for any conflicts

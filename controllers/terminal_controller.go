@@ -735,9 +735,9 @@ func clusterNameForCredential(cred extensionsv1alpha1.ClusterCredentials) (strin
 		return cred.SecretRef.Name, nil
 	} else if cred.ServiceAccountRef != nil {
 		return cred.ServiceAccountRef.Name, nil
-	} else {
-		return "", errors.New("no cluster credentials provided")
 	}
+
+	return "", errors.New("no cluster credentials provided")
 }
 
 func createOrUpdateKubeconfigSecret(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.Secret, error) {
