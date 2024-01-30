@@ -105,7 +105,7 @@ func (r *TerminalReconciler) decreaseCounterForNamespace(namespace string) {
 
 	c, exists := r.ReconcilerCountPerNamespace[namespace]
 	if !exists {
-		panic("entry expected!")
+		return
 	}
 
 	counter = c - 1
@@ -457,7 +457,7 @@ func deleteBinding(ctx context.Context, targetClientSet *gardenclient.ClientSet,
 	case extensionsv1alpha1.BindingKindRoleBinding:
 		err = targetClientSet.DeleteRoleBinding(ctx, namespace, bindingName)
 	default:
-		panic("unknown BindingKind " + roleBinding.BindingKind) // should not happen; is validated in webhook
+		return fmt.Errorf("unknown BindingKind %s", roleBinding.BindingKind) // should not happen; is validated in webhook
 	}
 
 	if err != nil {
@@ -718,7 +718,7 @@ func createOrUpdateBinding(ctx context.Context, targetClientSet *gardenclient.Cl
 	case extensionsv1alpha1.BindingKindRoleBinding:
 		_, err = targetClientSet.CreateOrUpdateRoleBinding(ctx, namespace, bindingName, subject, roleBinding.RoleRef, labelSet, annotationSet)
 	default:
-		panic("unknown BindingKind " + roleBinding.BindingKind) // should not happen; is validated in webhook
+		return fmt.Errorf("unknown BindingKind %s", roleBinding.BindingKind) // should not happen; is validated in webhook
 	}
 
 	if err != nil {
