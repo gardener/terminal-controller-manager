@@ -29,7 +29,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -149,7 +149,7 @@ func NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, cred
 		return NewClientSetFromShootRef(ctx, cs, credentials.ShootRef, scheme)
 	} else if credentials.SecretRef != nil {
 		return NewClientSetFromSecretRef(ctx, cs, credentials.SecretRef, scheme)
-	} else if pointer.BoolDeref(honourServiceAccountRef, false) && credentials.ServiceAccountRef != nil {
+	} else if ptr.Deref(honourServiceAccountRef, false) && credentials.ServiceAccountRef != nil {
 		return NewClientSetFromServiceAccountRef(ctx, cs, credentials.ServiceAccountRef, expirationSeconds, scheme)
 	}
 

@@ -15,7 +15,7 @@ import (
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
@@ -61,12 +61,12 @@ func (h *TerminalMutator) mutatingTerminalFn(t *v1alpha1.Terminal, admissionReq 
 }
 
 func (h *TerminalMutator) mutateNamespaceIfTemporary(t *v1alpha1.Terminal, terminalIdentifier string) {
-	if pointer.BoolDeref(t.Spec.Host.TemporaryNamespace, false) {
+	if ptr.Deref(t.Spec.Host.TemporaryNamespace, false) {
 		ns := "term-host-" + terminalIdentifier
 		t.Spec.Host.Namespace = &ns
 	}
 
-	if pointer.BoolDeref(t.Spec.Target.TemporaryNamespace, false) {
+	if ptr.Deref(t.Spec.Target.TemporaryNamespace, false) {
 		ns := "term-target-" + terminalIdentifier
 		t.Spec.Target.Namespace = &ns
 	}

@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -86,7 +86,7 @@ func main() {
 			BindAddress:   fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
 			CertDir:       certDir,
 		},
-		LeaderElection:                pointer.BoolDeref(cmConfig.LeaderElection.LeaderElect, true),
+		LeaderElection:                ptr.Deref(cmConfig.LeaderElection.LeaderElect, true),
 		LeaderElectionResourceLock:    cmConfig.LeaderElection.ResourceLock,
 		LeaderElectionID:              cmConfig.LeaderElection.ResourceName,
 		LeaderElectionNamespace:       cmConfig.LeaderElection.ResourceNamespace,
@@ -221,13 +221,13 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 				MaxObjectSize: 10 * 1024,
 			},
 		},
-		HonourServiceAccountRefHostCluster:   pointer.Bool(true),
-		HonourServiceAccountRefTargetCluster: pointer.Bool(true),
-		HonourProjectMemberships:             pointer.Bool(true),
-		HonourCleanupProjectMembership:       pointer.Bool(false),
+		HonourServiceAccountRefHostCluster:   ptr.To(true),
+		HonourServiceAccountRefTargetCluster: ptr.To(true),
+		HonourProjectMemberships:             ptr.To(true),
+		HonourCleanupProjectMembership:       ptr.To(false),
 
 		LeaderElection: &componentbaseconfigv1alpha1.LeaderElectionConfiguration{
-			LeaderElect:       pointer.Bool(true),
+			LeaderElect:       ptr.To(true),
 			LeaseDuration:     metav1.Duration{Duration: 15 * time.Second},
 			RenewDeadline:     metav1.Duration{Duration: 10 * time.Second},
 			RetryPeriod:       metav1.Duration{Duration: 2 * time.Second},

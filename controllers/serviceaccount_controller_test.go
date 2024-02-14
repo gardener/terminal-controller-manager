@@ -20,7 +20,7 @@ import (
 	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
@@ -104,7 +104,7 @@ var _ = Describe("ServiceAccount Controller", func() {
 					Namespace:                  &targetNamespace,
 					TemporaryNamespace:         nil,
 					KubeconfigContextNamespace: "default",
-					CleanupProjectMembership:   pointer.Bool(true),
+					CleanupProjectMembership:   ptr.To(true),
 				},
 			},
 		}

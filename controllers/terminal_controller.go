@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -352,7 +352,7 @@ func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, 
 			return formatError("failed to delete token secret for target cluster", err)
 		}
 
-		if pointer.BoolDeref(t.Spec.Host.TemporaryNamespace, false) {
+		if ptr.Deref(t.Spec.Host.TemporaryNamespace, false) {
 			if err := hostClientSet.DeleteNamespace(ctx, *t.Spec.Host.Namespace); err != nil {
 				return formatError("failed to delete temporary namespace on host cluster", err)
 			}
@@ -390,7 +390,7 @@ func (r *TerminalReconciler) deleteAccessToken(ctx context.Context, targetClient
 			}
 		}
 
-		if pointer.BoolDeref(r.getConfig().HonourProjectMemberships, false) {
+		if ptr.Deref(r.getConfig().HonourProjectMemberships, false) {
 			for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
 				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
 					if err := r.removeServiceAccountFromProjectMember(ctx, targetClientSet, projectMembership, serviceAccount); err != nil {
@@ -413,7 +413,7 @@ func (r *TerminalReconciler) deleteAccessToken(ctx context.Context, targetClient
 		}
 	}
 
-	if pointer.BoolDeref(t.Spec.Target.TemporaryNamespace, false) {
+	if ptr.Deref(t.Spec.Target.TemporaryNamespace, false) {
 		if err := targetClientSet.DeleteNamespace(ctx, *t.Spec.Target.Namespace); err != nil {
 			return err
 		}
@@ -480,8 +480,8 @@ func deleteAttachPodSecret(ctx context.Context, hostClientSet *gardenclient.Clie
 }
 
 func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) *extensionsv1alpha1.LastError {
-	if pointer.BoolDeref(r.getConfig().HonourCleanupProjectMembership, false) {
-		if pointer.BoolDeref(t.Spec.Target.CleanupProjectMembership, false) &&
+	if ptr.Deref(r.getConfig().HonourCleanupProjectMembership, false) {
+		if ptr.Deref(t.Spec.Target.CleanupProjectMembership, false) &&
 			t.Spec.Target.Credentials.ServiceAccountRef != nil && utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, t.Spec.Target.Credentials.ServiceAccountRef.Name) {
 			if err := ensureServiceAccountMembershipCleanup(ctx, targetClientSet, *t.Spec.Target.Credentials.ServiceAccountRef); err != nil {
 				return formatError("failed to add referenced label to target Service Account referenced in Terminal: %w", err)
@@ -533,7 +533,7 @@ func ensureServiceAccountMembershipCleanup(ctx context.Context, clientSet *garde
 }
 
 func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) error {
-	if pointer.BoolDeref(t.Spec.Host.TemporaryNamespace, false) {
+	if ptr.Deref(t.Spec.Host.TemporaryNamespace, false) {
 		if _, err := hostClientSet.CreateOrUpdateNamespace(ctx, *t.Spec.Host.Namespace, labelSet, annotationSet); err != nil {
 			return err
 		}
@@ -641,7 +641,7 @@ func (r *TerminalReconciler) createOrUpdateAdminKubeconfigAndTokenSecrets(ctx co
 }
 
 func (r *TerminalReconciler) createOrUpdateAccessServiceAccountAndRequestToken(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (string, error) {
-	if pointer.BoolDeref(t.Spec.Target.TemporaryNamespace, false) {
+	if ptr.Deref(t.Spec.Target.TemporaryNamespace, false) {
 		if _, err := targetClientSet.CreateOrUpdateNamespace(ctx, *t.Spec.Target.Namespace, labelSet, annotationSet); err != nil {
 			return "", err
 		}
@@ -680,7 +680,7 @@ func (r *TerminalReconciler) createOrUpdateAccessServiceAccountAndRequestToken(c
 			}
 		}
 
-		if pointer.BoolDeref(r.getConfig().HonourProjectMemberships, false) {
+		if ptr.Deref(r.getConfig().HonourProjectMemberships, false) {
 			for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
 				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
 					project := &gardencorev1beta1.Project{}

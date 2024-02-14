@@ -16,7 +16,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
@@ -351,7 +351,7 @@ var _ = Describe("Validating Webhook", func() {
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Target.TemporaryNamespace = pointer.Bool(true)
+					terminal.Spec.Target.TemporaryNamespace = ptr.To(true)
 					err := e.K8sClient.Update(ctx, terminal)
 
 					Expect(err).To(HaveOccurred())
@@ -368,7 +368,7 @@ var _ = Describe("Validating Webhook", func() {
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Host.TemporaryNamespace = pointer.Bool(true)
+					terminal.Spec.Host.TemporaryNamespace = ptr.To(true)
 					err := e.K8sClient.Update(ctx, terminal)
 
 					Expect(err).To(HaveOccurred())
@@ -485,7 +485,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("project membership project name", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = pointer.Bool(true)
+						cmConfig.HonourProjectMemberships = ptr.To(true)
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
@@ -500,7 +500,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("project membership no roles", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = pointer.Bool(true)
+						cmConfig.HonourProjectMemberships = ptr.To(true)
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
@@ -515,7 +515,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("project membership empty role name", func() {
 					BeforeEach(func() {
-						cmConfig.HonourProjectMemberships = pointer.Bool(true)
+						cmConfig.HonourProjectMemberships = ptr.To(true)
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
