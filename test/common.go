@@ -27,7 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -91,7 +91,7 @@ func New(mutator admission.Handler, validator admission.Handler) Environment {
 					{
 						Name:           "test-mutating-create-update-terminal.gardener.cloud",
 						FailurePolicy:  &failPolicy,
-						TimeoutSeconds: pointer.Int32(10),
+						TimeoutSeconds: ptr.To[int32](10),
 						ClientConfig: admissionregistrationv1.WebhookClientConfig{
 							Service: &admissionregistrationv1.ServiceReference{
 								Path: &terminalMutatingWebhookPath,
@@ -121,7 +121,7 @@ func New(mutator admission.Handler, validator admission.Handler) Environment {
 					{
 						Name:           "test-validating-create-update-terminal.gardener.cloud",
 						FailurePolicy:  &failPolicy,
-						TimeoutSeconds: pointer.Int32(10),
+						TimeoutSeconds: ptr.To[int32](10),
 						ClientConfig: admissionregistrationv1.WebhookClientConfig{
 							Service: &admissionregistrationv1.ServiceReference{
 								Path: &terminalValidatingWebhookPath,
@@ -323,9 +323,9 @@ func DefaultConfiguration() *dashboardv1alpha1.ControllerManagerConfiguration {
 				MaxObjectSize: 10 * 1024,
 			},
 		},
-		HonourServiceAccountRefHostCluster:   pointer.Bool(true),
-		HonourServiceAccountRefTargetCluster: pointer.Bool(true),
-		HonourProjectMemberships:             pointer.Bool(true),
-		HonourCleanupProjectMembership:       pointer.Bool(true),
+		HonourServiceAccountRefHostCluster:   ptr.To(true),
+		HonourServiceAccountRefTargetCluster: ptr.To(true),
+		HonourProjectMemberships:             ptr.To(true),
+		HonourCleanupProjectMembership:       ptr.To(true),
 	}
 }

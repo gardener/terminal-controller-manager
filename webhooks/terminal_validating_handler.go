@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -124,8 +124,8 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, field.Forbidden(field.NewPath("spec", "host", "credentials"), fmt.Sprintf("%s is not allowed to read host credential", userInfo.Username)).Error(), nil
 	}
 
-	if pointer.BoolDeref(t.Spec.Target.CleanupProjectMembership, false) {
-		if !pointer.BoolDeref(h.getConfig().HonourCleanupProjectMembership, false) {
+	if ptr.Deref(t.Spec.Target.CleanupProjectMembership, false) {
+		if !ptr.Deref(h.getConfig().HonourCleanupProjectMembership, false) {
 			return false, field.Forbidden(field.NewPath("spec", "target", "cleanupProjectMembership"), "field is forbidden by configuration").Error(), nil
 		}
 
@@ -245,7 +245,7 @@ func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) er
 }
 
 func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef *bool) error {
-	if !pointer.BoolDeref(honourServiceAccountRef, false) {
+	if !ptr.Deref(honourServiceAccountRef, false) {
 		if cred.ServiceAccountRef != nil {
 			return field.Forbidden(fldPath.Child("serviceAccountRef"), "field is forbidden by configuration")
 		}
@@ -368,7 +368,7 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 	fldPath = fldPath.Child("projectMemberships")
 
 	for index, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
-		if !pointer.BoolDeref(h.getConfig().HonourProjectMemberships, false) {
+		if !ptr.Deref(h.getConfig().HonourProjectMemberships, false) {
 			return field.Forbidden(fldPath, "field is forbidden by configuration")
 		}
 

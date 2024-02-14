@@ -14,7 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -55,7 +55,7 @@ func (r *ServiceAccountReconciler) SetupWithManager(mgr ctrl.Manager, config ext
 					return []reconcile.Request{}
 				}
 
-				if !pointer.BoolDeref(terminal.Spec.Target.CleanupProjectMembership, false) || terminal.Spec.Target.Credentials.ServiceAccountRef == nil {
+				if !ptr.Deref(terminal.Spec.Target.CleanupProjectMembership, false) || terminal.Spec.Target.Credentials.ServiceAccountRef == nil {
 					// cleanup project membership not set or no service account referenced - nothing to do
 					return []reconcile.Request{}
 				}
@@ -209,7 +209,7 @@ func (r *ServiceAccountReconciler) terminalPredicate() predicate.Funcs {
 				return false
 			}
 
-			if !pointer.BoolDeref(terminal.Spec.Target.CleanupProjectMembership, false) || terminal.Spec.Target.Credentials.ServiceAccountRef == nil {
+			if !ptr.Deref(terminal.Spec.Target.CleanupProjectMembership, false) || terminal.Spec.Target.Credentials.ServiceAccountRef == nil {
 				// cleanup project membership not set or no service account referenced - terminal resource is not relevant for this controller
 				return false
 			}
@@ -286,7 +286,7 @@ func (r *ServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	projectNamespace := req.Namespace
 
-	if pointer.BoolDeref(r.getConfig().HonourCleanupProjectMembership, false) {
+	if ptr.Deref(r.getConfig().HonourCleanupProjectMembership, false) {
 		logger.Info("Removing ServiceAccount from project member list")
 
 		if err := r.removeServiceAccountFromProjectMember(ctx, req.NamespacedName, projectNamespace); err != nil {
