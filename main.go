@@ -31,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -84,9 +85,10 @@ func main() {
 		Scheme:                 scheme,
 		HealthProbeBindAddress: fmt.Sprintf("%s:%d", cmConfig.Server.HealthProbes.BindAddress, cmConfig.Server.HealthProbes.Port),
 		Metrics: metricsserver.Options{
-			SecureServing: true,
-			BindAddress:   fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
-			CertDir:       metricsServerCertDir,
+			SecureServing:  true,
+			BindAddress:    fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
+			CertDir:        metricsServerCertDir,
+			FilterProvider: filters.WithAuthenticationAndAuthorization,
 		},
 		LeaderElection:                ptr.Deref(cmConfig.LeaderElection.LeaderElect, true),
 		LeaderElectionResourceLock:    cmConfig.LeaderElection.ResourceLock,

@@ -12,7 +12,7 @@ metadata:
 spec:
   ports:
   - name: https
-    port: {{ required ".Values.global.controller.kubeRBACProxy.config.server.proxy.port is required" .Values.global.controller.kubeRBACProxy.config.server.proxy.port }}
+    port: {{ required ".Values.global.controller.manager.config.server.metrics.port is required" .Values.global.controller.manager.config.server.metrics.port }}
     protocol: TCP
     targetPort: https
   selector:

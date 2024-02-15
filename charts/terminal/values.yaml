@@ -56,8 +56,8 @@ global:
             bindAddress: ""
             port: 8081
           metrics:
-            bindAddress: 127.0.0.1
-            port: 8080
+            bindAddress: ""
+            port: 8443
             tlsSecretName: # must contain 'tls.crt', 'tls.key' keys
             tls:
               crt: |

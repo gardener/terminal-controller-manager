@@ -67,6 +67,9 @@ spec:
         - containerPort: 9443
           name: webhook
           protocol: TCP
+        - containerPort: {{ required ".Values.global.controller.manager.config.server.metrics.port is required" .Values.global.controller.manager.config.server.metrics.port }}
+          name: https
+          protocol: TCP
         env:
         {{- if .Values.global.controller.manager.kubeconfig }}
         - name: KUBECONFIG
