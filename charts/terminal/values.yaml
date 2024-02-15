@@ -58,6 +58,16 @@ global:
           metrics:
             bindAddress: 127.0.0.1
             port: 8080
+            tlsSecretName: # must contain 'tls.crt', 'tls.key' keys
+            tls:
+              crt: |
+                -----BEGIN CERTIFICATE-----
+                ...
+                -----END CERTIFICATE-----
+              key: |
+                -----BEGIN RSA PRIVATE KEY-----
+                ...
+                -----END RSA PRIVATE KEY-----
         honourServiceAccountRefHostCluster: false # recommended to be disabled for virtual-garden setup
       resources:
         requests:

@@ -58,10 +58,12 @@ func init() {
 func main() {
 	var (
 		webhookServerCertDir string
+		metricsServerCertDir string
 		configFile           string
 	)
 
 	flag.StringVar(&webhookServerCertDir, "webhook-server-cert-dir", "/tmp/k8s-webhook-server/serving-certs", "Directory that contains the server key and certificate of the admission webhook. If certificate or key doesn't exist a self-signed certificate will be used.")
+	flag.StringVar(&metricsServerCertDir, "metrics-server-cert-dir", "/tmp/k8s-metrics-server/serving-certs", "Directory that contains the server key and certificate of the metrics server. If certificate or key doesn't exist a self-signed certificate will be used.")
 	flag.StringVar(&configFile, "config-file", "/etc/terminal-controller-manager/config.yaml", "The path to the configuration file.")
 
 	opts := zap.Options{
@@ -84,7 +86,7 @@ func main() {
 		Metrics: metricsserver.Options{
 			SecureServing: true,
 			BindAddress:   fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
-			CertDir:       certDir,
+			CertDir:       metricsServerCertDir,
 		},
 		LeaderElection:                ptr.Deref(cmConfig.LeaderElection.LeaderElect, true),
 		LeaderElectionResourceLock:    cmConfig.LeaderElection.ResourceLock,

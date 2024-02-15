@@ -18,9 +18,10 @@ VIRTUAL_GARDEN_ENABLED = false
 CHART_PATH             = "charts/terminal"
 
 # TLS output directory and certificate/key file names
-TLS_OUTPUT_PATH    ?= "tmp/tls"
-CA_NAME            ?= "ca"
-CERT_NAME          ?= "terminal-admission-controller-tls"
+TLS_OUTPUT_PATH    				?= "tmp/tls"
+CA_NAME            				?= "ca"
+ADMISSION_WEBHOOK_CERT_NAME     ?= "terminal-admission-controller-tls"
+METRICS_SERVER_CERT_NAME 	    ?= "terminal-metrics-server-tls"
 
 # Kind cluster variables
 KIND_CLUSTER_NAME ?= "gardener-local"
@@ -138,8 +139,9 @@ ensure-namespace: # Creates the namespace if not existing and applies requied he
 		"app.kubernetes.io/managed-by=Helm"
 
 .PHONY: gen-certs
-gen-certs: cfssl ## Generates CA certificate and server certificate for the admission controller
-	./hack/gen-certs.sh
+gen-certs: cfssl ## Generates CA certificate and server certificate for the admission controller and metrics server
+	./hack/gen-certs.sh --cert-name $(ADMISSION_WEBHOOK_CERT_NAME)
+	./hack/gen-certs.sh --cert-name $(METRICS_SERVER_CERT_NAME)
 
 .PHONY: install
 install: helm gen-certs ## Deploys the terminal controller manager chart in the Garden cluster
@@ -155,9 +157,11 @@ install: helm gen-certs ## Deploys the terminal controller manager chart in the 
 	  --set global.deployment.virtualGarden.createNamespace=$(CREATE_NAMESPACE) \
 	  --set global.controller.manager.image.repository=$(IMG_MANAGER_REPOSITORY) \
 	  --set global.controller.manager.image.tag=$(IMG_MANAGER_TAG) \
+	  --set-file global.controller.manager.config.server.metrics.tls.key=$(TLS_OUTPUT_PATH)/$(ADMISSION_WEBHOOK_CERT_NAME)-key.pem \
+      --set-file global.controller.manager.config.server.metrics.tls.crt=$(TLS_OUTPUT_PATH)/$(ADMISSION_WEBHOOK_CERT_NAME).pem \
 	  --set-file global.admission.config.server.webhooks.caBundle=$(TLS_OUTPUT_PATH)/$(CA_NAME).pem \
-	  --set-file global.admission.config.server.webhooks.tls.key=$(TLS_OUTPUT_PATH)/$(CERT_NAME)-key.pem \
-	  --set-file global.admission.config.server.webhooks.tls.crt=$(TLS_OUTPUT_PATH)/$(CERT_NAME).pem \
+	  --set-file global.admission.config.server.webhooks.tls.key=$(TLS_OUTPUT_PATH)/$(ADMISSION_WEBHOOK_CERT_NAME)-key.pem \
+	  --set-file global.admission.config.server.webhooks.tls.crt=$(TLS_OUTPUT_PATH)/$(ADMISSION_WEBHOOK_CERT_NAME).pem \
 	  $(CHART_NAME) \
 	  $(CHART_PATH) 2> >(grep -v 'found symbolic link' >&2)
 

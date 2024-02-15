@@ -122,6 +122,9 @@ spec:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: terminal-admission-controller-cert
           readOnly: true
+        - mountPath: /tmp/k8s-metrics-server/serving-certs
+          name: terminal-metrics-server-cert
+          readOnly: true
         - mountPath: /etc/terminal-controller-manager
           name: terminal-controller-manager-config
       securityContext:
@@ -170,6 +173,15 @@ spec:
       - name: terminal-admission-controller-cert
         secret:
           secretName: terminal-admission-controller-cert
+      {{- end }}
+      {{- if .Values.global.controller.manager.config.server.metrics.tlsSecretName }}
+      - name: terminal-metrics-server-cert
+        secret:
+          secretName: {{ .Values.global.controller.manager.config.server.metrics.tlsSecretName }}
+      {{- else }}
+      - name: terminal-metrics-server-cert
+        secret:
+          secretName: terminal-metrics-server-cert
       {{- end }}
       - name: terminal-controller-manager-config
         configMap:
