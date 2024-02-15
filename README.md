@@ -61,7 +61,7 @@ make gardener-up
 Set the `KUBECONFIG` environment variable for the local garden cluster:
 
 ```bash
-export KUBECONFIG=$(readlink -f ./example/gardener-local/kind/local/kubeconfig)
+export KUBECONFIG=$PWD/example/gardener-local/kind/local/kubeconfig
 ```
 
 ### Deploy Terminal Controller Manager locally
