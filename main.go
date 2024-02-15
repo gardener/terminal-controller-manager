@@ -57,11 +57,11 @@ func init() {
 
 func main() {
 	var (
-		certDir    string
-		configFile string
+		webhookServerCertDir string
+		configFile           string
 	)
 
-	flag.StringVar(&certDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "CertDir is the directory that contains the server key and certificate.")
+	flag.StringVar(&webhookServerCertDir, "webhook-server-cert-dir", "/tmp/k8s-webhook-server/serving-certs", "Directory that contains the server key and certificate of the admission webhook. If certificate or key doesn't exist a self-signed certificate will be used.")
 	flag.StringVar(&configFile, "config-file", "/etc/terminal-controller-manager/config.yaml", "The path to the configuration file.")
 
 	opts := zap.Options{
@@ -94,6 +94,10 @@ func main() {
 		LeaseDuration:                 &cmConfig.LeaderElection.LeaseDuration.Duration,
 		RenewDeadline:                 &cmConfig.LeaderElection.RenewDeadline.Duration,
 		RetryPeriod:                   &cmConfig.LeaderElection.RetryPeriod.Duration,
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port:    9443,
+			CertDir: webhookServerCertDir,
+		}),
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
