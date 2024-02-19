@@ -5,7 +5,7 @@
     ],
     "key": {
         "algo": "rsa",
-        "size": 2048
+        "size": 3072
     },
     "names": []
 }
