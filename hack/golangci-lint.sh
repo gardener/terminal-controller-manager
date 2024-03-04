@@ -14,7 +14,9 @@ if [ -z "$SOURCE_PATH" ]; then
 fi
 export SOURCE_PATH="$(readlink -f "$SOURCE_PATH")"
 
-GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-v1.55.2}
+# renovate: datasource=github-releases depName=golangci/golangci-lint
+GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-v1.56.2}
+
 GOLANGCI_LINT_ADDITIONAL_FLAGS=${GOLANGCI_LINT_ADDITIONAL_FLAGS:-""}
 
 # Install golangci-lint (linting tool)
@@ -22,5 +24,5 @@ curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/insta
 
 echo "> Running golangci-lint for $SOURCE_PATH"
 pushd "$SOURCE_PATH" > /dev/null
-$(go env GOPATH)/bin/golangci-lint -v run ./... ${GOLANGCI_LINT_ADDITIONAL_FLAGS}
+"$(go env GOPATH)"/bin/golangci-lint -v run ./... ${GOLANGCI_LINT_ADDITIONAL_FLAGS}
 popd > /dev/null
