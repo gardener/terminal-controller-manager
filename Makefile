@@ -47,6 +47,13 @@ SHELL = /usr/bin/env bash -o pipefail
 .PHONY: all
 all: build
 
+#########################################
+# Tools                                 #
+#########################################
+
+TOOLS_DIR := hack/tools
+include hack/tools.mk
+
 ##@ General
 
 # The help target prints out all targets with their descriptions organized
@@ -67,11 +74,11 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen ## Generate ClusterRole object.
+manifests: $(CONTROLLER_GEN) ## Generate ClusterRole object.
 	$(CONTROLLER_GEN) crd paths="./controllers/..." paths="./api/..." output:crd:dir=charts/terminal/charts/application/crd-gen
 
 .PHONY: generate
-generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: $(CONTROLLER_GEN) ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./controllers/..." paths="./api/..."
 
 .PHONY: fmt
@@ -196,17 +203,8 @@ $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
 ## Tool Binaries
-CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 HELM ?= $(LOCALBIN)/helm
-
-## Tool Versions
-CONTROLLER_TOOLS_VERSION ?= v0.11.2
-
-.PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
-$(CONTROLLER_GEN): $(LOCALBIN)
-	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
