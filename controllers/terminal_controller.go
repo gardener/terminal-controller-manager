@@ -89,7 +89,7 @@ func (r *TerminalReconciler) increaseCounterForNamespace(namespace string) error
 	}
 
 	if counter > r.getConfig().Controllers.Terminal.MaxConcurrentReconcilesPerNamespace {
-		return fmt.Errorf("max count reached")
+		return errors.New("max count reached")
 	}
 
 	r.ReconcilerCountPerNamespace[namespace] = counter
@@ -946,11 +946,13 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 					Value: "/mnt/.kube/config",
 				},
 			}
+
 			if t.Spec.Host.Pod.Container != nil {
 				container.Command = t.Spec.Host.Pod.Container.Command
 				container.Args = t.Spec.Host.Pod.Container.Args
 				container.Resources = t.Spec.Host.Pod.Container.Resources
 			}
+
 			if mountHostRootFs {
 				rootVolumeName := "root-volume"
 				container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
@@ -1022,15 +1024,20 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 			}...)
 		}
 		// update values that can be updated
-		var containerFound bool
-		var containerIndex int
+		var (
+			containerFound bool
+			containerIndex int
+		)
+
 		for k, v := range pod.Spec.Containers {
 			if v.Name == containerName {
 				containerIndex = k
 				containerFound = true
+
 				break
 			}
 		}
+
 		if !containerFound {
 			return errors.New("terminal container not found")
 		}
@@ -1038,9 +1045,11 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		pod.Spec.Containers[containerIndex].Image = image
 		pod.Spec.Containers[containerIndex].Stdin = true
 		pod.Spec.Containers[containerIndex].TTY = true
+
 		if pod.Spec.Containers[containerIndex].SecurityContext == nil {
 			pod.Spec.Containers[containerIndex].SecurityContext = &corev1.SecurityContext{}
 		}
+
 		pod.Spec.Containers[containerIndex].SecurityContext.Privileged = &privileged
 
 		pod.Spec.NodeSelector = t.Spec.Host.Pod.NodeSelector

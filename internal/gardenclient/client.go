@@ -434,6 +434,7 @@ func (s *ClientSet) CreateOrUpdateRole(ctx context.Context, namespace string, na
 		role.Annotations = utils.MergeStringMap(role.Annotations, *annotationSet)
 
 		role.Rules = rules
+
 		return nil
 	})
 }
@@ -444,6 +445,7 @@ func (s *ClientSet) CreateOrUpdateNamespace(ctx context.Context, namespaceName s
 	return ns, CreateOrUpdateDiscardResult(ctx, s, ns, func() error {
 		ns.Labels = labels.Merge(ns.Labels, *labelSet)
 		ns.Annotations = utils.MergeStringMap(ns.Annotations, *annotationSet)
+
 		return nil
 	})
 }
@@ -454,6 +456,7 @@ func (s *ClientSet) CreateOrUpdateServiceAccount(ctx context.Context, namespace 
 	return serviceAccount, CreateOrUpdateDiscardResult(ctx, s, serviceAccount, func() error {
 		serviceAccount.Labels = labels.Merge(serviceAccount.Labels, *labelSet)
 		serviceAccount.Annotations = utils.MergeStringMap(serviceAccount.Annotations, *annotationSet)
+
 		return nil
 	})
 }

@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package controllers
 
 import (
-	"fmt"
 	"time"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
@@ -58,10 +57,10 @@ var _ = Describe("ServiceAccount Controller", func() {
 		terminalHeartbeatReconciler.injectConfig(cmConfig)
 
 		suffix = test.StringWithCharset(randomLength, charset)
-		terminalNamespace = fmt.Sprintf("garden-term-%s", suffix)
-		hostNamespace = fmt.Sprintf("test-host-serviceaccount-namespace-%s", suffix)
+		terminalNamespace = "garden-term-" + suffix
+		hostNamespace = "test-host-serviceaccount-namespace-" + suffix
 		targetNamespace = terminalNamespace // target namespace must be the namespace of the terminal for CleanupProjectMembership
-		terminalName = fmt.Sprintf("test-terminal-%s", suffix)
+		terminalName = "test-terminal-" + suffix
 
 		terminalKey = types.NamespacedName{Name: terminalName, Namespace: terminalNamespace}
 		hostServiceAccountKey = types.NamespacedName{Name: HostServiceAccountName, Namespace: hostNamespace}

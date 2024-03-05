@@ -45,7 +45,7 @@ func (r *ServiceAccountReconciler) SetupWithManager(mgr ctrl.Manager, config ext
 		For(&corev1.ServiceAccount{}, builder.WithPredicates(r.serviceAccountPredicate())).
 		Watches(
 			&extensionsv1alpha1.Terminal{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			handler.EnqueueRequestsFromMapFunc(func(_ context.Context, obj client.Object) []reconcile.Request {
 				// request reconciliation for service accounts that are referenced in deleted terminals and for which CleanupProjectMembership was set to true.
 				logger := r.Log.WithValues("terminal", client.ObjectKeyFromObject(obj))
 
