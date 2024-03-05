@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package controllers
 
 import (
-	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -52,10 +51,10 @@ var _ = Describe("Terminal Heartbeat Controller", func() {
 		terminalHeartbeatReconciler.injectConfig(cmConfig)
 
 		suffix = test.StringWithCharset(randomLength, charset)
-		terminalNamespace = fmt.Sprintf("test-terminal-namespace-%s", suffix)
-		hostNamespace = fmt.Sprintf("test-host-serviceaccount-namespace-%s", suffix)
-		targetNamespace = fmt.Sprintf("test-target-serviceaccount-namespace-%s", suffix)
-		terminalName = fmt.Sprintf("test-terminal-%s", suffix)
+		terminalNamespace = "test-terminal-namespace-" + suffix
+		hostNamespace = "test-host-serviceaccount-namespace-" + suffix
+		targetNamespace = "test-target-serviceaccount-namespace-" + suffix
+		terminalName = "test-terminal-" + suffix
 
 		terminalKey = types.NamespacedName{Name: terminalName, Namespace: terminalNamespace}
 		hostServiceAccountKey = types.NamespacedName{Name: HostServiceAccountName, Namespace: hostNamespace}
