@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/gardener/gardener/pkg/client/kubernetes"
-	gardenenvtest "github.com/gardener/gardener/pkg/envtest"
+	gardenenvtest "github.com/gardener/gardener/test/envtest"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
