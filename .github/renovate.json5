@@ -52,18 +52,9 @@
       enabled: false
     },
     {
-      // separate patch updates (keep in sync with the next package rule)
-      matchPackagePrefixes: [
-        "github.com/gardener/gardener",
-        "github.com/go-logr/logr",
-        "github.com/onsi/ginkgo/v2",
-        "github.com/onsi/gomega",
-        "golang.org/x/oauth2"
-      ],
-      separateMinorPatch: true
-    },
-    {
-      // automerge patch updates, except k8s dependencies dicated by gardener/gardener (keep in sync with the previous package rule)
+      // Group golang dependencies in one PR, separate by major, minor and patch
+      groupName: "dependencies",
+      matchDatasources: ["go"],
       matchPackageNames: [
         "github.com/gardener/gardener",
         "github.com/go-logr/logr",
@@ -71,20 +62,13 @@
         "github.com/onsi/gomega",
         "golang.org/x/oauth2"
       ],
-      matchUpdateTypes: ["patch", "digest"],
-      automerge: true
+      separateMajorMinor: true,
+      separateMinorPatch: true
     },
     {
-      // Group github-actions minor updates in one PR
-      matchManagers: ["github-actions"],
-      matchUpdateTypes: ["minor"],
-      groupName: "github-actions"
-    },
-    {
-      // Automerge github-actions patch updates
-      matchManagers: ["github-actions"],
-      matchUpdateTypes: ["patch", "digest"],
-      automerge: true
+      // Group github-actions in one PR.
+      groupName: "github-actions",
+      matchManagers: ["github-actions"]
     }
   ]
 }
