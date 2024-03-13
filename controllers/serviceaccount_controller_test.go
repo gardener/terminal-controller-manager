@@ -10,7 +10,7 @@ import (
 	"time"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
-	"github.com/gardener/gardener/pkg/component/projectrbac"
+	"github.com/gardener/gardener/pkg/component/garden/projectrbac"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
