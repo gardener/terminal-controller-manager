@@ -8,20 +8,20 @@ global:
       server:
         webhooks:
           # port: 9443 # not yet exposed
-          caBundle: |
-            -----BEGIN CERTIFICATE-----
-            ...
-            -----END CERTIFICATE-----
+          # caBundle: |
+          #   -----BEGIN CERTIFICATE-----
+          #   ...
+          #   -----END CERTIFICATE-----
           tlsSecretName: # must contain 'tls.crt', 'tls.key' keys
-          tls:
-            crt: |
-              -----BEGIN CERTIFICATE-----
-              ...
-              -----END CERTIFICATE-----
-            key: |
-              -----BEGIN RSA PRIVATE KEY-----
-              ...
-              -----END RSA PRIVATE KEY-----
+          # tls:
+          #   crt: |
+          #     -----BEGIN CERTIFICATE-----
+          #     ...
+          #     -----END CERTIFICATE-----
+          #   key: |
+          #     -----BEGIN RSA PRIVATE KEY-----
+          #     ...
+          #     -----END RSA PRIVATE KEY-----
 
   # terminal-controller-manager configuration values
   controller:
@@ -59,15 +59,15 @@ global:
             bindAddress: ""
             port: 8443
             tlsSecretName: # must contain 'tls.crt', 'tls.key' keys
-            tls:
-              crt: |
-                -----BEGIN CERTIFICATE-----
-                ...
-                -----END CERTIFICATE-----
-              key: |
-                -----BEGIN RSA PRIVATE KEY-----
-                ...
-                -----END RSA PRIVATE KEY-----
+            # tls:
+            #   crt: |
+            #     -----BEGIN CERTIFICATE-----
+            #     ...
+            #     -----END CERTIFICATE-----
+            #   key: |
+            #     -----BEGIN RSA PRIVATE KEY-----
+            #     ...
+            #     -----END RSA PRIVATE KEY-----
         honourServiceAccountRefHostCluster: false # recommended to be disabled for virtual-garden setup
       resources:
         requests:
