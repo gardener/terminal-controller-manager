@@ -9,10 +9,6 @@ VERSION        := $(shell cat "$(REPO_ROOT)/VERSION")
 IMG_MANAGER_REPOSITORY ?= europe-docker.pkg.dev/gardener-project/public/gardener/terminal-controller-manager
 IMG_MANAGER_TAG        ?= $(VERSION)-$(shell git rev-parse HEAD)
 
-# Docker image repository and tag for Kube RBAC Proxy tool
-IMG_RBAC_PROXY_REPOSITORY ?= quay.io/brancz/kube-rbac-proxy
-IMG_RBAC_PROXY_TAG        ?= v0.15.0
-
 # Chart variables
 CREATE_NAMESPACE ?= true
 NAMESPACE        ?= terminal-system
@@ -22,9 +18,10 @@ VIRTUAL_GARDEN_ENABLED = false
 CHART_PATH             = "charts/terminal"
 
 # TLS output directory and certificate/key file names
-TLS_OUTPUT_PATH    ?= "tmp/tls"
-CA_NAME            ?= "ca"
-CERT_NAME          ?= "terminal-admission-controller-tls"
+TLS_OUTPUT_PATH    				?= "tmp/tls"
+CA_NAME            				?= "ca"
+ADMISSION_WEBHOOK_CERT_NAME     ?= "terminal-admission-controller-tls"
+METRICS_SERVER_CERT_NAME 	    ?= "terminal-metrics-server-tls"
 
 # Kind cluster variables
 KIND_CLUSTER_NAME ?= "gardener-local"
@@ -142,8 +139,9 @@ ensure-namespace: # Creates the namespace if not existing and applies requied he
 		"app.kubernetes.io/managed-by=Helm"
 
 .PHONY: gen-certs
-gen-certs: cfssl ## Generates CA certificate and server certificate for the admission controller
-	./hack/gen-certs.sh
+gen-certs: cfssl ## Generates CA certificate and server certificate for the admission controller and metrics server
+	./hack/gen-certs.sh --cert-name $(ADMISSION_WEBHOOK_CERT_NAME)
+	./hack/gen-certs.sh --cert-name $(METRICS_SERVER_CERT_NAME)
 
 .PHONY: install
 install: helm gen-certs ## Deploys the terminal controller manager chart in the Garden cluster
@@ -159,11 +157,11 @@ install: helm gen-certs ## Deploys the terminal controller manager chart in the 
 	  --set global.deployment.virtualGarden.createNamespace=$(CREATE_NAMESPACE) \
 	  --set global.controller.manager.image.repository=$(IMG_MANAGER_REPOSITORY) \
 	  --set global.controller.manager.image.tag=$(IMG_MANAGER_TAG) \
-	  --set global.controller.kubeRBACProxy.image.repository=$(IMG_RBAC_PROXY_REPOSITORY) \
-	  --set global.controller.kubeRBACProxy.image.tag=$(IMG_RBAC_PROXY_TAG) \
+	  --set-file global.controller.manager.config.server.metrics.tls.key=$(TLS_OUTPUT_PATH)/$(ADMISSION_WEBHOOK_CERT_NAME)-key.pem \
+      --set-file global.controller.manager.config.server.metrics.tls.crt=$(TLS_OUTPUT_PATH)/$(ADMISSION_WEBHOOK_CERT_NAME).pem \
 	  --set-file global.admission.config.server.webhooks.caBundle=$(TLS_OUTPUT_PATH)/$(CA_NAME).pem \
-	  --set-file global.admission.config.server.webhooks.tls.key=$(TLS_OUTPUT_PATH)/$(CERT_NAME)-key.pem \
-	  --set-file global.admission.config.server.webhooks.tls.crt=$(TLS_OUTPUT_PATH)/$(CERT_NAME).pem \
+	  --set-file global.admission.config.server.webhooks.tls.key=$(TLS_OUTPUT_PATH)/$(ADMISSION_WEBHOOK_CERT_NAME)-key.pem \
+	  --set-file global.admission.config.server.webhooks.tls.crt=$(TLS_OUTPUT_PATH)/$(ADMISSION_WEBHOOK_CERT_NAME).pem \
 	  $(CHART_NAME) \
 	  $(CHART_PATH) 2> >(grep -v 'found symbolic link' >&2)
 

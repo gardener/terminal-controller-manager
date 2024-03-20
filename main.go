@@ -31,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -57,11 +58,13 @@ func init() {
 
 func main() {
 	var (
-		certDir    string
-		configFile string
+		webhookServerCertDir string
+		metricsServerCertDir string
+		configFile           string
 	)
 
-	flag.StringVar(&certDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "CertDir is the directory that contains the server key and certificate.")
+	flag.StringVar(&webhookServerCertDir, "webhook-server-cert-dir", "/tmp/k8s-webhook-server/serving-certs", "Directory that contains the server key and certificate of the admission webhook. If certificate or key doesn't exist a self-signed certificate will be used.")
+	flag.StringVar(&metricsServerCertDir, "metrics-server-cert-dir", "/tmp/k8s-metrics-server/serving-certs", "Directory that contains the server key and certificate of the metrics server. If certificate or key doesn't exist a self-signed certificate will be used.")
 	flag.StringVar(&configFile, "config-file", "/etc/terminal-controller-manager/config.yaml", "The path to the configuration file.")
 
 	opts := zap.Options{
@@ -82,9 +85,10 @@ func main() {
 		Scheme:                 scheme,
 		HealthProbeBindAddress: fmt.Sprintf("%s:%d", cmConfig.Server.HealthProbes.BindAddress, cmConfig.Server.HealthProbes.Port),
 		Metrics: metricsserver.Options{
-			SecureServing: true,
-			BindAddress:   fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
-			CertDir:       certDir,
+			SecureServing:  true,
+			BindAddress:    fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
+			CertDir:        metricsServerCertDir,
+			FilterProvider: filters.WithAuthenticationAndAuthorization,
 		},
 		LeaderElection:                ptr.Deref(cmConfig.LeaderElection.LeaderElect, true),
 		LeaderElectionResourceLock:    cmConfig.LeaderElection.ResourceLock,
@@ -94,6 +98,10 @@ func main() {
 		LeaseDuration:                 &cmConfig.LeaderElection.LeaseDuration.Duration,
 		RenewDeadline:                 &cmConfig.LeaderElection.RenewDeadline.Duration,
 		RetryPeriod:                   &cmConfig.LeaderElection.RetryPeriod.Duration,
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Port:    9443,
+			CertDir: webhookServerCertDir,
+		}),
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

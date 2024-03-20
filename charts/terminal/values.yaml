@@ -8,20 +8,20 @@ global:
       server:
         webhooks:
           # port: 9443 # not yet exposed
-          caBundle: |
-            -----BEGIN CERTIFICATE-----
-            ...
-            -----END CERTIFICATE-----
+          # caBundle: |
+          #   -----BEGIN CERTIFICATE-----
+          #   ...
+          #   -----END CERTIFICATE-----
           tlsSecretName: # must contain 'tls.crt', 'tls.key' keys
-          tls:
-            crt: |
-              -----BEGIN CERTIFICATE-----
-              ...
-              -----END CERTIFICATE-----
-            key: |
-              -----BEGIN RSA PRIVATE KEY-----
-              ...
-              -----END RSA PRIVATE KEY-----
+          # tls:
+          #   crt: |
+          #     -----BEGIN CERTIFICATE-----
+          #     ...
+          #     -----END CERTIFICATE-----
+          #   key: |
+          #     -----BEGIN RSA PRIVATE KEY-----
+          #     ...
+          #     -----END RSA PRIVATE KEY-----
 
   # terminal-controller-manager configuration values
   controller:
@@ -56,8 +56,18 @@ global:
             bindAddress: ""
             port: 8081
           metrics:
-            bindAddress: 127.0.0.1
-            port: 8080
+            bindAddress: ""
+            port: 8443
+            tlsSecretName: # must contain 'tls.crt', 'tls.key' keys
+            # tls:
+            #   crt: |
+            #     -----BEGIN CERTIFICATE-----
+            #     ...
+            #     -----END CERTIFICATE-----
+            #   key: |
+            #     -----BEGIN RSA PRIVATE KEY-----
+            #     ...
+            #     -----END RSA PRIVATE KEY-----
         honourServiceAccountRefHostCluster: false # recommended to be disabled for virtual-garden setup
       resources:
         requests:
@@ -66,45 +76,6 @@ global:
         limits:
           cpu: 200m
           memory: 300Mi
-      livenessProbe:
-        enabled: true
-        initialDelaySeconds: 15
-        periodSeconds: 20
-        timeoutSeconds: 5
-        failureThreshold: 6
-        successThreshold: 1
-      readinessProbe:
-        enabled: true
-        initialDelaySeconds: 5
-        periodSeconds: 10
-        timeoutSeconds: 5
-        failureThreshold: 6
-        successThreshold: 1
-
-    # kubeRBACProxy defines configuration values for the kube-rbac-proxy container
-    kubeRBACProxy:
-      logVerbosity: 0
-      image:
-        repository: quay.io/brancz/kube-rbac-proxy
-        tag: v0.15.0
-        pullPolicy: IfNotPresent
-      serviceAccountTokenVolumeProjection:
-        enabled: true
-        expirationSeconds: 3600
-        audience: ''
-      config:
-        server:
-          proxy:
-            bindAddress: 0.0.0.0
-            port: 8443
-            proxyEndpointsPort: 8643
-      resources:
-        requests:
-          cpu: 5m
-          memory: 64Mi
-        limits:
-          cpu: 500m
-          memory: 128Mi
       livenessProbe:
         enabled: true
         initialDelaySeconds: 15

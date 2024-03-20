@@ -1,0 +1,16 @@
+{
+    "CN": "terminal-metrics.terminal-system.svc.cluster.local",
+    "hosts": [
+        "terminal-metrics",
+        "terminal-metrics.terminal-system",
+        "terminal-metrics.terminal-system.svc",
+        "terminal-metrics.terminal-system.svc.cluster",
+        "terminal-metrics.terminal-system.svc.cluster.local"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 3072
+    },
+    "names": [
+    ]
+}
