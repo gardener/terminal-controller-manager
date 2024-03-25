@@ -5,7 +5,7 @@ go 1.22.1
 require (
 	github.com/gardener/gardener v1.91.0
 	github.com/go-logr/logr v1.4.1
-	github.com/onsi/ginkgo/v2 v2.17.0
+	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.32.0
 	golang.org/x/oauth2 v0.18.0
 	k8s.io/api v0.29.3
