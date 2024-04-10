@@ -544,7 +544,10 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 		return err
 	}
 
-	if err = r.updateTerminalStatusAttachServiceAccountName(ctx, t, attachPodServiceAccount.Name); err != nil {
+	if err = r.getAndUpdateTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.AttachServiceAccountName = attachPodServiceAccount.Name
+		return nil
+	}); err != nil {
 		return err
 	}
 
@@ -587,28 +590,22 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 	return nil
 }
 
-func (r *TerminalReconciler) updateTerminalStatusAttachServiceAccountName(ctx context.Context, t *extensionsv1alpha1.Terminal, attachServiceAccountName string) error {
+// terminalStatusHandler is a function type that defines a handler for updating the status of a Terminal resource.
+// The function is responsible for modifying the status field of the Terminal resource based on the desired update logic.
+// It should not modify any other fields of the Terminal resource.
+type terminalStatusHandler func(*extensionsv1alpha1.Terminal) error
+
+func (r *TerminalReconciler) getAndUpdateTerminalStatus(ctx context.Context, t *extensionsv1alpha1.Terminal, handler terminalStatusHandler) error {
 	terminal := &extensionsv1alpha1.Terminal{}
 
-	// make sure to fetch the latest version of the terminal resource before updating its status
+	// make sure to fetch the latest revision of the terminal resource before updating its status
 	if err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal); err != nil {
 		return err
 	}
 
-	terminal.Status.AttachServiceAccountName = attachServiceAccountName
-
-	return r.Status().Update(ctx, terminal)
-}
-
-func (r *TerminalReconciler) updateTerminalStatusPodName(ctx context.Context, t *extensionsv1alpha1.Terminal, podName string) error {
-	terminal := &extensionsv1alpha1.Terminal{}
-
-	// make sure to fetch the latest version of the terminal resource before updating its status
-	if err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal); err != nil {
+	if err := handler(terminal); err != nil {
 		return err
 	}
-
-	terminal.Status.PodName = podName
 
 	return r.Status().Update(ctx, terminal)
 }
@@ -895,7 +892,10 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		tokenVolumeName               = "token"
 	)
 
-	if err := r.updateTerminalStatusPodName(ctx, t, pod.Name); err != nil {
+	if err := r.getAndUpdateTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.PodName = pod.Name
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
