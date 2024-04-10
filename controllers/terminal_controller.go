@@ -174,8 +174,8 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 				// if fail to delete the external dependency here, return with error
 				// so that it can be retried
 				for _, deletionErr := range deletionErrors {
-					r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Description)
-					errStrings = append(errStrings, deletionErr.Description)
+					r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Error())
+					errStrings = append(errStrings, deletionErr.Error())
 				}
 
 				return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
@@ -234,9 +234,9 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
 
-	if err := r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet); err != nil {
-		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
-		return ctrl.Result{}, errors.New(err.Description)
+	if err = r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet); err != nil {
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
+		return ctrl.Result{}, err
 	}
 
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
@@ -258,7 +258,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 
 	mutatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
-		return errors.New(err.Error())
+		return err
 	}
 
 	if len(mutatingWebhookConfigurations.Items) != 1 {
@@ -280,7 +280,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 
 	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
-		return errors.New(err.Error())
+		return err
 	}
 
 	if len(validatingWebhookConfigurations.Items) != 1 {
@@ -304,8 +304,8 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 }
 
 // deleteExternalDependency deletes external dependencies on target and host cluster. In case of an error on the target cluster (e.g. api server cannot be reached) the dependencies on the host cluster are still tried to delete.
-func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) []*extensionsv1alpha1.LastError {
-	var lastErrors []*extensionsv1alpha1.LastError
+func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) []error {
+	var lastErrors []error
 
 	if targetErr := r.deleteTargetClusterDependencies(ctx, targetClientSet, t); targetErr != nil {
 		lastErrors = append(lastErrors, targetErr)
@@ -322,10 +322,10 @@ func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targe
 	return nil
 }
 
-func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) error {
 	if targetClientSet != nil {
 		if err := r.deleteAccessToken(ctx, targetClientSet, t); err != nil {
-			return formatError("Failed to delete access token", err)
+			return fmt.Errorf("Failed to delete access token %w", err)
 		}
 	} else {
 		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
@@ -334,27 +334,27 @@ func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context
 	return nil
 }
 
-func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) error {
 	if hostClientSet != nil {
 		if err := deleteAttachPodSecret(ctx, hostClientSet, t); err != nil {
-			return formatError("Failed to delete attach pod secret", err)
+			return fmt.Errorf("failed to delete attach pod secret: %w", err)
 		}
 
 		if err := hostClientSet.DeletePod(ctx, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier); err != nil {
-			return formatError("Failed to delete terminal pod", err)
+			return fmt.Errorf("Failed to delete terminal pod, %w", err)
 		}
 
 		if err := deleteKubeconfigSecret(ctx, hostClientSet, t); err != nil {
-			return formatError("failed to delete kubeconfig secret for target cluster", err)
+			return fmt.Errorf("failed to delete kubeconfig secret for target cluster, %w", err)
 		}
 
 		if err := deleteTokenSecret(ctx, hostClientSet, t); err != nil {
-			return formatError("failed to delete token secret for target cluster", err)
+			return fmt.Errorf("failed to delete token secret for target cluster, %w", err)
 		}
 
 		if ptr.Deref(t.Spec.Host.TemporaryNamespace, false) {
 			if err := hostClientSet.DeleteNamespace(ctx, *t.Spec.Host.Namespace); err != nil {
-				return formatError("failed to delete temporary namespace on host cluster", err)
+				return fmt.Errorf("failed to delete temporary namespace on host cluster, %w", err)
 			}
 		}
 	} else {
@@ -479,27 +479,27 @@ func deleteAttachPodSecret(ctx context.Context, hostClientSet *gardenclient.Clie
 	return hostClientSet.DeleteRole(ctx, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier)
 }
 
-func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) error {
 	if ptr.Deref(r.getConfig().HonourCleanupProjectMembership, false) {
 		if ptr.Deref(t.Spec.Target.CleanupProjectMembership, false) &&
 			t.Spec.Target.Credentials.ServiceAccountRef != nil && utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, t.Spec.Target.Credentials.ServiceAccountRef.Name) {
 			if err := ensureServiceAccountMembershipCleanup(ctx, targetClientSet, *t.Spec.Target.Credentials.ServiceAccountRef); err != nil {
-				return formatError("failed to add referenced label to target Service Account referenced in Terminal: %w", err)
+				return fmt.Errorf("failed to add referenced label to target Service Account referenced in Terminal: %w", err)
 			}
 		}
 	}
 
 	if err := r.createOrUpdateAttachPodSecret(ctx, hostClientSet, t, labelSet, annotationSet); err != nil {
-		return formatError("Failed to create or update resources needed for attaching to a pod", err)
+		return fmt.Errorf("failed to create or update resources needed for attaching to a pod: %w", err)
 	}
 
 	secretNames, err := r.createOrUpdateAdminKubeconfigAndTokenSecrets(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet)
 	if err != nil {
-		return formatError("Failed to create or update admin kubeconfig", err)
+		return fmt.Errorf("failed to create or update admin kubeconfig: %w", err)
 	}
 
 	if _, err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, secretNames, labelSet, annotationSet); err != nil {
-		return formatError("Failed to create or update terminal pod", err)
+		return fmt.Errorf("failed to create or update terminal pod: %w", err)
 	}
 
 	return nil
@@ -1092,14 +1092,5 @@ func matchByKey(key string) tolerationMatchFunc {
 func match(matchToleration corev1.Toleration) tolerationMatchFunc {
 	return func(toleration corev1.Toleration) bool {
 		return apiequality.Semantic.DeepEqual(toleration, matchToleration)
-	}
-}
-
-// code below copied from gardener/gardener
-
-// TODO move to utils
-func formatError(message string, err error) *extensionsv1alpha1.LastError {
-	return &extensionsv1alpha1.LastError{
-		Description: fmt.Sprintf("%s (%s)", message, err.Error()),
 	}
 }
