@@ -185,10 +185,11 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 
 			r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
 
-			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(t, extensionsv1alpha1.TerminalName)
+			if err := r.removeFinalizer(ctx, t); err != nil {
+				return ctrl.Result{}, err
+			}
 
-			return ctrl.Result{}, r.Update(ctx, t)
+			return ctrl.Result{}, nil
 		}
 
 		// Our finalizer has finished, so the reconciler can do nothing.
@@ -255,6 +256,19 @@ func (r *TerminalReconciler) ensureFinalizer(ctx context.Context, t *extensionsv
 
 	finalizers.Insert(extensionsv1alpha1.TerminalName)
 	terminal.Finalizers = finalizers.UnsortedList()
+
+	return r.Update(ctx, terminal)
+}
+
+func (r *TerminalReconciler) removeFinalizer(ctx context.Context, t *extensionsv1alpha1.Terminal) error {
+	// fetch the latest version of the Terminal before removing the finalizer
+	terminal := &extensionsv1alpha1.Terminal{}
+	if err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal); err != nil {
+		return err
+	}
+
+	// remove our finalizer from the list and update it.
+	controllerutil.RemoveFinalizer(terminal, extensionsv1alpha1.TerminalName)
 
 	return r.Update(ctx, terminal)
 }
