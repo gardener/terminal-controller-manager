@@ -208,14 +208,8 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 		return ctrl.Result{}, err
 	}
 
-	// The object is not being deleted, so if it does not have our finalizer,
-	// then lets add the finalizer and update the object.
-	finalizers := sets.NewString(t.Finalizers...)
-	if !finalizers.Has(extensionsv1alpha1.TerminalName) {
-		finalizers.Insert(extensionsv1alpha1.TerminalName)
-		t.Finalizers = finalizers.UnsortedList()
-
-		return ctrl.Result{}, r.Update(ctx, t)
+	if err := r.ensureFinalizer(ctx, t); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	labelSet, err := t.NewLabelsSet()
@@ -244,6 +238,25 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
 
 	return ctrl.Result{}, nil
+}
+
+func (r *TerminalReconciler) ensureFinalizer(ctx context.Context, t *extensionsv1alpha1.Terminal) error {
+	// fetch the latest version of the Terminal resource
+	terminal := &extensionsv1alpha1.Terminal{}
+	if err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal); err != nil {
+		return err
+	}
+
+	finalizers := sets.NewString(terminal.Finalizers...)
+	if finalizers.Has(extensionsv1alpha1.TerminalName) {
+		// nothing to do
+		return nil
+	}
+
+	finalizers.Insert(extensionsv1alpha1.TerminalName)
+	terminal.Finalizers = finalizers.UnsortedList()
+
+	return r.Update(ctx, terminal)
 }
 
 func (r *TerminalReconciler) recordEventAndLog(ctx context.Context, t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
