@@ -133,20 +133,22 @@ func (r *TerminalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// Fetch the Terminal t
 	t := &extensionsv1alpha1.Terminal{}
 
 	err := r.Get(ctx, req.NamespacedName, t)
 	if err != nil {
 		if kErros.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
+			// Object not found, return. Created objects are automatically garbage collected.
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the req.
 		return ctrl.Result{}, err
 	}
 
+	return r.handleTerminal(ctx, t)
+}
+
+func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1alpha1.Terminal) (ctrl.Result, error) {
 	gardenClientSet := r.ClientSet
 
 	cfg := r.getConfig()
@@ -201,7 +203,7 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, targetClientSetErr
 	}
 
-	if err = r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t); err != nil {
+	if err := r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t); err != nil {
 		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
 		return ctrl.Result{}, err
 	}
