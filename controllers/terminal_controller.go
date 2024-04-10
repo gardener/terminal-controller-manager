@@ -238,42 +238,40 @@ func (r *TerminalReconciler) removeFinalizer(ctx context.Context, t *extensionsv
 }
 
 func (r *TerminalReconciler) deleteTerminal(ctx context.Context, t *extensionsv1alpha1.Terminal, hostClientSetErr error, targetClientSetErr error, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet) (ctrl.Result, error) {
-	// The object is being deleted
-	if controllerutil.ContainsFinalizer(t, extensionsv1alpha1.TerminalName) {
-		// in case of deletion we should be able to continue even if one of the secrets (host, target(, ingress)) is not there anymore, e.g. if the corresponding cluster was deleted
-		if hostClientSetErr != nil && !kErros.IsNotFound(hostClientSetErr) {
-			return ctrl.Result{}, hostClientSetErr
-		}
-
-		if targetClientSetErr != nil && !kErros.IsNotFound(targetClientSetErr) {
-			return ctrl.Result{}, targetClientSetErr
-		}
-
-		r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
-		// our finalizer is present, so lets handle our external dependency
-
-		if deletionErrors := r.deleteExternalDependency(ctx, targetClientSet, hostClientSet, t); deletionErrors != nil {
-			var errStrings []string
-			// if fail to delete the external dependency here, return with error
-			// so that it can be retried
-			for _, deletionErr := range deletionErrors {
-				r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Error())
-				errStrings = append(errStrings, deletionErr.Error())
-			}
-
-			return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
-		}
-
-		r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
-
-		if err := r.removeFinalizer(ctx, t); err != nil {
-			return ctrl.Result{}, err
-		}
-
+	if !controllerutil.ContainsFinalizer(t, extensionsv1alpha1.TerminalName) {
+		// Our finalizer has finished, so the reconciler can do nothing.
 		return ctrl.Result{}, nil
 	}
 
-	// Our finalizer has finished, so the reconciler can do nothing.
+	// in case of deletion we should be able to continue even if one of the secrets (host, target(, ingress)) is not there anymore, e.g. if the corresponding cluster was deleted
+	if hostClientSetErr != nil && !kErros.IsNotFound(hostClientSetErr) {
+		return ctrl.Result{}, hostClientSetErr
+	}
+
+	if targetClientSetErr != nil && !kErros.IsNotFound(targetClientSetErr) {
+		return ctrl.Result{}, targetClientSetErr
+	}
+
+	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
+	// our finalizer is present, so lets handle our external dependency
+
+	if deletionErrors := r.deleteExternalDependency(ctx, targetClientSet, hostClientSet, t); deletionErrors != nil {
+		var errStrings []string
+		// if deletion of the external dependency fails, return with error so that it can be retried
+		for _, deletionErr := range deletionErrors {
+			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Error())
+			errStrings = append(errStrings, deletionErr.Error())
+		}
+
+		return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
+	}
+
+	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
+
+	if err := r.removeFinalizer(ctx, t); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
