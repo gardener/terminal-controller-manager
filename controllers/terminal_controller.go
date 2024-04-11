@@ -212,6 +212,8 @@ func (r *TerminalReconciler) ensureFinalizer(ctx context.Context, t *extensionsv
 		return err
 	}
 
+	patch := client.MergeFrom(terminal.DeepCopy())
+
 	finalizers := sets.NewString(terminal.Finalizers...)
 	if finalizers.Has(extensionsv1alpha1.TerminalName) {
 		// nothing to do
@@ -221,7 +223,7 @@ func (r *TerminalReconciler) ensureFinalizer(ctx context.Context, t *extensionsv
 	finalizers.Insert(extensionsv1alpha1.TerminalName)
 	terminal.Finalizers = finalizers.UnsortedList()
 
-	return r.Update(ctx, terminal)
+	return r.Patch(ctx, terminal, patch)
 }
 
 func (r *TerminalReconciler) removeFinalizer(ctx context.Context, t *extensionsv1alpha1.Terminal) error {
@@ -231,10 +233,12 @@ func (r *TerminalReconciler) removeFinalizer(ctx context.Context, t *extensionsv
 		return err
 	}
 
+	patch := client.MergeFrom(terminal.DeepCopy())
+
 	// remove our finalizer from the list and update it.
 	controllerutil.RemoveFinalizer(terminal, extensionsv1alpha1.TerminalName)
 
-	return r.Update(ctx, terminal)
+	return r.Patch(ctx, terminal, patch)
 }
 
 func (r *TerminalReconciler) deleteTerminal(ctx context.Context, t *extensionsv1alpha1.Terminal, hostClientSetErr error, targetClientSetErr error, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet) (ctrl.Result, error) {
@@ -575,7 +579,7 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 		return err
 	}
 
-	if err = r.getAndUpdateTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+	if err = r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
 		terminal.Status.AttachServiceAccountName = attachPodServiceAccount.Name
 		return nil
 	}); err != nil {
@@ -626,19 +630,20 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 // It should not modify any other fields of the Terminal resource.
 type terminalStatusHandler func(*extensionsv1alpha1.Terminal) error
 
-func (r *TerminalReconciler) getAndUpdateTerminalStatus(ctx context.Context, t *extensionsv1alpha1.Terminal, handler terminalStatusHandler) error {
+func (r *TerminalReconciler) patchTerminalStatus(ctx context.Context, t *extensionsv1alpha1.Terminal, handler terminalStatusHandler) error {
 	terminal := &extensionsv1alpha1.Terminal{}
 
-	// make sure to fetch the latest revision of the terminal resource before updating its status
 	if err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal); err != nil {
 		return err
 	}
+
+	patch := client.MergeFrom(terminal.DeepCopy())
 
 	if err := handler(terminal); err != nil {
 		return err
 	}
 
-	return r.Status().Update(ctx, terminal)
+	return r.Status().Patch(ctx, terminal, patch)
 }
 
 type volumeSourceSecretNames struct {
@@ -923,7 +928,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		tokenVolumeName               = "token"
 	)
 
-	if err := r.getAndUpdateTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+	if err := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
 		terminal.Status.PodName = pod.Name
 		return nil
 	}); err != nil {
