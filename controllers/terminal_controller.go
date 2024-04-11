@@ -607,7 +607,7 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 	}
 
 	if err = r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
-		terminal.Status.AttachServiceAccountName = attachPodServiceAccount.Name
+		terminal.Status.AttachServiceAccountName = &attachPodServiceAccount.Name
 		return nil
 	}); err != nil {
 		return err
@@ -956,7 +956,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 	)
 
 	if err := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
-		terminal.Status.PodName = pod.Name
+		terminal.Status.PodName = &pod.Name
 		return nil
 	}); err != nil {
 		return nil, err

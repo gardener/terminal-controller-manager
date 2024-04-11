@@ -153,13 +153,15 @@ var _ = Describe("Terminal Controller", func() {
 
 						By("Waiting for terminal to be ready")
 						Eventually(func() bool {
-							terminal = &dashboardv1alpha1.Terminal{}
-							err := e.K8sClient.Get(ctx, terminalKey, terminal)
+							t := &dashboardv1alpha1.Terminal{}
+							err := e.K8sClient.Get(ctx, terminalKey, t)
 							if err != nil {
 								return false
 							}
-							return terminal.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+terminal.Spec.Identifier &&
-								terminal.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+terminal.Spec.Identifier
+							return t.Status.AttachServiceAccountName != nil &&
+								t.Status.PodName != nil &&
+								*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+terminal.Spec.Identifier &&
+								*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+terminal.Spec.Identifier
 						}, timeout, interval).Should(BeTrue())
 
 						temporaryHostNamespace := *terminal.Spec.Host.Namespace
@@ -226,8 +228,10 @@ var _ = Describe("Terminal Controller", func() {
 							if err != nil {
 								return false
 							}
-							return t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+terminal.Spec.Identifier &&
-								t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+terminal.Spec.Identifier
+							return t.Status.AttachServiceAccountName != nil &&
+								t.Status.PodName != nil &&
+								*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+terminal.Spec.Identifier &&
+								*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+terminal.Spec.Identifier
 						}, timeout, interval).Should(BeTrue())
 
 						By("Expecting (temporary) target namespace to be created")
@@ -271,8 +275,10 @@ var _ = Describe("Terminal Controller", func() {
 				if err != nil {
 					return false
 				}
-				return t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+terminal.Spec.Identifier &&
-					t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+terminal.Spec.Identifier
+				return t.Status.AttachServiceAccountName != nil &&
+					t.Status.PodName != nil &&
+					*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+terminal.Spec.Identifier &&
+					*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+terminal.Spec.Identifier
 			}, timeout, interval).Should(BeTrue())
 
 			By("Deleting the terminal")
@@ -375,10 +381,10 @@ var _ = Describe("Terminal Controller", func() {
 			Eventually(func() string {
 				t := &dashboardv1alpha1.Terminal{}
 				err := e.K8sClient.Get(ctx, terminalKey, t)
-				if err != nil {
+				if err != nil || t.Status.AttachServiceAccountName == nil {
 					return ""
 				}
-				return t.Status.AttachServiceAccountName
+				return *t.Status.AttachServiceAccountName
 			}, timeout, interval).Should(Not(BeEmpty()))
 
 			By("Expecting attach role to be created")
@@ -420,10 +426,10 @@ var _ = Describe("Terminal Controller", func() {
 			Eventually(func() string {
 				t := &dashboardv1alpha1.Terminal{}
 				err := e.K8sClient.Get(ctx, terminalKey, t)
-				if err != nil {
+				if err != nil || t.Status.PodName == nil {
 					return ""
 				}
-				return t.Status.PodName
+				return *t.Status.PodName
 			}, timeout, interval).Should(Not(BeEmpty()))
 		})
 	})

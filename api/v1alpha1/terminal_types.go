@@ -33,10 +33,13 @@ type TerminalSpec struct {
 // TerminalStatus defines the observed state of Terminal
 type TerminalStatus struct {
 	// AttachServiceAccountName is the name of service account on the host cluster
-	AttachServiceAccountName string `json:"attachServiceAccountName"`
+	// +optional
+	AttachServiceAccountName *string `json:"attachServiceAccountName,omitempty"`
 	// PodName is the name of the pod on the host cluster
-	PodName string `json:"podName"`
+	// +optional
+	PodName *string `json:"podName,omitempty"`
 	// LastOperation indicates the type and the state of the last operation, along with a description message.
+	// +optional
 	LastOperation *LastOperation `json:"lastOperation,omitempty"`
 	// LastError contains details about the last error that occurred.
 	// +optional
