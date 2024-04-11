@@ -353,6 +353,18 @@ var _ = Describe("Terminal Controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
+			By("Expecting reconcile to succeed")
+			Eventually(func() bool {
+				t := &dashboardv1alpha1.Terminal{}
+				err := e.K8sClient.Get(ctx, terminalKey, t)
+				if err != nil {
+					return false
+				}
+				return t.Status.LastOperation != nil &&
+					t.Status.LastOperation.Type == dashboardv1alpha1.LastOperationTypeReconcile &&
+					t.Status.LastOperation.State == dashboardv1alpha1.LastOperationStateSucceeded
+			}, timeout, interval).Should(BeTrue())
+
 			By("Expecting AttachServiceAccount to be created")
 			Eventually(func() bool {
 				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAttachResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, &corev1.ServiceAccount{})

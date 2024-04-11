@@ -145,7 +145,34 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	return r.handleTerminal(ctx, t)
+	lastOperationType := extensionsv1alpha1.LastOperationTypeReconcile
+	if !t.ObjectMeta.DeletionTimestamp.IsZero() {
+		lastOperationType = extensionsv1alpha1.LastOperationTypeDelete
+	}
+
+	if updateErr := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.LastOperation = reconcileProcessing(lastOperationType, "Reconciliation of Terminal initialized.")
+		return nil
+	}); updateErr != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update terminal status: %w", updateErr)
+	}
+
+	result, err := r.handleTerminal(ctx, t)
+
+	if updateErr := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		if err != nil {
+			terminal.Status.LastError = lastError(err.Error())
+			terminal.Status.LastOperation = reconcileError(lastOperationType, err.Error())
+		} else {
+			terminal.Status.LastError = nil
+			terminal.Status.LastOperation = reconcileSucceeded(lastOperationType, "Terminal has been successfully reconciled.")
+		}
+		return nil
+	}); client.IgnoreNotFound(updateErr) != nil {
+		return ctrl.Result{}, errors.Join(updateErr, err)
+	}
+
+	return result, err
 }
 
 func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1alpha1.Terminal) (ctrl.Result, error) {
@@ -1105,6 +1132,39 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 
 		return nil
 	})
+}
+
+// reconcileProcessing returns a LastOperation with state processing.
+func reconcileProcessing(t extensionsv1alpha1.LastOperationType, description string) *extensionsv1alpha1.LastOperation {
+	return lastOperation(t, extensionsv1alpha1.LastOperationStateProcessing, description)
+}
+
+// reconcileSucceeded returns a LastOperation with state succeeded.
+func reconcileSucceeded(t extensionsv1alpha1.LastOperationType, description string) *extensionsv1alpha1.LastOperation {
+	return lastOperation(t, extensionsv1alpha1.LastOperationStateSucceeded, description)
+}
+
+// reconcileError returns a LastOperation with state error with the given description and codes.
+func reconcileError(t extensionsv1alpha1.LastOperationType, description string) *extensionsv1alpha1.LastOperation {
+	return lastOperation(t, extensionsv1alpha1.LastOperationStateError, description)
+}
+
+// lastOperation creates a new LastOperation from the given parameters.
+func lastOperation(t extensionsv1alpha1.LastOperationType, state extensionsv1alpha1.LastOperationState, description string) *extensionsv1alpha1.LastOperation {
+	return &extensionsv1alpha1.LastOperation{
+		LastUpdateTime: metav1.Now(),
+		Type:           t,
+		State:          state,
+		Description:    description,
+	}
+}
+
+// lastError creates a new LastError from the given parameters.
+func lastError(description string) *extensionsv1alpha1.LastError {
+	return &extensionsv1alpha1.LastError{
+		LastUpdateTime: metav1.Now(),
+		Description:    description,
+	}
 }
 
 type tolerationMatchFunc func(toleration corev1.Toleration) bool

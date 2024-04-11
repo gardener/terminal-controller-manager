@@ -143,18 +143,19 @@ var _ = Describe("Terminal Heartbeat Controller", func() {
 			It("Should delete terminal", func() {
 				Expect(terminalCreationError).To(Not(HaveOccurred()))
 
-				By("Expecting terminal to be created")
-				Eventually(func() bool {
+				By("Expecting terminal to be created and clearing the last heartbeat time")
+				Eventually(func() error {
 					terminal = &dashboardv1alpha1.Terminal{}
 					err := e.K8sClient.Get(ctx, terminalKey, terminal)
-					return err == nil
-				}, timeout, interval).Should(BeTrue())
+					if err != nil {
+						return err
+					}
 
-				By("clearing the last heartbeat time")
-				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
-				err := e.K8sClient.Update(ctx, terminal)
-				Expect(err).To(Not(HaveOccurred()))
+					terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
+					return e.K8sClient.Update(ctx, terminal)
+				}, timeout, interval).Should(Succeed())
 
+				By("Expecting terminal to be deleted")
 				Eventually(func() bool {
 					t := &dashboardv1alpha1.Terminal{}
 					err := e.K8sClient.Get(ctx, terminalKey, t)

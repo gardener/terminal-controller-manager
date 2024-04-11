@@ -36,6 +36,11 @@ type TerminalStatus struct {
 	AttachServiceAccountName string `json:"attachServiceAccountName"`
 	// PodName is the name of the pod on the host cluster
 	PodName string `json:"podName"`
+	// LastOperation indicates the type and the state of the last operation, along with a description message.
+	LastOperation *LastOperation `json:"lastOperation,omitempty"`
+	// LastError contains details about the last error that occurred.
+	// +optional
+	LastError *LastError `json:"lastError,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -286,9 +291,9 @@ type ShootRef struct {
 type LastError struct {
 	// Description is a human-readable message indicating details about the last error.
 	Description string `json:"description"`
-	// Codes are well-defined error codes of the last error(s).
+	// Last time the error was reported
 	// +optional
-	Codes []ErrorCode `json:"codes,omitempty"`
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
 }
 
 // ErrorCode is a string alias.
@@ -389,6 +394,19 @@ type ServiceAccountControllerConfiguration struct {
 	// AllowedServiceAccountNames is a list of service account names that are allowed to be cleaned up as project members.
 	// If the list is empty all names are considered as allowed
 	AllowedServiceAccountNames []string `json:"allowedServiceAccountNames"`
+}
+
+// LastOperation indicates the type and the state of the last operation, along with a description
+// message.
+type LastOperation struct {
+	// A human-readable message indicating details about the last operation.
+	Description string `json:"description"`
+	// Last time the operation state transitioned from one to another.
+	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
+	// Status of the last operation, one of Processing, Succeeded, Error.
+	State LastOperationState `json:"state"`
+	// Type of the last operation, one of Reconcile, Delete.
+	Type LastOperationType `json:"type"`
 }
 
 // Duration is a wrapper around time.Duration which supports correct
@@ -549,4 +567,26 @@ const (
 
 	// TerminalAttachRoleResourceNamePrefix is a name prefix for the role allowing to attach to the terminal pod
 	TerminalAttachRoleResourceNamePrefix = "dashboard.gardener.cloud:term-attach-"
+)
+
+// LastOperationType is a string alias.
+type LastOperationType string
+
+const (
+	// LastOperationTypeReconcile indicates a 'reconcile' operation.
+	LastOperationTypeReconcile LastOperationType = "Reconcile"
+	// LastOperationTypeDelete indicates a 'delete' operation.
+	LastOperationTypeDelete LastOperationType = "Delete"
+)
+
+type LastOperationState string
+
+// LastOperationState is a string alias.
+const (
+	// LastOperationStateProcessing indicates that an operation is ongoing.
+	LastOperationStateProcessing LastOperationState = "Processing"
+	// LastOperationStateSucceeded indicates that an operation has completed successfully.
+	LastOperationStateSucceeded LastOperationState = "Succeeded"
+	// LastOperationStateError indicates that an operation is completed with errors and will be retried.
+	LastOperationStateError LastOperationState = "Error"
 )
