@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package v1alpha1
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -419,6 +420,23 @@ type Duration struct {
 	time.Duration
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface.
+func (d *Duration) UnmarshalJSON(bytes []byte) error {
+	var str string
+	if err := json.Unmarshal(bytes, &str); err != nil {
+		return err
+	}
+
+	t, err := time.ParseDuration(str)
+	if err != nil {
+		return fmt.Errorf("failed to parse '%s' to time.Duration: %v", str, err)
+	}
+
+	d.Duration = t
+
+	return nil
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaller interface.
 func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -520,7 +538,7 @@ const (
 	// of the user that created the resource.
 	TerminalLastHeartbeat = "dashboard.gardener.cloud/last-heartbeat-at"
 
-	// ShootOperation is a constant for an annotation on a Shoot in a failed state indicating that an operation shall be performed.
+	// TerminalOperation is a constant for an annotation on a Terminal indicating that an operation shall be performed.
 	TerminalOperation = "dashboard.gardener.cloud/operation"
 
 	// TerminalReference is a label used to identify service accounts which are referred by a target or host .credential.serviceAccountRef of a Terminal (necessarily in the same namespace).
@@ -531,8 +549,7 @@ const (
 	// of the user that created the resource.
 	Description = "dashboard.gardener.cloud/description"
 
-	// ShootOperationMaintain is a constant for an annotation on a Shoot indicating that the Shoot maintenance shall be executed as soon as
-	// possible.
+	// TerminalOperationKeepalive is a constant for an annotation on a Terminal indicating that the Terminal should be kept alive for a certain period of time.
 	TerminalOperationKeepalive = "keepalive"
 
 	// EventReconciling indicates that a Reconcile operation started.
