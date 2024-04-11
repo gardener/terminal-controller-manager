@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -30,10 +31,13 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/yaml"
 
 	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
@@ -54,7 +58,24 @@ type TerminalReconciler struct {
 
 func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager, config extensionsv1alpha1.TerminalControllerConfiguration) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&extensionsv1alpha1.Terminal{}).
+		For(&extensionsv1alpha1.Terminal{}, builder.WithPredicates(predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				// Reconcile on spec changes
+				if e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration() {
+					return true
+				}
+
+				if !reflect.DeepEqual(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations()) {
+					return true
+				}
+
+				if !reflect.DeepEqual(e.ObjectOld.GetLabels(), e.ObjectNew.GetLabels()) {
+					return true
+				}
+
+				return false
+			},
+		})).
 		Named("main").
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: config.MaxConcurrentReconciles,
