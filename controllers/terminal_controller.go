@@ -581,7 +581,7 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 		return fmt.Errorf("failed to create or update admin kubeconfig: %w", err)
 	}
 
-	if _, err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, secretNames, labelSet, annotationSet); err != nil {
+	if err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, secretNames, labelSet, annotationSet); err != nil {
 		return fmt.Errorf("failed to create or update terminal pod: %w", err)
 	}
 
@@ -965,7 +965,7 @@ func GenerateKubeconfig(clusterName string, contextNamespace string, server stri
 	return yaml.Marshal(kubeconfig)
 }
 
-func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, secretNames *volumeSourceSecretNames, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.Pod, error) {
+func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, secretNames *volumeSourceSecretNames, labelSet *labels.Set, annotationSet *utils.Set) error {
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
 	const (
@@ -976,14 +976,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		tokenVolumeName               = "token"
 	)
 
-	if err := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
-		terminal.Status.PodName = &pod.Name
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	return pod, gardenclient.CreateOrUpdateDiscardResult(ctx, cs, pod, func() error {
+	if err := gardenclient.CreateOrUpdateDiscardResult(ctx, cs, pod, func() error {
 		pod.Labels = labels.Merge(pod.Labels, t.Spec.Host.Pod.Labels)
 		pod.Labels = labels.Merge(pod.Labels, *labelSet)
 		pod.Annotations = utils.MergeStringMap(pod.Annotations, *annotationSet)
@@ -1151,6 +1144,13 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 			}
 		}
 
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.PodName = &pod.Name
 		return nil
 	})
 }
