@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package v1alpha1
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -33,9 +34,17 @@ type TerminalSpec struct {
 // TerminalStatus defines the observed state of Terminal
 type TerminalStatus struct {
 	// AttachServiceAccountName is the name of service account on the host cluster
-	AttachServiceAccountName string `json:"attachServiceAccountName"`
+	// +optional
+	AttachServiceAccountName *string `json:"attachServiceAccountName,omitempty"`
 	// PodName is the name of the pod on the host cluster
-	PodName string `json:"podName"`
+	// +optional
+	PodName *string `json:"podName,omitempty"`
+	// LastOperation indicates the type and the state of the last operation, along with a description message.
+	// +optional
+	LastOperation *LastOperation `json:"lastOperation,omitempty"`
+	// LastError contains details about the last error that occurred.
+	// +optional
+	LastError *LastError `json:"lastError,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -286,9 +295,9 @@ type ShootRef struct {
 type LastError struct {
 	// Description is a human-readable message indicating details about the last error.
 	Description string `json:"description"`
-	// Codes are well-defined error codes of the last error(s).
+	// Last time the error was reported
 	// +optional
-	Codes []ErrorCode `json:"codes,omitempty"`
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
 }
 
 // ErrorCode is a string alias.
@@ -391,11 +400,41 @@ type ServiceAccountControllerConfiguration struct {
 	AllowedServiceAccountNames []string `json:"allowedServiceAccountNames"`
 }
 
+// LastOperation indicates the type and the state of the last operation, along with a description
+// message.
+type LastOperation struct {
+	// A human-readable message indicating details about the last operation.
+	Description string `json:"description"`
+	// Last time the operation state transitioned from one to another.
+	LastUpdateTime metav1.Time `json:"lastUpdateTime"`
+	// Status of the last operation, one of Processing, Succeeded, Error.
+	State LastOperationState `json:"state"`
+	// Type of the last operation, one of Reconcile, Delete.
+	Type LastOperationType `json:"type"`
+}
+
 // Duration is a wrapper around time.Duration which supports correct
 // marshaling to YAML. In particular, it marshals into strings, which
 // can be used as map keys in json.
 type Duration struct {
 	time.Duration
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+func (d *Duration) UnmarshalJSON(bytes []byte) error {
+	var str string
+	if err := json.Unmarshal(bytes, &str); err != nil {
+		return err
+	}
+
+	t, err := time.ParseDuration(str)
+	if err != nil {
+		return fmt.Errorf("failed to parse '%s' to time.Duration: %v", str, err)
+	}
+
+	d.Duration = t
+
+	return nil
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaller interface.
@@ -499,7 +538,7 @@ const (
 	// of the user that created the resource.
 	TerminalLastHeartbeat = "dashboard.gardener.cloud/last-heartbeat-at"
 
-	// ShootOperation is a constant for an annotation on a Shoot in a failed state indicating that an operation shall be performed.
+	// TerminalOperation is a constant for an annotation on a Terminal indicating that an operation shall be performed.
 	TerminalOperation = "dashboard.gardener.cloud/operation"
 
 	// TerminalReference is a label used to identify service accounts which are referred by a target or host .credential.serviceAccountRef of a Terminal (necessarily in the same namespace).
@@ -510,8 +549,7 @@ const (
 	// of the user that created the resource.
 	Description = "dashboard.gardener.cloud/description"
 
-	// ShootOperationMaintain is a constant for an annotation on a Shoot indicating that the Shoot maintenance shall be executed as soon as
-	// possible.
+	// TerminalOperationKeepalive is a constant for an annotation on a Terminal indicating that the Terminal should be kept alive for a certain period of time.
 	TerminalOperationKeepalive = "keepalive"
 
 	// EventReconciling indicates that a Reconcile operation started.
@@ -549,4 +587,26 @@ const (
 
 	// TerminalAttachRoleResourceNamePrefix is a name prefix for the role allowing to attach to the terminal pod
 	TerminalAttachRoleResourceNamePrefix = "dashboard.gardener.cloud:term-attach-"
+)
+
+// LastOperationType is a string alias.
+type LastOperationType string
+
+const (
+	// LastOperationTypeReconcile indicates a 'reconcile' operation.
+	LastOperationTypeReconcile LastOperationType = "Reconcile"
+	// LastOperationTypeDelete indicates a 'delete' operation.
+	LastOperationTypeDelete LastOperationType = "Delete"
+)
+
+type LastOperationState string
+
+// LastOperationState is a string alias.
+const (
+	// LastOperationStateProcessing indicates that an operation is ongoing.
+	LastOperationStateProcessing LastOperationState = "Processing"
+	// LastOperationStateSucceeded indicates that an operation has completed successfully.
+	LastOperationStateSucceeded LastOperationState = "Succeeded"
+	// LastOperationStateError indicates that an operation is completed with errors and will be retried.
+	LastOperationStateError LastOperationState = "Error"
 )

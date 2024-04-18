@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -30,10 +31,13 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/yaml"
 
 	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
@@ -54,7 +58,24 @@ type TerminalReconciler struct {
 
 func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager, config extensionsv1alpha1.TerminalControllerConfiguration) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&extensionsv1alpha1.Terminal{}).
+		For(&extensionsv1alpha1.Terminal{}, builder.WithPredicates(predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				// Reconcile on spec changes
+				if e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration() {
+					return true
+				}
+
+				if !reflect.DeepEqual(e.ObjectOld.GetAnnotations(), e.ObjectNew.GetAnnotations()) {
+					return true
+				}
+
+				if !reflect.DeepEqual(e.ObjectOld.GetLabels(), e.ObjectNew.GetLabels()) {
+					return true
+				}
+
+				return false
+			},
+		})).
 		Named("main").
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: config.MaxConcurrentReconciles,
@@ -133,20 +154,49 @@ func (r *TerminalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// Fetch the Terminal t
 	t := &extensionsv1alpha1.Terminal{}
 
 	err := r.Get(ctx, req.NamespacedName, t)
 	if err != nil {
 		if kErros.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
+			// Object not found, return. Created objects are automatically garbage collected.
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the req.
 		return ctrl.Result{}, err
 	}
 
+	lastOperationType := extensionsv1alpha1.LastOperationTypeReconcile
+	if !t.ObjectMeta.DeletionTimestamp.IsZero() {
+		lastOperationType = extensionsv1alpha1.LastOperationTypeDelete
+	}
+
+	if updateErr := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.LastOperation = reconcileProcessing(lastOperationType, "Reconciliation of Terminal initialized.")
+		return nil
+	}); updateErr != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update terminal status: %w", updateErr)
+	}
+
+	result, err := r.handleTerminal(ctx, t)
+
+	if updateErr := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		if err != nil {
+			terminal.Status.LastError = lastError(err.Error())
+			terminal.Status.LastOperation = reconcileError(lastOperationType, err.Error())
+		} else {
+			terminal.Status.LastError = nil
+			terminal.Status.LastOperation = reconcileSucceeded(lastOperationType, "Terminal has been successfully reconciled.")
+		}
+		return nil
+	}); client.IgnoreNotFound(updateErr) != nil {
+		return ctrl.Result{}, errors.Join(updateErr, err)
+	}
+
+	return result, err
+}
+
+func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1alpha1.Terminal) (ctrl.Result, error) {
 	gardenClientSet := r.ClientSet
 
 	cfg := r.getConfig()
@@ -155,42 +205,7 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 	targetClientSet, targetClientSetErr := gardenclient.NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials, cfg.HonourServiceAccountRefTargetCluster, cfg.Controllers.Terminal.TokenRequestExpirationSeconds, r.Scheme)
 
 	if !t.ObjectMeta.DeletionTimestamp.IsZero() {
-		// The object is being deleted
-		if controllerutil.ContainsFinalizer(t, extensionsv1alpha1.TerminalName) {
-			// in case of deletion we should be able to continue even if one of the secrets (host, target(, ingress)) is not there anymore, e.g. if the corresponding cluster was deleted
-			if hostClientSetErr != nil && !kErros.IsNotFound(hostClientSetErr) {
-				return ctrl.Result{}, hostClientSetErr
-			}
-
-			if targetClientSetErr != nil && !kErros.IsNotFound(targetClientSetErr) {
-				return ctrl.Result{}, targetClientSetErr
-			}
-
-			r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
-			// our finalizer is present, so lets handle our external dependency
-
-			if deletionErrors := r.deleteExternalDependency(ctx, targetClientSet, hostClientSet, t); deletionErrors != nil {
-				var errStrings []string
-				// if fail to delete the external dependency here, return with error
-				// so that it can be retried
-				for _, deletionErr := range deletionErrors {
-					r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Description)
-					errStrings = append(errStrings, deletionErr.Description)
-				}
-
-				return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
-			}
-
-			r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
-
-			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(t, extensionsv1alpha1.TerminalName)
-
-			return ctrl.Result{}, r.Update(ctx, t)
-		}
-
-		// Our finalizer has finished, so the reconciler can do nothing.
-		return ctrl.Result{}, nil
+		return r.deleteTerminal(ctx, t, hostClientSetErr, targetClientSetErr, targetClientSet, hostClientSet)
 	}
 
 	if hostClientSetErr != nil {
@@ -201,19 +216,13 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, targetClientSetErr
 	}
 
-	if err = r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t); err != nil {
+	if err := r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t); err != nil {
 		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
 		return ctrl.Result{}, err
 	}
 
-	// The object is not being deleted, so if it does not have our finalizer,
-	// then lets add the finalizer and update the object.
-	finalizers := sets.NewString(t.Finalizers...)
-	if !finalizers.Has(extensionsv1alpha1.TerminalName) {
-		finalizers.Insert(extensionsv1alpha1.TerminalName)
-		t.Finalizers = finalizers.UnsortedList()
-
-		return ctrl.Result{}, r.Update(ctx, t)
+	if err := r.ensureFinalizer(ctx, t); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	labelSet, err := t.NewLabelsSet()
@@ -234,12 +243,86 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
 
-	if err := r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet); err != nil {
-		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Description)
-		return ctrl.Result{}, errors.New(err.Description)
+	if err = r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet); err != nil {
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
+		return ctrl.Result{}, err
 	}
 
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
+
+	return ctrl.Result{}, nil
+}
+
+func (r *TerminalReconciler) ensureFinalizer(ctx context.Context, t *extensionsv1alpha1.Terminal) error {
+	// fetch the latest version of the Terminal resource
+	terminal := &extensionsv1alpha1.Terminal{}
+	if err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal); err != nil {
+		return err
+	}
+
+	patch := client.MergeFrom(terminal.DeepCopy())
+
+	finalizers := sets.NewString(terminal.Finalizers...)
+	if finalizers.Has(extensionsv1alpha1.TerminalName) {
+		// nothing to do
+		return nil
+	}
+
+	finalizers.Insert(extensionsv1alpha1.TerminalName)
+	terminal.Finalizers = finalizers.UnsortedList()
+
+	return r.Patch(ctx, terminal, patch)
+}
+
+func (r *TerminalReconciler) removeFinalizer(ctx context.Context, t *extensionsv1alpha1.Terminal) error {
+	// fetch the latest version of the Terminal before removing the finalizer
+	terminal := &extensionsv1alpha1.Terminal{}
+	if err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal); err != nil {
+		return err
+	}
+
+	patch := client.MergeFrom(terminal.DeepCopy())
+
+	// remove our finalizer from the list and update it.
+	controllerutil.RemoveFinalizer(terminal, extensionsv1alpha1.TerminalName)
+
+	return r.Patch(ctx, terminal, patch)
+}
+
+func (r *TerminalReconciler) deleteTerminal(ctx context.Context, t *extensionsv1alpha1.Terminal, hostClientSetErr error, targetClientSetErr error, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet) (ctrl.Result, error) {
+	if !controllerutil.ContainsFinalizer(t, extensionsv1alpha1.TerminalName) {
+		// Our finalizer has finished, so the reconciler can do nothing.
+		return ctrl.Result{}, nil
+	}
+
+	// in case of deletion we should be able to continue even if one of the secrets (host, target(, ingress)) is not there anymore, e.g. if the corresponding cluster was deleted
+	if hostClientSetErr != nil && !kErros.IsNotFound(hostClientSetErr) {
+		return ctrl.Result{}, hostClientSetErr
+	}
+
+	if targetClientSetErr != nil && !kErros.IsNotFound(targetClientSetErr) {
+		return ctrl.Result{}, targetClientSetErr
+	}
+
+	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
+	// our finalizer is present, so lets handle our external dependency
+
+	if deletionErrors := r.deleteExternalDependency(ctx, targetClientSet, hostClientSet, t); deletionErrors != nil {
+		var errStrings []string
+		// if deletion of the external dependency fails, return with error so that it can be retried
+		for _, deletionErr := range deletionErrors {
+			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Error())
+			errStrings = append(errStrings, deletionErr.Error())
+		}
+
+		return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
+	}
+
+	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
+
+	if err := r.removeFinalizer(ctx, t); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -258,7 +341,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 
 	mutatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
-		return errors.New(err.Error())
+		return err
 	}
 
 	if len(mutatingWebhookConfigurations.Items) != 1 {
@@ -280,7 +363,7 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 
 	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
 	if err != nil {
-		return errors.New(err.Error())
+		return err
 	}
 
 	if len(validatingWebhookConfigurations.Items) != 1 {
@@ -304,8 +387,8 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 }
 
 // deleteExternalDependency deletes external dependencies on target and host cluster. In case of an error on the target cluster (e.g. api server cannot be reached) the dependencies on the host cluster are still tried to delete.
-func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) []*extensionsv1alpha1.LastError {
-	var lastErrors []*extensionsv1alpha1.LastError
+func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) []error {
+	var lastErrors []error
 
 	if targetErr := r.deleteTargetClusterDependencies(ctx, targetClientSet, t); targetErr != nil {
 		lastErrors = append(lastErrors, targetErr)
@@ -322,10 +405,10 @@ func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targe
 	return nil
 }
 
-func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) error {
 	if targetClientSet != nil {
 		if err := r.deleteAccessToken(ctx, targetClientSet, t); err != nil {
-			return formatError("Failed to delete access token", err)
+			return fmt.Errorf("Failed to delete access token %w", err)
 		}
 	} else {
 		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
@@ -334,27 +417,27 @@ func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context
 	return nil
 }
 
-func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) error {
 	if hostClientSet != nil {
 		if err := deleteAttachPodSecret(ctx, hostClientSet, t); err != nil {
-			return formatError("Failed to delete attach pod secret", err)
+			return fmt.Errorf("failed to delete attach pod secret: %w", err)
 		}
 
 		if err := hostClientSet.DeletePod(ctx, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier); err != nil {
-			return formatError("Failed to delete terminal pod", err)
+			return fmt.Errorf("Failed to delete terminal pod, %w", err)
 		}
 
 		if err := deleteKubeconfigSecret(ctx, hostClientSet, t); err != nil {
-			return formatError("failed to delete kubeconfig secret for target cluster", err)
+			return fmt.Errorf("failed to delete kubeconfig secret for target cluster, %w", err)
 		}
 
 		if err := deleteTokenSecret(ctx, hostClientSet, t); err != nil {
-			return formatError("failed to delete token secret for target cluster", err)
+			return fmt.Errorf("failed to delete token secret for target cluster, %w", err)
 		}
 
 		if ptr.Deref(t.Spec.Host.TemporaryNamespace, false) {
 			if err := hostClientSet.DeleteNamespace(ctx, *t.Spec.Host.Namespace); err != nil {
-				return formatError("failed to delete temporary namespace on host cluster", err)
+				return fmt.Errorf("failed to delete temporary namespace on host cluster, %w", err)
 			}
 		}
 	} else {
@@ -479,27 +562,27 @@ func deleteAttachPodSecret(ctx context.Context, hostClientSet *gardenclient.Clie
 	return hostClientSet.DeleteRole(ctx, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier)
 }
 
-func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) *extensionsv1alpha1.LastError {
+func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) error {
 	if ptr.Deref(r.getConfig().HonourCleanupProjectMembership, false) {
 		if ptr.Deref(t.Spec.Target.CleanupProjectMembership, false) &&
 			t.Spec.Target.Credentials.ServiceAccountRef != nil && utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, t.Spec.Target.Credentials.ServiceAccountRef.Name) {
 			if err := ensureServiceAccountMembershipCleanup(ctx, targetClientSet, *t.Spec.Target.Credentials.ServiceAccountRef); err != nil {
-				return formatError("failed to add referenced label to target Service Account referenced in Terminal: %w", err)
+				return fmt.Errorf("failed to add referenced label to target Service Account referenced in Terminal: %w", err)
 			}
 		}
 	}
 
 	if err := r.createOrUpdateAttachPodSecret(ctx, hostClientSet, t, labelSet, annotationSet); err != nil {
-		return formatError("Failed to create or update resources needed for attaching to a pod", err)
+		return fmt.Errorf("failed to create or update resources needed for attaching to a pod: %w", err)
 	}
 
 	secretNames, err := r.createOrUpdateAdminKubeconfigAndTokenSecrets(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet)
 	if err != nil {
-		return formatError("Failed to create or update admin kubeconfig", err)
+		return fmt.Errorf("failed to create or update admin kubeconfig: %w", err)
 	}
 
-	if _, err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, secretNames, labelSet, annotationSet); err != nil {
-		return formatError("Failed to create or update terminal pod", err)
+	if err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, secretNames, labelSet, annotationSet); err != nil {
+		return fmt.Errorf("failed to create or update terminal pod: %w", err)
 	}
 
 	return nil
@@ -544,7 +627,10 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 		return err
 	}
 
-	if err = r.updateTerminalStatusAttachServiceAccountName(ctx, t, attachPodServiceAccount.Name); err != nil {
+	if err = r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.AttachServiceAccountName = &attachPodServiceAccount.Name
+		return nil
+	}); err != nil {
 		return err
 	}
 
@@ -587,30 +673,25 @@ func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, 
 	return nil
 }
 
-func (r *TerminalReconciler) updateTerminalStatusAttachServiceAccountName(ctx context.Context, t *extensionsv1alpha1.Terminal, attachServiceAccountName string) error {
+// terminalStatusHandler is a function type that defines a handler for updating the status of a Terminal resource.
+// The function is responsible for modifying the status field of the Terminal resource based on the desired update logic.
+// It should not modify any other fields of the Terminal resource.
+type terminalStatusHandler func(*extensionsv1alpha1.Terminal) error
+
+func (r *TerminalReconciler) patchTerminalStatus(ctx context.Context, t *extensionsv1alpha1.Terminal, handler terminalStatusHandler) error {
 	terminal := &extensionsv1alpha1.Terminal{}
 
-	// make sure to fetch the latest version of the terminal resource before updating its status
 	if err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal); err != nil {
 		return err
 	}
 
-	terminal.Status.AttachServiceAccountName = attachServiceAccountName
+	patch := client.MergeFrom(terminal.DeepCopy())
 
-	return r.Status().Update(ctx, terminal)
-}
-
-func (r *TerminalReconciler) updateTerminalStatusPodName(ctx context.Context, t *extensionsv1alpha1.Terminal, podName string) error {
-	terminal := &extensionsv1alpha1.Terminal{}
-
-	// make sure to fetch the latest version of the terminal resource before updating its status
-	if err := r.Get(ctx, client.ObjectKey{Name: t.Name, Namespace: t.Namespace}, terminal); err != nil {
+	if err := handler(terminal); err != nil {
 		return err
 	}
 
-	terminal.Status.PodName = podName
-
-	return r.Status().Update(ctx, terminal)
+	return r.Status().Patch(ctx, terminal, patch)
 }
 
 type volumeSourceSecretNames struct {
@@ -884,7 +965,7 @@ func GenerateKubeconfig(clusterName string, contextNamespace string, server stri
 	return yaml.Marshal(kubeconfig)
 }
 
-func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, secretNames *volumeSourceSecretNames, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.Pod, error) {
+func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, secretNames *volumeSourceSecretNames, labelSet *labels.Set, annotationSet *utils.Set) error {
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
 	const (
@@ -895,11 +976,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		tokenVolumeName               = "token"
 	)
 
-	if err := r.updateTerminalStatusPodName(ctx, t, pod.Name); err != nil {
-		return nil, err
-	}
-
-	return pod, gardenclient.CreateOrUpdateDiscardResult(ctx, cs, pod, func() error {
+	if err := gardenclient.CreateOrUpdateDiscardResult(ctx, cs, pod, func() error {
 		pod.Labels = labels.Merge(pod.Labels, t.Spec.Host.Pod.Labels)
 		pod.Labels = labels.Merge(pod.Labels, *labelSet)
 		pod.Annotations = utils.MergeStringMap(pod.Annotations, *annotationSet)
@@ -1068,7 +1145,47 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 		}
 
 		return nil
+	}); err != nil {
+		return err
+	}
+
+	return r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.PodName = &pod.Name
+		return nil
 	})
+}
+
+// reconcileProcessing returns a LastOperation with state processing.
+func reconcileProcessing(t extensionsv1alpha1.LastOperationType, description string) *extensionsv1alpha1.LastOperation {
+	return lastOperation(t, extensionsv1alpha1.LastOperationStateProcessing, description)
+}
+
+// reconcileSucceeded returns a LastOperation with state succeeded.
+func reconcileSucceeded(t extensionsv1alpha1.LastOperationType, description string) *extensionsv1alpha1.LastOperation {
+	return lastOperation(t, extensionsv1alpha1.LastOperationStateSucceeded, description)
+}
+
+// reconcileError returns a LastOperation with state error with the given description and codes.
+func reconcileError(t extensionsv1alpha1.LastOperationType, description string) *extensionsv1alpha1.LastOperation {
+	return lastOperation(t, extensionsv1alpha1.LastOperationStateError, description)
+}
+
+// lastOperation creates a new LastOperation from the given parameters.
+func lastOperation(t extensionsv1alpha1.LastOperationType, state extensionsv1alpha1.LastOperationState, description string) *extensionsv1alpha1.LastOperation {
+	return &extensionsv1alpha1.LastOperation{
+		LastUpdateTime: metav1.Now(),
+		Type:           t,
+		State:          state,
+		Description:    description,
+	}
+}
+
+// lastError creates a new LastError from the given parameters.
+func lastError(description string) *extensionsv1alpha1.LastError {
+	return &extensionsv1alpha1.LastError{
+		LastUpdateTime: metav1.Now(),
+		Description:    description,
+	}
 }
 
 type tolerationMatchFunc func(toleration corev1.Toleration) bool
@@ -1092,14 +1209,5 @@ func matchByKey(key string) tolerationMatchFunc {
 func match(matchToleration corev1.Toleration) tolerationMatchFunc {
 	return func(toleration corev1.Toleration) bool {
 		return apiequality.Semantic.DeepEqual(toleration, matchToleration)
-	}
-}
-
-// code below copied from gardener/gardener
-
-// TODO move to utils
-func formatError(message string, err error) *extensionsv1alpha1.LastError {
-	return &extensionsv1alpha1.LastError{
-		Description: fmt.Sprintf("%s (%s)", message, err.Error()),
 	}
 }
