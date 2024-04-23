@@ -61,6 +61,15 @@
       separateMinorPatch: true
     },
     {
+      // Do not update to patch versions of the Go Toolchain.
+      // Default golang images set the environment variable GOTOOLCHAIN=local
+      // and we don't want to enforce every (test-)image to be on the latest patch level.
+      matchManagers: ["gomod"],
+      matchUpdateTypes: ["patch"],
+      matchPackagePatterns: ["go"],
+      enabled: false
+    },
+    {
       // Group github-actions in one PR.
       groupName: "github-actions",
       matchManagers: ["github-actions"]
