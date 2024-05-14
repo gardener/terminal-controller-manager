@@ -9,7 +9,7 @@ terminal-controller-manager:
         ocm_repository: europe-docker.pkg.dev/gardener-project/snapshots
       publish:
         dockerimages:
-          terminal:
+          terminal-controller-manager:
             inputs:
               repos:
                 source: ~ # default
@@ -54,6 +54,6 @@ terminal-controller-manager:
               slack_cfg_name: 'scp_workspace'
         publish:
           dockerimages:
-            terminal:
+            terminal-controller-manager:
               tag_as_latest: true
               image: europe-docker.pkg.dev/gardener-project/releases/gardener/terminal-controller-manager
