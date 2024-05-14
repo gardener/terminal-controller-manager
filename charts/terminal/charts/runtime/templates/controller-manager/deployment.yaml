@@ -130,6 +130,7 @@ spec:
           readOnly: true
         - mountPath: /etc/terminal-controller-manager
           name: terminal-controller-manager-config
+          readOnly: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
