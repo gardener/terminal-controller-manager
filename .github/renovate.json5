@@ -73,6 +73,12 @@
       // Group github-actions in one PR.
       groupName: "github-actions",
       matchManagers: ["github-actions"]
-    }
+    },
+    {
+      // Group golang package updates for .ci/pipeline_definitions separately
+      "matchFileNames": [".ci/pipeline_definitions"],
+      "matchPackageNames": ["golang"],
+      "groupName": "[pipeline_definitions] Golang Package Updates"
+    },
   ]
 }
