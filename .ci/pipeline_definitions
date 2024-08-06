@@ -25,9 +25,9 @@ terminal-controller-manager:
                 availability_requirement: 'low'
     steps:
       check:
-        image: 'golang:1.22.5'
+        image: 'golang:1.22.6'
       test:
-        image: 'golang:1.22.5'
+        image: 'golang:1.22.6'
   jobs:
     head-update:
       traits:
