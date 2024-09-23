@@ -217,7 +217,7 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 	}
 
 	if err := r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t); err != nil {
-		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Failed ensuring admission webhook is configured: %s", err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -244,7 +244,7 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
 
 	if err = r.reconcileTerminal(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet); err != nil {
-		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, err.Error())
+		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Failed reconciling Terminal state: %s", err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -311,7 +311,7 @@ func (r *TerminalReconciler) deleteTerminal(ctx context.Context, t *extensionsv1
 		var errStrings []string
 		// if deletion of the external dependency fails, return with error so that it can be retried
 		for _, deletionErr := range deletionErrors {
-			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, deletionErr.Error())
+			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleteError, "Failed deleting external dependencies: %s", deletionErr.Error())
 			errStrings = append(errStrings, deletionErr.Error())
 		}
 
