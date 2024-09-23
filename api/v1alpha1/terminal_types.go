@@ -269,16 +269,13 @@ type Container struct {
 
 // ClusterCredentials define the credentials for a kubernetes cluster
 type ClusterCredentials struct {
-	// SecretRef is a reference to a secret that contains the cluster specific credentials
-	// Either ShootRef, SecretRef or ServiceAccountRef is mandatory. ShootRef will be used if more than one ref is provided.
-	// +optional
-	SecretRef *corev1.SecretReference `json:"secretRef,omitempty"`
-
 	// ServiceAccountRef is a reference to a service account that should be used, usually to manage resources on the same cluster as the service account is residing in
+	// Either ShootRef or ServiceAccountRef is mandatory. ShootRef will be used if more than one ref is provided.
 	// +optional
 	ServiceAccountRef *corev1.ObjectReference `json:"serviceAccountRef,omitempty"`
 
 	// ShootRef references the shoot cluster. The admin kubeconfig retrieved from the shoots/adminkubeconfig endpoint is used
+	// Either ShootRef or ServiceAccountRef is mandatory. ShootRef will be used if more than one ref is provided.
 	// +optional
 	ShootRef *ShootRef `json:"shootRef,omitempty"`
 }
