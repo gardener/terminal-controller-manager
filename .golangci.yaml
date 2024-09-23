@@ -1,8 +1,8 @@
 # options for analysis running
 run:
   timeout: 2m
-  skip-files:
-    - "zz_generated.*"
+  allow-parallel-runners: true
+
 linters:
   enable:
     - gochecksumtype
