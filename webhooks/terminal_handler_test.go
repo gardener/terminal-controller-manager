@@ -185,30 +185,6 @@ var _ = Describe("Validating Webhook", func() {
 			})
 		})
 
-		Context("secret ref (host credential)", func() {
-			BeforeEach(func() {
-				terminal.Spec.Host.Credentials.SecretRef = &corev1.SecretReference{
-					Namespace: hostNamespace,
-					Name:      "bar",
-				}
-			})
-			It("should allow to reference secret", func() {
-				Expect(terminalCreationError).To(Not(HaveOccurred()))
-			})
-		})
-
-		Context("secret ref (target credential)", func() {
-			BeforeEach(func() {
-				terminal.Spec.Target.Credentials.SecretRef = &corev1.SecretReference{
-					Namespace: targetNamespace,
-					Name:      "bar",
-				}
-			})
-			It("should allow to reference secret", func() {
-				Expect(terminalCreationError).To(Not(HaveOccurred()))
-			})
-		})
-
 		Context("api server - serviceRef, server and caData fields", func() {
 			BeforeEach(func() {
 				terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
@@ -300,7 +276,7 @@ var _ = Describe("Validating Webhook", func() {
 					Expect(err.Error()).To(ContainSubstring("field is immutable"))
 				})
 
-				It("should fail when updating target credential secret", func() {
+				It("should fail when updating target credential", func() {
 					Expect(terminalCreationError).To(Not(HaveOccurred()))
 
 					By("Expecting terminal to be created")
@@ -310,7 +286,7 @@ var _ = Describe("Validating Webhook", func() {
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Target.Credentials.SecretRef = &corev1.SecretReference{
+					terminal.Spec.Target.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
 						Namespace: targetNamespace,
 						Name:      "changed",
 					}
@@ -320,7 +296,7 @@ var _ = Describe("Validating Webhook", func() {
 					Expect(err.Error()).To(ContainSubstring("field is immutable"))
 				})
 
-				It("should fail when updating host credential secret", func() {
+				It("should fail when updating host credential", func() {
 					Expect(terminalCreationError).To(Not(HaveOccurred()))
 
 					By("Expecting terminal to be created")
@@ -330,7 +306,7 @@ var _ = Describe("Validating Webhook", func() {
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
-					terminal.Spec.Host.Credentials.SecretRef = &corev1.SecretReference{
+					terminal.Spec.Host.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
 						Namespace: hostNamespace,
 						Name:      "bar",
 					}
@@ -435,7 +411,7 @@ var _ = Describe("Validating Webhook", func() {
 		Context("for missing required field", func() {
 			Context("host credentials", func() {
 				BeforeEach(func() {
-					terminal.Spec.Host.Credentials.SecretRef = nil
+					terminal.Spec.Host.Credentials.ShootRef = nil
 					terminal.Spec.Host.Credentials.ServiceAccountRef = nil
 				})
 				AssertFailedBehavior("spec.host.credentials: Required value")
@@ -443,7 +419,7 @@ var _ = Describe("Validating Webhook", func() {
 
 			Context("target credentials", func() {
 				BeforeEach(func() {
-					terminal.Spec.Target.Credentials.SecretRef = nil
+					terminal.Spec.Target.Credentials.ShootRef = nil
 					terminal.Spec.Target.Credentials.ServiceAccountRef = nil
 				})
 				AssertFailedBehavior("spec.target.credentials: Required value")
@@ -553,7 +529,7 @@ var _ = Describe("Validating Webhook", func() {
 			Context("service account ref", func() {
 				Context("name field (target credential)", func() {
 					BeforeEach(func() {
-						terminal.Spec.Target.Credentials.SecretRef = nil
+						terminal.Spec.Target.Credentials.ShootRef = nil
 						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "foo",
 							Name:      "",
@@ -564,7 +540,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("name field (target credential)", func() {
 					BeforeEach(func() {
-						terminal.Spec.Target.Credentials.SecretRef = nil
+						terminal.Spec.Target.Credentials.ShootRef = nil
 						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "",
 							Name:      "bar",
@@ -575,7 +551,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("name field (host credential)", func() {
 					BeforeEach(func() {
-						terminal.Spec.Host.Credentials.SecretRef = nil
+						terminal.Spec.Host.Credentials.ShootRef = nil
 						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "foo",
 							Name:      "",
@@ -586,7 +562,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				Context("name field (host credential)", func() {
 					BeforeEach(func() {
-						terminal.Spec.Host.Credentials.SecretRef = nil
+						terminal.Spec.Host.Credentials.ShootRef = nil
 						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
 							Namespace: "",
 							Name:      "bar",
@@ -602,60 +578,60 @@ var _ = Describe("Validating Webhook", func() {
 						BeforeEach(func() {
 							cmConfig.HonourServiceAccountRefHostCluster = nil
 							terminal.Spec.Host.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Host.Credentials.SecretRef = nil
+							terminal.Spec.Host.Credentials.ShootRef = nil
 						})
-						AssertFailedBehavior("spec.host.credentials.secretRef: Required value")
+						AssertFailedBehavior("spec.host.credentials.shootRef: Required value")
 					})
 					Context("secret ref required (target credential)", func() {
 						BeforeEach(func() {
 							cmConfig.HonourServiceAccountRefTargetCluster = nil
 							terminal.Spec.Target.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Target.Credentials.SecretRef = nil
+							terminal.Spec.Target.Credentials.ShootRef = nil
 						})
-						AssertFailedBehavior("spec.target.credentials.secretRef: Required value")
+						AssertFailedBehavior("spec.target.credentials.shootRef: Required value")
 					})
 					Context("name field (target credential)", func() {
 						BeforeEach(func() {
 							terminal.Spec.Target.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Target.Credentials.SecretRef = &corev1.SecretReference{
+							terminal.Spec.Target.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
 								Namespace: "foo",
 								Name:      "",
 							}
 						})
-						AssertFailedBehavior("spec.target.credentials.secretRef.name: Required value")
+						AssertFailedBehavior("spec.target.credentials.shootRef.name: Required value")
 					})
 
 					Context("name field (target credential)", func() {
 						BeforeEach(func() {
 							terminal.Spec.Target.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Target.Credentials.SecretRef = &corev1.SecretReference{
+							terminal.Spec.Target.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
 								Namespace: "",
 								Name:      "bar",
 							}
 						})
-						AssertFailedBehavior("spec.target.credentials.secretRef.namespace: Required value")
+						AssertFailedBehavior("spec.target.credentials.shootRef.namespace: Required value")
 					})
 
 					Context("name field (host credential)", func() {
 						BeforeEach(func() {
 							terminal.Spec.Host.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Host.Credentials.SecretRef = &corev1.SecretReference{
+							terminal.Spec.Host.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
 								Namespace: "foo",
 								Name:      "",
 							}
 						})
-						AssertFailedBehavior("spec.host.credentials.secretRef.name: Required value")
+						AssertFailedBehavior("spec.host.credentials.shootRef.name: Required value")
 					})
 
 					Context("name field (host credential)", func() {
 						BeforeEach(func() {
 							terminal.Spec.Host.Credentials.ServiceAccountRef = nil
-							terminal.Spec.Host.Credentials.SecretRef = &corev1.SecretReference{
+							terminal.Spec.Host.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
 								Namespace: "",
 								Name:      "bar",
 							}
 						})
-						AssertFailedBehavior("spec.host.credentials.secretRef.namespace: Required value")
+						AssertFailedBehavior("spec.host.credentials.shootRef.namespace: Required value")
 					})
 				})
 			})

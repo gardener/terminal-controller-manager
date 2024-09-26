@@ -250,12 +250,12 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 			return field.Forbidden(fldPath.Child("serviceAccountRef"), "field is forbidden by configuration")
 		}
 
-		if cred.ShootRef == nil && cred.SecretRef == nil {
-			return field.Required(fldPath.Child("secretRef"), "field requires either ShootRef or SecretRef to be set")
+		if cred.ShootRef == nil {
+			return field.Required(fldPath.Child("shootRef"), "field is required")
 		}
 	} else {
-		if cred.ShootRef == nil && cred.SecretRef == nil && cred.ServiceAccountRef == nil {
-			return field.Required(fldPath, "field requires either ShootRef, SecretRef or ServiceAccountRef to be set")
+		if cred.ShootRef == nil && cred.ServiceAccountRef == nil {
+			return field.Required(fldPath, "field requires either ShootRef or ServiceAccountRef to be set")
 		}
 	}
 
@@ -268,22 +268,6 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 			{
 				value:   &cred.ShootRef.Namespace,
 				fldPath: fldPath.Child("shootRef", "namespace"),
-			},
-		}
-		if err := validateRequiredFields(fldValidations); err != nil {
-			return err
-		}
-	}
-
-	if cred.SecretRef != nil {
-		fldValidations := &[]fldValidation{
-			{
-				value:   &cred.SecretRef.Name,
-				fldPath: fldPath.Child("secretRef", "name"),
-			},
-			{
-				value:   &cred.SecretRef.Namespace,
-				fldPath: fldPath.Child("secretRef", "namespace"),
 			},
 		}
 		if err := validateRequiredFields(fldValidations); err != nil {
@@ -398,13 +382,7 @@ func (h *TerminalValidator) canGetCredential(ctx context.Context, userInfo authe
 		return false, nil
 	}
 
-	if allowed, err := h.canGetSecretAccessReview(ctx, userInfo, cred.SecretRef); err != nil {
-		return false, err
-	} else if !allowed {
-		return false, nil
-	}
-
-	return h.canGetServiceAccountAndSecretAccessReview(ctx, userInfo, cred.ServiceAccountRef)
+	return h.canGetServiceAccountAndCreateTokenReview(ctx, userInfo, cred.ServiceAccountRef)
 }
 
 // canManageProjectMembers returns true if the user can manage ServiceAccount members for the project of the given namespace
@@ -442,32 +420,7 @@ func (h *TerminalValidator) canCreateShootsAdminKubeconfigAccessReview(ctx conte
 	return subjectAccessReview.Status.Allowed, err
 }
 
-func (h *TerminalValidator) canGetSecretAccessReview(ctx context.Context, userInfo authenticationv1.UserInfo, ref *corev1.SecretReference) (bool, error) {
-	if ref == nil {
-		return true, nil
-	}
-
-	subjectAccessReview := &authorizationv1.SubjectAccessReview{
-		Spec: authorizationv1.SubjectAccessReviewSpec{
-			ResourceAttributes: &authorizationv1.ResourceAttributes{
-				Group:     corev1.GroupName,
-				Resource:  corev1.ResourceSecrets.String(),
-				Verb:      "get",
-				Name:      ref.Name,
-				Namespace: ref.Namespace,
-			},
-			User:   userInfo.Username,
-			Groups: userInfo.Groups,
-			UID:    userInfo.UID,
-			Extra:  toAuthZExtraValue(userInfo.Extra),
-		},
-	}
-	err := h.Client.Create(ctx, subjectAccessReview)
-
-	return subjectAccessReview.Status.Allowed, err
-}
-
-func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx context.Context, userInfo authenticationv1.UserInfo, serviceAccountRef *corev1.ObjectReference) (bool, error) {
+func (h *TerminalValidator) canGetServiceAccountAndCreateTokenReview(ctx context.Context, userInfo authenticationv1.UserInfo, serviceAccountRef *corev1.ObjectReference) (bool, error) {
 	if serviceAccountRef == nil {
 		return true, nil
 	}
@@ -498,13 +451,14 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 	}
 
 	// we ensure that the user is allowed to read "all" secrets in the referenced namespace, as the secrets referenced in the service account could change over time
-	accessReviewSecret := &authorizationv1.SubjectAccessReview{
+	accessReviewTokenRequest := &authorizationv1.SubjectAccessReview{
 		Spec: authorizationv1.SubjectAccessReviewSpec{
 			ResourceAttributes: &authorizationv1.ResourceAttributes{
-				Group:     corev1.GroupName,
-				Resource:  corev1.ResourceSecrets.String(),
-				Verb:      "get",
-				Namespace: serviceAccountRef.Namespace,
+				Group:       corev1.GroupName,
+				Resource:    "serviceaccounts",
+				Subresource: "token",
+				Verb:        "create",
+				Namespace:   serviceAccountRef.Namespace,
 			},
 			User:   userInfo.Username,
 			Groups: userInfo.Groups,
@@ -512,9 +466,10 @@ func (h *TerminalValidator) canGetServiceAccountAndSecretAccessReview(ctx contex
 			Extra:  toAuthZExtraValue(userInfo.Extra),
 		},
 	}
-	err = h.Client.Create(ctx, accessReviewSecret)
 
-	return accessReviewSecret.Status.Allowed, err
+	err = h.Client.Create(ctx, accessReviewTokenRequest)
+
+	return accessReviewTokenRequest.Status.Allowed, err
 }
 
 func (h *TerminalValidator) canManageProjectMembersAccessReview(ctx context.Context, userInfo authenticationv1.UserInfo, project gardencorev1beta1.Project) (bool, error) {

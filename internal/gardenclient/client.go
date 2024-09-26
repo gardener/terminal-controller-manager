@@ -147,8 +147,6 @@ func NewClientSet(config *rest.Config, client client.Client, kubernetes kubernet
 func NewClientSetFromClusterCredentials(ctx context.Context, cs *ClientSet, credentials extensionsv1alpha1.ClusterCredentials, honourServiceAccountRef *bool, expirationSeconds *int64, scheme *runtime.Scheme) (*ClientSet, error) {
 	if credentials.ShootRef != nil {
 		return NewClientSetFromShootRef(ctx, cs, credentials.ShootRef, scheme)
-	} else if credentials.SecretRef != nil {
-		return NewClientSetFromSecretRef(ctx, cs, credentials.SecretRef, scheme)
 	} else if ptr.Deref(honourServiceAccountRef, false) && credentials.ServiceAccountRef != nil {
 		return NewClientSetFromServiceAccountRef(ctx, cs, credentials.ServiceAccountRef, expirationSeconds, scheme)
 	}
@@ -218,18 +216,6 @@ func NewClientSetFromShootRef(ctx context.Context, cs *ClientSet, ref *extension
 	}
 
 	return NewClientSetFromBytes(result.Status.Kubeconfig, client.Options{
-		Scheme: scheme,
-	})
-}
-
-// NewClientSetFromSecretRef creates a new controller ClientSet struct for a given SecretReference.
-func NewClientSetFromSecretRef(ctx context.Context, cs *ClientSet, ref *corev1.SecretReference, scheme *runtime.Scheme) (*ClientSet, error) {
-	secret := &corev1.Secret{}
-	if err := cs.Get(ctx, client.ObjectKey{Namespace: ref.Namespace, Name: ref.Name}, secret); err != nil {
-		return nil, err
-	}
-
-	return NewClientSetFromSecret(ctx, cs.Config, secret, client.Options{
 		Scheme: scheme,
 	})
 }

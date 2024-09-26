@@ -812,8 +812,6 @@ func createOrUpdateBinding(ctx context.Context, targetClientSet *gardenclient.Cl
 func clusterNameForCredential(cred extensionsv1alpha1.ClusterCredentials) (string, error) {
 	if cred.ShootRef != nil {
 		return cred.ShootRef.Name, nil
-	} else if cred.SecretRef != nil {
-		return cred.SecretRef.Name, nil
 	} else if cred.ServiceAccountRef != nil {
 		return cred.ServiceAccountRef.Name, nil
 	}
