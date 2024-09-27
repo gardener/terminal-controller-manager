@@ -752,24 +752,26 @@ func (r *TerminalReconciler) createOrUpdateAccessServiceAccount(ctx context.Cont
 		}
 	}
 
-	if t.Spec.Target.Authorization != nil {
-		for _, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
-			if err = createOrUpdateBinding(ctx, targetClientSet, t.Spec.Identifier, *t.Spec.Target.Namespace, &roleBinding, labelSet, annotationSet, accessServiceAccount); err != nil {
-				return nil, err
-			}
+	if t.Spec.Target.Authorization == nil {
+		return accessServiceAccount, nil
+	}
+
+	for _, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
+		if err = createOrUpdateBinding(ctx, targetClientSet, t.Spec.Identifier, *t.Spec.Target.Namespace, &roleBinding, labelSet, annotationSet, accessServiceAccount); err != nil {
+			return nil, err
 		}
+	}
 
-		if ptr.Deref(r.getConfig().HonourProjectMemberships, false) {
-			for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
-				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
-					project := &gardencorev1beta1.Project{}
-					if err = targetClientSet.Get(ctx, client.ObjectKey{Name: projectMembership.ProjectName}, project); err != nil {
-						return nil, err
-					}
+	if ptr.Deref(r.getConfig().HonourProjectMemberships, false) {
+		for _, projectMembership := range t.Spec.Target.Authorization.ProjectMemberships {
+			if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
+				project := &gardencorev1beta1.Project{}
+				if err = targetClientSet.Get(ctx, client.ObjectKey{Name: projectMembership.ProjectName}, project); err != nil {
+					return nil, err
+				}
 
-					if err = gardenclient.AddServiceAccountAsProjectMember(ctx, targetClientSet, project, accessServiceAccount, projectMembership.Roles); err != nil {
-						return nil, err
-					}
+				if err = gardenclient.AddServiceAccountAsProjectMember(ctx, targetClientSet, project, accessServiceAccount, projectMembership.Roles); err != nil {
+					return nil, err
 				}
 			}
 		}
