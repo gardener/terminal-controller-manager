@@ -572,7 +572,7 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 		}
 	}
 
-	if err := r.createOrUpdateAttachPodSecret(ctx, hostClientSet, t, labelSet, annotationSet); err != nil {
+	if err := r.createOrUpdateAttachServiceAccount(ctx, hostClientSet, t, labelSet, annotationSet); err != nil {
 		return fmt.Errorf("failed to create or update resources needed for attaching to a pod: %w", err)
 	}
 
@@ -635,7 +635,7 @@ func ensureServiceAccountMembershipCleanup(ctx context.Context, clientSet *garde
 	return nil
 }
 
-func (r *TerminalReconciler) createOrUpdateAttachPodSecret(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) error {
+func (r *TerminalReconciler) createOrUpdateAttachServiceAccount(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) error {
 	if ptr.Deref(t.Spec.Host.TemporaryNamespace, false) {
 		if _, err := hostClientSet.CreateOrUpdateNamespace(ctx, *t.Spec.Host.Namespace, labelSet, annotationSet); err != nil {
 			return err
