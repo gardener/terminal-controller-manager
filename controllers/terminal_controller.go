@@ -576,9 +576,24 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 		return fmt.Errorf("failed to create or update resources needed for attaching to a pod: %w", err)
 	}
 
-	secretNames, err := r.createOrUpdateAdminKubeconfigAndTokenSecrets(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet)
+	accessServiceAccountToken, err := r.createOrUpdateAccessServiceAccountAndRequestToken(ctx, targetClientSet, t, labelSet, annotationSet)
 	if err != nil {
-		return fmt.Errorf("failed to create or update admin kubeconfig: %w", err)
+		return err
+	}
+
+	kubeconfig, err := createOrUpdateKubeconfigSecret(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet)
+	if err != nil {
+		return fmt.Errorf("failed to create or update kubeconfig secret: %w", err)
+	}
+
+	token, err := createOrUpdateServiceAccountTokenSecret(ctx, hostClientSet, t, accessServiceAccountToken, labelSet, annotationSet)
+	if err != nil {
+		return fmt.Errorf("failed to create or update token secret: %w", err)
+	}
+
+	secretNames := &volumeSourceSecretNames{
+		kubeconfig: kubeconfig.Name,
+		token:      token.Name,
 	}
 
 	if err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, secretNames, labelSet, annotationSet); err != nil {
@@ -697,28 +712,6 @@ func (r *TerminalReconciler) patchTerminalStatus(ctx context.Context, t *extensi
 type volumeSourceSecretNames struct {
 	kubeconfig string
 	token      string
-}
-
-func (r *TerminalReconciler) createOrUpdateAdminKubeconfigAndTokenSecrets(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (*volumeSourceSecretNames, error) {
-	accessServiceAccountToken, err := r.createOrUpdateAccessServiceAccountAndRequestToken(ctx, targetClientSet, t, labelSet, annotationSet)
-	if err != nil {
-		return nil, err
-	}
-
-	kubeconfig, err := createOrUpdateKubeconfigSecret(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create or update kubeconfig secret: %w", err)
-	}
-
-	token, err := createOrUpdateServiceAccountTokenSecret(ctx, hostClientSet, t, accessServiceAccountToken, labelSet, annotationSet)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create or update token secret: %w", err)
-	}
-
-	return &volumeSourceSecretNames{
-		kubeconfig: kubeconfig.Name,
-		token:      token.Name,
-	}, nil
 }
 
 func (r *TerminalReconciler) createOrUpdateAccessServiceAccountAndRequestToken(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (string, error) {
