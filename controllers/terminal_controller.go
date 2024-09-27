@@ -576,7 +576,7 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 		return fmt.Errorf("failed to create or update resources needed for attaching to a pod: %w", err)
 	}
 
-	accessServiceAccountToken, err := r.createOrUpdateAccessServiceAccountAndRequestToken(ctx, targetClientSet, t, labelSet, annotationSet)
+	accessServiceAccount, err := r.createOrUpdateAccessServiceAccount(ctx, targetClientSet, t, labelSet, annotationSet)
 	if err != nil {
 		return err
 	}
@@ -584,6 +584,14 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 	kubeconfig, err := createOrUpdateKubeconfigSecret(ctx, targetClientSet, hostClientSet, t, labelSet, annotationSet)
 	if err != nil {
 		return fmt.Errorf("failed to create or update kubeconfig secret: %w", err)
+	}
+
+	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	accessServiceAccountToken, err := targetClientSet.RequestToken(childCtx, accessServiceAccount, r.getConfig().Controllers.Terminal.TokenRequestExpirationSeconds)
+	if err != nil {
+		return fmt.Errorf("failed to request token for access service account: %w", err)
 	}
 
 	token, err := createOrUpdateServiceAccountTokenSecret(ctx, hostClientSet, t, accessServiceAccountToken, labelSet, annotationSet)
@@ -714,10 +722,10 @@ type volumeSourceSecretNames struct {
 	token      string
 }
 
-func (r *TerminalReconciler) createOrUpdateAccessServiceAccountAndRequestToken(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (string, error) {
+func (r *TerminalReconciler) createOrUpdateAccessServiceAccount(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.ServiceAccount, error) {
 	if ptr.Deref(t.Spec.Target.TemporaryNamespace, false) {
 		if _, err := targetClientSet.CreateOrUpdateNamespace(ctx, *t.Spec.Target.Namespace, labelSet, annotationSet); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
@@ -727,7 +735,7 @@ func (r *TerminalReconciler) createOrUpdateAccessServiceAccountAndRequestToken(c
 
 	accessServiceAccount, err := targetClientSet.CreateOrUpdateServiceAccount(ctx, *t.Spec.Target.Namespace, extensionsv1alpha1.TerminalAccessResourceNamePrefix+t.Spec.Identifier, labelSet, &accessServiceAccountAnnotations)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// TODO can be removed once t.Spec.Target.RoleName and t.Spec.Target.BindingKind is removed from the API
@@ -743,14 +751,14 @@ func (r *TerminalReconciler) createOrUpdateAccessServiceAccountAndRequestToken(c
 		}
 
 		if err = createOrUpdateBinding(ctx, targetClientSet, t.Spec.Identifier, *t.Spec.Target.Namespace, roleBinding, labelSet, annotationSet, accessServiceAccount); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
 	if t.Spec.Target.Authorization != nil {
 		for _, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
 			if err = createOrUpdateBinding(ctx, targetClientSet, t.Spec.Identifier, *t.Spec.Target.Namespace, &roleBinding, labelSet, annotationSet, accessServiceAccount); err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 
@@ -759,21 +767,18 @@ func (r *TerminalReconciler) createOrUpdateAccessServiceAccountAndRequestToken(c
 				if projectMembership.ProjectName != "" && len(projectMembership.Roles) > 0 {
 					project := &gardencorev1beta1.Project{}
 					if err = targetClientSet.Get(ctx, client.ObjectKey{Name: projectMembership.ProjectName}, project); err != nil {
-						return "", err
+						return nil, err
 					}
 
 					if err = gardenclient.AddServiceAccountAsProjectMember(ctx, targetClientSet, project, accessServiceAccount, projectMembership.Roles); err != nil {
-						return "", err
+						return nil, err
 					}
 				}
 			}
 		}
 	}
 
-	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	return targetClientSet.RequestToken(childCtx, accessServiceAccount, r.getConfig().Controllers.Terminal.TokenRequestExpirationSeconds)
+	return accessServiceAccount, nil
 }
 
 func createOrUpdateBinding(ctx context.Context, targetClientSet *gardenclient.ClientSet, identifier string, namespace string, roleBinding *extensionsv1alpha1.RoleBinding, labelSet *labels.Set, annotationSet *utils.Set, accessServiceAccount *corev1.ServiceAccount) error {
