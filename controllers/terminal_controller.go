@@ -586,10 +586,7 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 		return fmt.Errorf("failed to create or update kubeconfig secret: %w", err)
 	}
 
-	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	accessServiceAccountToken, err := targetClientSet.RequestToken(childCtx, accessServiceAccount, r.getConfig().Controllers.Terminal.TokenRequestExpirationSeconds)
+	accessServiceAccountToken, err := targetClientSet.RequestToken(ctx, accessServiceAccount, r.getConfig().Controllers.Terminal.TokenRequestExpirationSeconds)
 	if err != nil {
 		return fmt.Errorf("failed to request token for access service account: %w", err)
 	}
