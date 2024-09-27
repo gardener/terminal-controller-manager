@@ -288,6 +288,24 @@ type ShootRef struct {
 	Name string `json:"name"`
 }
 
+// EqualShootRefs checks if two ShootRef objects are equal
+func EqualShootRefs(ref1, ref2 *ShootRef) bool {
+	if ref1 == nil || ref2 == nil {
+		return false
+	}
+
+	return ref1.Namespace == ref2.Namespace && ref1.Name == ref2.Name
+}
+
+// EqualServiceAccountRefs checks if two ServiceAccountRef objects are equal
+func EqualServiceAccountRefs(ref1, ref2 *corev1.ObjectReference) bool {
+	if ref1 == nil || ref2 == nil {
+		return false
+	}
+
+	return ref1.Namespace == ref2.Namespace && ref1.Name == ref2.Name
+}
+
 // LastError indicates the last occurred error for an operation on a resource.
 type LastError struct {
 	// Description is a human-readable message indicating details about the last error.

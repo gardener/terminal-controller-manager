@@ -562,6 +562,19 @@ func deleteAttachPodSecret(ctx context.Context, hostClientSet *gardenclient.Clie
 	return hostClientSet.DeleteRole(ctx, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalAttachRoleResourceNamePrefix+t.Spec.Identifier)
 }
 
+// isSameCluster checks if two ClusterCredentials refer to the same cluster
+func isSameCluster(c1, c2 extensionsv1alpha1.ClusterCredentials) bool {
+	if extensionsv1alpha1.EqualShootRefs(c1.ShootRef, c2.ShootRef) {
+		return true
+	}
+
+	if extensionsv1alpha1.EqualServiceAccountRefs(c1.ServiceAccountRef, c2.ServiceAccountRef) {
+		return true
+	}
+
+	return false
+}
+
 func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) error {
 	if ptr.Deref(r.getConfig().HonourCleanupProjectMembership, false) {
 		if ptr.Deref(t.Spec.Target.CleanupProjectMembership, false) &&
@@ -586,22 +599,31 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 		return fmt.Errorf("failed to create or update kubeconfig secret: %w", err)
 	}
 
-	accessServiceAccountToken, err := targetClientSet.RequestToken(ctx, accessServiceAccount, r.getConfig().Controllers.Terminal.TokenRequestExpirationSeconds)
-	if err != nil {
-		return fmt.Errorf("failed to request token for access service account: %w", err)
+	useProjectedToken := isSameCluster(t.Spec.Host.Credentials, t.Spec.Target.Credentials) &&
+		*t.Spec.Host.Namespace == *t.Spec.Target.Namespace
+
+	options := terminalPodOptions{
+		kubeconfigSecretName: kubeconfig.Name,
+		useProjectedToken:    useProjectedToken,
+		serviceAccountName:   accessServiceAccount.Name,
 	}
 
-	token, err := createOrUpdateServiceAccountTokenSecret(ctx, hostClientSet, t, accessServiceAccountToken, labelSet, annotationSet)
-	if err != nil {
-		return fmt.Errorf("failed to create or update token secret: %w", err)
+	if !useProjectedToken {
+		accessServiceAccountToken, err := targetClientSet.RequestToken(ctx, accessServiceAccount, r.getConfig().Controllers.Terminal.TokenRequestExpirationSeconds)
+		if err != nil {
+			return fmt.Errorf("failed to request token for access service account: %w", err)
+		}
+
+		token, err := createOrUpdateServiceAccountTokenSecret(ctx, hostClientSet, t, accessServiceAccountToken, labelSet, annotationSet)
+		if err != nil {
+			return fmt.Errorf("failed to create or update token secret: %w", err)
+		}
+
+		options.tokenSecretName = token.Name
+		options.serviceAccountName = ""
 	}
 
-	secretNames := &volumeSourceSecretNames{
-		kubeconfig: kubeconfig.Name,
-		token:      token.Name,
-	}
-
-	if err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, secretNames, labelSet, annotationSet); err != nil {
+	if err = r.createOrUpdateTerminalPod(ctx, hostClientSet, t, labelSet, annotationSet, options); err != nil {
 		return fmt.Errorf("failed to create or update terminal pod: %w", err)
 	}
 
@@ -712,11 +734,6 @@ func (r *TerminalReconciler) patchTerminalStatus(ctx context.Context, t *extensi
 	}
 
 	return r.Status().Patch(ctx, terminal, patch)
-}
-
-type volumeSourceSecretNames struct {
-	kubeconfig string
-	token      string
 }
 
 func (r *TerminalReconciler) createOrUpdateAccessServiceAccount(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.ServiceAccount, error) {
@@ -960,7 +977,22 @@ func GenerateKubeconfig(clusterName string, contextNamespace string, server stri
 	return yaml.Marshal(kubeconfig)
 }
 
-func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, secretNames *volumeSourceSecretNames, labelSet *labels.Set, annotationSet *utils.Set) error {
+// terminalPodOptions contains configuration options for creating or updating a terminal Pod.
+type terminalPodOptions struct {
+	// kubeconfigSecretName is the name of the secret containing the kubeconfig to be mounted in the Pod.
+	kubeconfigSecretName string
+
+	// useProjectedToken indicates whether to use a projected service account token volume.
+	useProjectedToken bool
+
+	// tokenSecretName is the name of the secret to use for the token volume when not using a projected token.
+	tokenSecretName string
+
+	// serviceAccountName is the name of the service account to use when a projected token volume is configured.
+	serviceAccountName string
+}
+
+func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set, options terminalPodOptions) error {
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
 	const (
@@ -984,8 +1016,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 			privileged = t.Spec.Host.Pod.Container.Privileged
 		}
 
-		automountServiceAccountToken := false
-		pod.Spec.AutomountServiceAccountToken = &automountServiceAccountToken
+		pod.Spec.AutomountServiceAccountToken = ptr.To(false)
 
 		pod.Spec.HostPID = t.Spec.Host.Pod.HostPID
 		pod.Spec.HostNetwork = t.Spec.Host.Pod.HostNetwork
@@ -999,6 +1030,10 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 
 		if len(pod.Spec.Containers) == 0 {
 			// initialize values that cannot be updated
+			if options.useProjectedToken {
+				pod.Spec.ServiceAccountName = options.serviceAccountName
+			}
+
 			container := corev1.Container{Name: containerName}
 
 			container.VolumeMounts = []corev1.VolumeMount{
@@ -1064,12 +1099,35 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 					},
 				},
 			}}
+
+			tokenVolume := corev1.Volume{
+				Name:         tokenVolumeName,
+				VolumeSource: corev1.VolumeSource{},
+			}
+			if options.useProjectedToken {
+				tokenVolume.VolumeSource.Projected = &corev1.ProjectedVolumeSource{
+					Sources: []corev1.VolumeProjection{
+						{
+							ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+								Path:              "token",
+								ExpirationSeconds: ptr.To(int64(time.Hour.Seconds())),
+							},
+						},
+					},
+				}
+				pod.Spec.ServiceAccountName = options.serviceAccountName
+			} else {
+				tokenVolume.VolumeSource.Secret = &corev1.SecretVolumeSource{
+					SecretName: options.tokenSecretName,
+				}
+			}
+
 			pod.Spec.Volumes = append(pod.Spec.Volumes, []corev1.Volume{
 				{
 					Name: kubeconfigReadOnlyVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							SecretName: secretNames.kubeconfig,
+							SecretName: options.kubeconfigSecretName,
 							Items: []corev1.KeyToPath{
 								{
 									Key:  gardenclient.DataKeyKubeConfig,
@@ -1085,14 +1143,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 						EmptyDir: &corev1.EmptyDirVolumeSource{Medium: corev1.StorageMediumDefault},
 					},
 				},
-				{
-					Name: tokenVolumeName,
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName: secretNames.token,
-						},
-					},
-				},
+				tokenVolume,
 			}...)
 		}
 		// update values that can be updated
