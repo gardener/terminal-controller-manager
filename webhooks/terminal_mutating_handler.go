@@ -61,13 +61,13 @@ func (h *TerminalMutator) mutatingTerminalFn(t *v1alpha1.Terminal, admissionReq 
 }
 
 func (h *TerminalMutator) mutateNamespaceIfTemporary(t *v1alpha1.Terminal, terminalIdentifier string) {
+	ns := "term-" + terminalIdentifier
+
 	if ptr.Deref(t.Spec.Host.TemporaryNamespace, false) {
-		ns := "term-host-" + terminalIdentifier
 		t.Spec.Host.Namespace = &ns
 	}
 
 	if ptr.Deref(t.Spec.Target.TemporaryNamespace, false) {
-		ns := "term-target-" + terminalIdentifier
 		t.Spec.Target.Namespace = &ns
 	}
 }
