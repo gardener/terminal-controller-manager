@@ -270,12 +270,12 @@ type Container struct {
 // ClusterCredentials define the credentials for a kubernetes cluster
 type ClusterCredentials struct {
 	// ServiceAccountRef is a reference to a service account that should be used, usually to manage resources on the same cluster as the service account is residing in
-	// Either ShootRef or ServiceAccountRef is mandatory. ShootRef will be used if more than one ref is provided.
+	// Either ShootRef or ServiceAccountRef must be set, but not both.
 	// +optional
 	ServiceAccountRef *corev1.ObjectReference `json:"serviceAccountRef,omitempty"`
 
 	// ShootRef references the shoot cluster. The admin kubeconfig retrieved from the shoots/adminkubeconfig endpoint is used
-	// Either ShootRef or ServiceAccountRef is mandatory. ShootRef will be used if more than one ref is provided.
+	// Either ShootRef or ServiceAccountRef must be set, but not both.
 	// +optional
 	ShootRef *ShootRef `json:"shootRef,omitempty"`
 }
@@ -286,6 +286,24 @@ type ShootRef struct {
 	Namespace string `json:"namespace"`
 	// Name is the name of the shoot cluster
 	Name string `json:"name"`
+}
+
+// EqualShootRefs checks if two ShootRef objects are equal
+func EqualShootRefs(ref1, ref2 *ShootRef) bool {
+	if ref1 == nil || ref2 == nil {
+		return false
+	}
+
+	return ref1.Namespace == ref2.Namespace && ref1.Name == ref2.Name
+}
+
+// EqualServiceAccountRefs checks if two ServiceAccountRef objects are equal
+func EqualServiceAccountRefs(ref1, ref2 *corev1.ObjectReference) bool {
+	if ref1 == nil || ref2 == nil {
+		return false
+	}
+
+	return ref1.Namespace == ref2.Namespace && ref1.Name == ref2.Name
 }
 
 // LastError indicates the last occurred error for an operation on a resource.
