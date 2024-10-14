@@ -218,7 +218,7 @@ func (e Environment) Start(ctx context.Context) {
 	gomega.Eventually(func() error {
 		serverURL := net.JoinHostPort(e.GardenEnv.WebhookInstallOptions.LocalServingHost, strconv.Itoa(e.GardenEnv.WebhookInstallOptions.LocalServingPort))
 		conn, err := tls.DialWithDialer(d, "tcp", serverURL, &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, // #nosec G402 - Test only.
 		})
 		if err != nil {
 			return err
