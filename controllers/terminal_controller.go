@@ -589,7 +589,7 @@ func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClient
 }
 
 // ensureServiceAccountMembershipCleanup adds the TerminalReference label and also adds the ExternalTerminalName finalizer.
-// This ensures that the ServiceAccountReconciler is able to cleanup the poject membership of the ServiceAccount once it is
+// This ensures that the ServiceAccountReconciler is able to cleanup the project membership of the ServiceAccount once it is
 // no longer referenced by any terminal resource
 func ensureServiceAccountMembershipCleanup(ctx context.Context, clientSet *gardenclient.ClientSet, ref corev1.ObjectReference) error {
 	serviceAccount := &corev1.ServiceAccount{}

@@ -8,9 +8,10 @@ package test
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net"
 	"os"
 	"path/filepath"
@@ -218,7 +219,7 @@ func (e Environment) Start(ctx context.Context) {
 	gomega.Eventually(func() error {
 		serverURL := net.JoinHostPort(e.GardenEnv.WebhookInstallOptions.LocalServingHost, strconv.Itoa(e.GardenEnv.WebhookInstallOptions.LocalServingPort))
 		conn, err := tls.DialWithDialer(d, "tcp", serverURL, &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, // #nosec G402 - Test only.
 		})
 		if err != nil {
 			return err
@@ -289,12 +290,13 @@ func (e Environment) CreateObject(ctx context.Context, obj client.Object, key ty
 	}, timeout, interval).Should(gomega.BeTrue())
 }
 
-var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
-
 func StringWithCharset(length int, charset string) string {
 	b := make([]byte, length)
 	for i := range b {
-		b[i] = charset[seededRand.Intn(len(charset))]
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+		b[i] = charset[num.Int64()]
 	}
 
 	return string(b)
