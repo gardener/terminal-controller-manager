@@ -70,24 +70,50 @@ help: ## Display this help.
 
 ##@ Development
 
+.PHONY: tidy
+tidy: ## Clean up go.mod and go.sum by removing unused dependencies.
+	go mod tidy
+
+.PHONY: clean
+clean: ## Remove generated files and clean up directories.
+	@hack/clean.sh ./api/... ./charts/... ./controllers/... ./internal/... ./test/... ./webhooks/...
+
 .PHONY: manifests
-manifests: $(CONTROLLER_GEN) ## Generate ClusterRole object.
-	$(CONTROLLER_GEN) crd paths="./controllers/..." paths="./api/..." output:crd:dir=charts/terminal/charts/application/crd-gen
+manifests: $(CONTROLLER_GEN) ## Generate CustomResourceDefinition object.
+	$(CONTROLLER_GEN) crd paths="./api/..." output:crd:dir=charts/terminal/charts/application/crd-gen
 
 .PHONY: generate
-generate: $(CONTROLLER_GEN) ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: manifests $(CONTROLLER_GEN) fmt ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./controllers/..." paths="./api/..."
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
+.PHONY: check-generate
+check-generate: ## Verify if code generation is up-to-date by running generate and checking for changes.
+	@hack/check-generate.sh $(REPO_ROOT)
+
 .PHONY: lint
 lint: ## Run golangci-lint against code.
 	@./hack/golangci-lint.sh
 
+.PHONY: sast
+sast: $(GOSEC) ## Run gosec against code
+	@./hack/sast.sh
+
+.PHONY: sast-report
+sast-report: $(GOSEC) ## Run gosec against code and export report to SARIF.
+	@./hack/sast.sh --gosec-report true
+
 .PHONY: test
-test: manifests generate fmt lint go-test ## Run tests.
+test: generate lint go-test sast ## Run tests.
+
+.PHONY: verify ## Run basic verification including linting, tests, and static analysis.
+verify: lint go-test sast
+
+.PHONY: verify-extended ## Run extended verification including code generation check, linting, tests, and detailed static analysis report.
+verify-extended: check-generate lint go-test sast-report
 
 .PHONY: go-test
 go-test: ## Run go tests.
@@ -103,11 +129,11 @@ bootstrap-dev: ## Install example resources into a dev cluster
 ##@ Build
 
 .PHONY: build
-build: generate fmt lint ## Build manager binary.
+build: generate lint ## Build manager binary.
 	go build -o bin/manager main.go
 
 .PHONY: run
-run: manifests generate fmt lint ## Run a controller from your host.
+run: generate lint ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build

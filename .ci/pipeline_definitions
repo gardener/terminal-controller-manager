@@ -24,10 +24,10 @@ terminal-controller-manager:
                 integrity_requirement: 'high'
                 availability_requirement: 'low'
     steps:
-      check:
+      verify:
         image: 'golang:1.23.2'
-      test:
-        image: 'golang:1.23.2'
+        vars:
+          TEST_COV: '"yes"'
   jobs:
     head-update:
       traits:
@@ -46,6 +46,17 @@ terminal-controller-manager:
           ocm_repository: europe-docker.pkg.dev/gardener-project/releases
         release:
           nextversion: 'bump_minor'
+          assets:
+            - type: build-step-log
+              step_name: verify
+              purposes:
+                - lint
+                - sast
+                - gosec
+              comment: |
+                we use gosec (linter) for SAST scans
+                see: https://github.com/securego/gosec
+                enabled by https://github.com/gardener/terminal-controller-manager/pull/328
         slack:
           default_channel: 'internal_scp_workspace'
           channel_cfgs:

@@ -257,7 +257,7 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 }
 
 func readFile(configFile string, cfg *v1alpha1.ControllerManagerConfiguration) error {
-	data, err := os.ReadFile(configFile)
+	data, err := os.ReadFile(configFile) // #nosec G304 -- static config path in Kubernetes deployment
 	if err != nil {
 		return err
 	}

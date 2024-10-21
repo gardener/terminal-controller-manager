@@ -586,7 +586,7 @@ const (
 	BindingKindRoleBinding BindingKind = "RoleBinding"
 
 	// KubeconfigSecretResourceNamePrefix is a name prefix for the kubeconfig secret used within the terminal pod.
-	KubeconfigSecretResourceNamePrefix = "term-kubeconfig-"
+	KubeconfigSecretResourceNamePrefix = "term-kubeconfig-" // #nosec G101 -- No credential.
 
 	// TokenSecretResourceNamePrefix is a name prefix for the token secret that is mounted to the terminal pod.
 	TokenSecretResourceNamePrefix = "term-token-"

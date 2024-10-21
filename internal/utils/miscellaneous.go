@@ -9,6 +9,7 @@ package utils
 import (
 	"hash/fnv"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -57,6 +58,7 @@ func DataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 		return data, nil
 	}
 
+	file = filepath.Clean(file)
 	if len(file) > 0 {
 		fileData, err := os.ReadFile(file)
 		if err != nil {
