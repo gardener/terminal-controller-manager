@@ -245,6 +245,10 @@ func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) er
 }
 
 func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef *bool) error {
+	if cred.ShootRef != nil && cred.ServiceAccountRef != nil {
+		return field.Forbidden(fldPath, "only one of 'shootRef' or 'serviceAccountRef' must be set")
+	}
+
 	if !ptr.Deref(honourServiceAccountRef, false) {
 		if cred.ServiceAccountRef != nil {
 			return field.Forbidden(fldPath.Child("serviceAccountRef"), "field is forbidden by configuration")

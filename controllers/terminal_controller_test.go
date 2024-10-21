@@ -434,6 +434,105 @@ var _ = Describe("Terminal Controller", func() {
 		})
 	})
 
+	Context("when using projected service account token volume", func() {
+		BeforeEach(func() {
+			By("Ensuring same service account and namespace is used for host and target")
+
+			namespace := "test-same-namespace-" + suffix
+			hostNamespace = namespace
+			targetNamespace = namespace
+			terminal.Spec.Host.Namespace = &namespace
+			terminal.Spec.Target.Namespace = &namespace
+			e.CreateObject(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}, types.NamespacedName{Name: namespace}, timeout, interval)
+
+			serviceAccountName := "test-serviceaccount-" + suffix
+			e.AddClusterAdminServiceAccount(ctx, serviceAccountName, namespace, timeout, interval)
+
+			serviceAccountRef := corev1.ObjectReference{
+				Namespace: namespace,
+				Name:      serviceAccountName,
+			}
+			terminal.Spec.Host.Credentials.ServiceAccountRef = &serviceAccountRef
+			terminal.Spec.Target.Credentials.ServiceAccountRef = &serviceAccountRef
+		})
+
+		It("should use projected service account token", func() {
+			Expect(terminalCreationError).Should(Not(HaveOccurred()))
+			By("Expecting no token secret to be created")
+			Consistently(func() bool {
+				secret := &corev1.Secret{}
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TokenSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, secret)
+				return kErros.IsNotFound(err)
+			}, timeout, interval).Should(BeTrue())
+
+			var pod *corev1.Pod
+			Eventually(func() bool {
+				pod = &corev1.Pod{}
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			By("Expecting pod to use projected service account token")
+			Expect(pod.Spec.ServiceAccountName).To(Equal(dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier))
+
+			var tokenVolume *corev1.Volume
+			for _, volume := range pod.Spec.Volumes {
+				if volume.Name == "token" {
+					tokenVolume = &volume
+					break
+				}
+			}
+
+			Expect(tokenVolume).NotTo(BeNil())
+			Expect(tokenVolume.VolumeSource.Projected).NotTo(BeNil())
+			Expect(tokenVolume.VolumeSource.Projected.Sources).To(HaveLen(1))
+			Expect(tokenVolume.VolumeSource.Projected.Sources[0].ServiceAccountToken).NotTo(BeNil())
+			Expect(tokenVolume.VolumeSource.Projected.Sources[0].ServiceAccountToken.Path).To(Equal("token"))
+			Expect(tokenVolume.VolumeSource.Projected.Sources[0].ServiceAccountToken.ExpirationSeconds).To(Equal(ptr.To(int64(3600))))
+		})
+	})
+
+	Context("when using token secret on the pod", func() {
+		BeforeEach(func() {
+			// Ensure namespaces are different to simulate token secret usage scenario
+			hostNamespace = "test-host-serviceaccount-namespace-" + suffix
+			targetNamespace = "test-target-serviceaccount-namespace-" + suffix
+			terminal.Spec.Host.Namespace = &hostNamespace
+			terminal.Spec.Target.Namespace = &targetNamespace
+		})
+
+		It("should create a token secret for the pod", func() {
+			Expect(terminalCreationError).Should(Not(HaveOccurred()))
+
+			By("Expecting token secret to be created")
+			Eventually(func() bool {
+				secret := &corev1.Secret{}
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TokenSecretResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, secret)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			var pod *corev1.Pod
+			Eventually(func() bool {
+				pod = &corev1.Pod{}
+				err := e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			By("Expecting pod to use token secret")
+			var tokenVolume *corev1.Volume
+			for _, volume := range pod.Spec.Volumes {
+				if volume.Name == "token" {
+					tokenVolume = &volume
+					break
+				}
+			}
+
+			Expect(tokenVolume).NotTo(BeNil())
+			Expect(tokenVolume.VolumeSource.Secret).NotTo(BeNil())
+			Expect(tokenVolume.VolumeSource.Secret.SecretName).To(Equal(dashboardv1alpha1.TokenSecretResourceNamePrefix + terminal.Spec.Identifier))
+		})
+	})
+
 	Context("Terminal pod tolerations", func() {
 		var (
 			tolerations        []corev1.Toleration

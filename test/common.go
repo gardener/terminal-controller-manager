@@ -285,7 +285,7 @@ func (e Environment) CreateObject(ctx context.Context, obj client.Object, key ty
 	gomega.Expect(e.K8sClient.Create(ctx, obj)).Should(gomega.Succeed())
 	gomega.Eventually(func() bool {
 		err := e.K8sClient.Get(ctx, key, obj)
-		return err == nil
+		return client.IgnoreAlreadyExists(err) == nil
 	}, timeout, interval).Should(gomega.BeTrue())
 }
 
