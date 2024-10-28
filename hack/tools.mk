@@ -12,7 +12,7 @@ GOSEC                      := $(TOOLS_BIN_DIR)/gosec
 
 # default tool versions
 # renovate: datasource=github-releases depName=securego/gosec
-GOSEC_VERSION ?= v2.20.0
+GOSEC_VERSION ?= v2.21.4
 
 # tool versions from go.mod
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
