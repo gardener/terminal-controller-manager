@@ -17,6 +17,9 @@ export SOURCE_PATH="$(readlink -f "$SOURCE_PATH")"
 
 pushd "${SOURCE_PATH}" > /dev/null
 
+git config --global user.email "gardener@sap.com"
+git config --global user.name "Gardener CI/CD"
+
 export GOLANGCI_LINT_ADDITIONAL_FLAGS="--verbose --timeout 2m"
 export GO_TEST_ADDITIONAL_FLAGS="-race"
 
