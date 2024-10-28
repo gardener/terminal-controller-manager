@@ -17,8 +17,19 @@ export SOURCE_PATH="$(readlink -f "$SOURCE_PATH")"
 
 pushd "${SOURCE_PATH}" > /dev/null
 
-git config --global user.email "gardener@sap.com"
-git config --global user.name "Gardener CI/CD"
+if [[ -z "$(git config --global user.email)" ]]; then
+  echo "Setting global Git user.email to gardener@sap.com"
+  git config --global user.email "gardener@sap.com"
+else
+  echo "Global Git user.email is already set to $(git config --global user.email)"
+fi
+
+if [[ -z "$(git config --global user.name)" ]]; then
+  echo "Setting global Git user.name to Gardener CI/CD"
+  git config --global user.name "Gardener CI/CD"
+else
+  echo "Global Git user.name is already set to $(git config --global user.name)"
+fi
 
 export GOLANGCI_LINT_ADDITIONAL_FLAGS="--verbose --timeout 2m"
 export GO_TEST_ADDITIONAL_FLAGS="-race"
