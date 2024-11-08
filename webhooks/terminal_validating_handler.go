@@ -38,7 +38,7 @@ type TerminalValidator struct {
 	configMutex sync.RWMutex
 
 	// Decoder decodes objects
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 }
 
 func (h *TerminalValidator) getConfig() *v1alpha1.ControllerManagerConfiguration {

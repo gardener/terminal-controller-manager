@@ -27,7 +27,7 @@ type TerminalMutator struct {
 	Log logr.Logger
 
 	// Decoder decodes objects
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 }
 
 func (h *TerminalMutator) mutatingTerminalFn(t *v1alpha1.Terminal, admissionReq admissionv1.AdmissionRequest) error {
