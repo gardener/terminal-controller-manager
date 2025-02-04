@@ -25,7 +25,7 @@ terminal-controller-manager:
                 availability_requirement: 'low'
     steps:
       verify:
-        image: 'golang:1.23.5'
+        image: 'golang:1.23.6'
         vars:
           TEST_COV: '"yes"'
   jobs:
