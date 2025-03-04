@@ -17,7 +17,6 @@ import (
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	gardencoreclientset "github.com/gardener/gardener/pkg/client/core/clientset/versioned"
 	gardenscheme "github.com/gardener/gardener/pkg/client/core/clientset/versioned/scheme"
-	"golang.org/x/oauth2/google"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -218,92 +217,6 @@ func NewClientSetFromShootRef(ctx context.Context, cs *ClientSet, ref *extension
 	return NewClientSetFromBytes(result.Status.Kubeconfig, client.Options{
 		Scheme: scheme,
 	})
-}
-
-// NewClientSetFromSecret creates a new controller ClientSet struct for a given secret.
-// Client is created either from "kubeconfig" (and in case of gcp from "serviceaccount.json") or "token" and "ca.crt" data keys
-func NewClientSetFromSecret(ctx context.Context, config *rest.Config, secret *corev1.Secret, opts client.Options) (*ClientSet, error) {
-	if kubeconfig, ok := secret.Data[DataKeyKubeConfig]; ok {
-		clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
-		if err != nil {
-			return nil, err
-		}
-
-		cfg, err := clientConfig.RawConfig()
-		if err != nil {
-			return nil, err
-		}
-
-		context := cfg.Contexts[cfg.CurrentContext]
-		if context == nil {
-			return nil, fmt.Errorf("no context found for current context %s", cfg.CurrentContext)
-		}
-
-		authInfo := cfg.AuthInfos[context.AuthInfo]
-		if authInfo == nil {
-			return nil, fmt.Errorf("no auth info found with name %s", context.AuthInfo)
-		}
-
-		if (authInfo.AuthProvider != nil && authInfo.AuthProvider.Name == "gcp") ||
-			(authInfo.Exec != nil && authInfo.Exec.Command == "gke-gcloud-auth-plugin") {
-			gsaKey, ok := secret.Data[DataKeyServiceaccountJSON]
-			if !ok {
-				return nil, fmt.Errorf("%q required in secret for gcp authentication provider", DataKeyServiceaccountJSON)
-			}
-
-			return NewClientSetFromGoogleSAKey(ctx, cfg, *context, gsaKey, opts)
-		}
-
-		return NewClientSetFromBytes(kubeconfig, opts)
-	}
-
-	if token, ok := secret.Data[corev1.ServiceAccountTokenKey]; ok {
-		secretConfig := &rest.Config{
-			Host: config.Host,
-			TLSClientConfig: rest.TLSClientConfig{
-				CAData: secret.Data[corev1.ServiceAccountRootCAKey],
-			},
-			BearerToken: string(token),
-		}
-
-		return NewClientSetForConfig(secretConfig, opts)
-	}
-
-	return nil, errors.New("no valid kubeconfig found")
-}
-
-// NewClientSetFromGoogleSAKey creates a new controller ClientSet struct for a given google service account key and client config.
-func NewClientSetFromGoogleSAKey(ctx context.Context, cfg clientcmdapi.Config, context clientcmdapi.Context, gsaKey []byte, opts client.Options) (*ClientSet, error) {
-	cluster := cfg.Clusters[context.Cluster]
-	if cluster == nil {
-		return nil, fmt.Errorf("no cluster found with name %s", context.Cluster)
-	}
-
-	// defaultScopes:
-	// - cloud-platform is the base scope to authenticate to GCP
-	defaultScopes := []string{
-		"https://www.googleapis.com/auth/cloud-platform",
-	}
-
-	credentials, err := google.CredentialsFromJSON(ctx, gsaKey, defaultScopes...)
-	if err != nil {
-		return nil, fmt.Errorf("could not get google credentials from json: %w", err)
-	}
-
-	token, err := credentials.TokenSource.Token()
-	if err != nil {
-		return nil, err
-	}
-
-	secretConfig := &rest.Config{
-		Host: cluster.Server,
-		TLSClientConfig: rest.TLSClientConfig{
-			CAData: cluster.CertificateAuthorityData,
-		},
-		BearerToken: token.AccessToken,
-	}
-
-	return NewClientSetForConfig(secretConfig, opts)
 }
 
 // NewClientSetFromBytes creates a new controller ClientSet struct for a given kubeconfig byte slice.
