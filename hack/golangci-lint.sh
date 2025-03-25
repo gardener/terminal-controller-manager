@@ -15,7 +15,7 @@ fi
 export SOURCE_PATH="$(readlink -f "$SOURCE_PATH")"
 
 # renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION=v1.63.4
+GOLANGCI_LINT_VERSION=v1.64.8
 
 GOLANGCI_LINT_ADDITIONAL_FLAGS=${GOLANGCI_LINT_ADDITIONAL_FLAGS:-""}
 
