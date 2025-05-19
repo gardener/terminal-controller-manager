@@ -1,24 +1,40 @@
-# options for analysis running
+version: "2"
 run:
-  timeout: 2m
   allow-parallel-runners: true
-
 linters:
   enable:
     - gochecksumtype
-    - goimports
     - perfsprint
     - protogetter
     - revive
     - whitespace
     - wsl
-linters-settings:
-  goimports:
-    local-prefixes: github.com/gardener/terminal-controller-manager
-issues:
-  exclude-rules:
-    # Allow dot imports for ginkgo and gomega
-    - source: ginkgo|gomega
-      linters:
-        - revive
-      text: "should not use dot imports"
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - revive
+        text: should not use dot imports
+        source: ginkgo|gomega
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/gardener/terminal-controller-manager
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
