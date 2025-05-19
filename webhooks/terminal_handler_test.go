@@ -158,8 +158,8 @@ var _ = Describe("Validating Webhook", func() {
 				Expect(terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat]).To(Not(BeEmpty()))
 
 				By("clearing last heartbeat and setting keepalive annotation")
-				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
-				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalOperation] = dashboardv1alpha1.TerminalOperationKeepalive
+				terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
+				terminal.Annotations[dashboardv1alpha1.TerminalOperation] = dashboardv1alpha1.TerminalOperationKeepalive
 				err := e.K8sClient.Update(ctx, terminal)
 				Expect(err).To(Not(HaveOccurred()))
 
@@ -212,7 +212,7 @@ var _ = Describe("Validating Webhook", func() {
 				}, timeout, interval).Should(BeTrue())
 
 				By("updating the last heartbeat time")
-				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
+				terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
 				err := e.K8sClient.Update(ctx, terminal)
 
 				Expect(err).To(Not(HaveOccurred()))
@@ -361,7 +361,7 @@ var _ = Describe("Validating Webhook", func() {
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
-				terminal.ObjectMeta.Annotations[dashboardv1alpha1.GardenCreatedBy] = "changed"
+				terminal.Annotations[dashboardv1alpha1.GardenCreatedBy] = "changed"
 				err := e.K8sClient.Update(ctx, terminal)
 
 				Expect(err).To(HaveOccurred())
@@ -380,7 +380,7 @@ var _ = Describe("Validating Webhook", func() {
 
 				By("updating the last heartbeat time to the future")
 				future := time.Now().Local().Add(time.Hour)
-				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = future.UTC().Format(time.RFC3339)
+				terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = future.UTC().Format(time.RFC3339)
 				err := e.K8sClient.Update(ctx, terminal)
 
 				Expect(err).To(HaveOccurred())
@@ -398,7 +398,7 @@ var _ = Describe("Validating Webhook", func() {
 				}, timeout, interval).Should(BeTrue())
 
 				By("setting an invalid value as last heartbeat time")
-				terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = "invalid"
+				terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = "invalid"
 				err := e.K8sClient.Update(ctx, terminal)
 
 				Expect(err).To(HaveOccurred())

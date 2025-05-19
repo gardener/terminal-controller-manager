@@ -71,12 +71,12 @@ func (r *TerminalHeartbeatReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	if !t.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !t.DeletionTimestamp.IsZero() {
 		// ignore already deleted terminal resource
 		return ctrl.Result{}, nil
 	}
 
-	lastHeartbeat := t.ObjectMeta.Annotations[extensionsv1alpha1.TerminalLastHeartbeat]
+	lastHeartbeat := t.Annotations[extensionsv1alpha1.TerminalLastHeartbeat]
 	if len(lastHeartbeat) == 0 {
 		// if there is no heartbeat set, delete right away
 		return ctrl.Result{}, r.deleteTerminal(ctx, t)

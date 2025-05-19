@@ -145,7 +145,7 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 			}
 
 			// ServiceAccount was marked for deletion - event should be processed
-			if oldObj.ObjectMeta.DeletionTimestamp.IsZero() && !newObj.ObjectMeta.DeletionTimestamp.IsZero() {
+			if oldObj.DeletionTimestamp.IsZero() && !newObj.DeletionTimestamp.IsZero() {
 				return true
 			}
 

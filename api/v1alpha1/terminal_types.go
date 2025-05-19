@@ -490,7 +490,7 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 		return nil, errors.New("target namespace not set")
 	}
 
-	if len(t.ObjectMeta.Annotations[GardenCreatedBy]) == 0 {
+	if len(t.Annotations[GardenCreatedBy]) == 0 {
 		return nil, errors.New("createdBy annotation not set")
 	}
 
@@ -499,7 +499,7 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 		return nil, err
 	}
 
-	createdByHash, err := utils.ToFnvHash(t.ObjectMeta.Annotations[GardenCreatedBy])
+	createdByHash, err := utils.ToFnvHash(t.Annotations[GardenCreatedBy])
 	if err != nil {
 		return nil, err
 	}
@@ -517,12 +517,12 @@ func (t *Terminal) NewAnnotationsSet() (*utils.Set, error) {
 		return nil, errors.New("target namespace not set")
 	}
 
-	if len(t.ObjectMeta.Annotations[GardenCreatedBy]) == 0 {
+	if len(t.Annotations[GardenCreatedBy]) == 0 {
 		return nil, errors.New("createdBy annotation not set")
 	}
 
 	targetNamespace := *t.Spec.Target.Namespace
-	createdBy := t.ObjectMeta.Annotations[GardenCreatedBy]
+	createdBy := t.Annotations[GardenCreatedBy]
 
 	return &utils.Set{
 		"terminal.dashboard.gardener.cloud/target-ns":  targetNamespace,
