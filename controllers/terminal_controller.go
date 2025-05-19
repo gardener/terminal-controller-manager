@@ -408,7 +408,7 @@ func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targe
 func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) error {
 	if targetClientSet != nil {
 		if err := r.deleteAccessToken(ctx, targetClientSet, t); err != nil {
-			return fmt.Errorf("Failed to delete access token %w", err)
+			return fmt.Errorf("failed to delete access token %w", err)
 		}
 	} else {
 		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
@@ -424,7 +424,7 @@ func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, 
 		}
 
 		if err := hostClientSet.DeletePod(ctx, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier); err != nil {
-			return fmt.Errorf("Failed to delete terminal pod, %w", err)
+			return fmt.Errorf("failed to delete terminal pod, %w", err)
 		}
 
 		if err := deleteKubeconfigSecret(ctx, hostClientSet, t); err != nil {
