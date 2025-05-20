@@ -17,7 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
 )
@@ -122,7 +121,7 @@ var _ = Describe("Terminal Heartbeat Controller", func() {
 		Context("expired lifetime", func() {
 			BeforeEach(func() {
 				configWithNewTTL := test.DefaultConfiguration()
-				configWithNewTTL.Controllers.TerminalHeartbeat.TimeToLive = v1alpha1.Duration{Duration: time.Duration(1) * time.Second}
+				configWithNewTTL.Controllers.TerminalHeartbeat.TimeToLive = dashboardv1alpha1.Duration{Duration: time.Duration(1) * time.Second}
 				terminalHeartbeatReconciler.injectConfig(configWithNewTTL)
 			})
 			It("Should delete terminal", func() {
@@ -151,7 +150,7 @@ var _ = Describe("Terminal Heartbeat Controller", func() {
 						return err
 					}
 
-					terminal.ObjectMeta.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
+					terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
 					return e.K8sClient.Update(ctx, terminal)
 				}, timeout, interval).Should(Succeed())
 

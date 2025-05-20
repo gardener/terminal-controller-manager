@@ -484,11 +484,11 @@ var _ = Describe("Terminal Controller", func() {
 			}
 
 			Expect(tokenVolume).NotTo(BeNil())
-			Expect(tokenVolume.VolumeSource.Projected).NotTo(BeNil())
-			Expect(tokenVolume.VolumeSource.Projected.Sources).To(HaveLen(1))
-			Expect(tokenVolume.VolumeSource.Projected.Sources[0].ServiceAccountToken).NotTo(BeNil())
-			Expect(tokenVolume.VolumeSource.Projected.Sources[0].ServiceAccountToken.Path).To(Equal("token"))
-			Expect(tokenVolume.VolumeSource.Projected.Sources[0].ServiceAccountToken.ExpirationSeconds).To(Equal(ptr.To(int64(3600))))
+			Expect(tokenVolume.Projected).NotTo(BeNil())
+			Expect(tokenVolume.Projected.Sources).To(HaveLen(1))
+			Expect(tokenVolume.Projected.Sources[0].ServiceAccountToken).NotTo(BeNil())
+			Expect(tokenVolume.Projected.Sources[0].ServiceAccountToken.Path).To(Equal("token"))
+			Expect(tokenVolume.Projected.Sources[0].ServiceAccountToken.ExpirationSeconds).To(Equal(ptr.To(int64(3600))))
 		})
 	})
 
@@ -528,8 +528,8 @@ var _ = Describe("Terminal Controller", func() {
 			}
 
 			Expect(tokenVolume).NotTo(BeNil())
-			Expect(tokenVolume.VolumeSource.Secret).NotTo(BeNil())
-			Expect(tokenVolume.VolumeSource.Secret.SecretName).To(Equal(dashboardv1alpha1.TokenSecretResourceNamePrefix + terminal.Spec.Identifier))
+			Expect(tokenVolume.Secret).NotTo(BeNil())
+			Expect(tokenVolume.Secret.SecretName).To(Equal(dashboardv1alpha1.TokenSecretResourceNamePrefix + terminal.Spec.Identifier))
 		})
 	})
 

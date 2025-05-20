@@ -164,13 +164,13 @@ func NewClientSetFromServiceAccountRef(ctx context.Context, cs *ClientSet, ref *
 		return nil, err
 	}
 
-	caData, err := utils.DataFromSliceOrFile(cs.Config.CAData, cs.Config.CAFile)
+	caData, err := utils.DataFromSliceOrFile(cs.CAData, cs.CAFile)
 	if err != nil {
 		return nil, err
 	}
 
 	secretConfig := &rest.Config{
-		Host: cs.Config.Host,
+		Host: cs.Host,
 		TLSClientConfig: rest.TLSClientConfig{
 			CAData: caData,
 		},

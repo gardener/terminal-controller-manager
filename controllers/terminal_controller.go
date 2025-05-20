@@ -167,7 +167,7 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 	}
 
 	lastOperationType := extensionsv1alpha1.LastOperationTypeReconcile
-	if !t.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !t.DeletionTimestamp.IsZero() {
 		lastOperationType = extensionsv1alpha1.LastOperationTypeDelete
 	}
 
@@ -204,7 +204,7 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 	hostClientSet, hostClientSetErr := gardenclient.NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials, cfg.HonourServiceAccountRefHostCluster, cfg.Controllers.Terminal.TokenRequestExpirationSeconds, r.Scheme)
 	targetClientSet, targetClientSetErr := gardenclient.NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials, cfg.HonourServiceAccountRefTargetCluster, cfg.Controllers.Terminal.TokenRequestExpirationSeconds, r.Scheme)
 
-	if !t.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !t.DeletionTimestamp.IsZero() {
 		return r.deleteTerminal(ctx, t, hostClientSetErr, targetClientSetErr, targetClientSet, hostClientSet)
 	}
 
@@ -353,12 +353,12 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 	}
 
 	mutatingWebhookConfiguration := mutatingWebhookConfigurations.Items[0]
-	if mutatingWebhookConfiguration.ObjectMeta.CreationTimestamp.After(t.ObjectMeta.CreationTimestamp.Time) {
+	if mutatingWebhookConfiguration.CreationTimestamp.After(t.CreationTimestamp.Time) {
 		if err = client.IgnoreNotFound(gardenClientSet.Delete(ctx, t)); err != nil {
 			return err
 		}
 
-		return fmt.Errorf("terminal %s has been created before mutating webhook was configured. Deleting resource", t.ObjectMeta.Name)
+		return fmt.Errorf("terminal %s has been created before mutating webhook was configured. Deleting resource", t.Name)
 	}
 
 	validatingWebhookConfigurations, err := gardenClientSet.Kubernetes.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, webhookConfigurationOptions)
@@ -375,12 +375,12 @@ func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Contex
 	}
 
 	validatingWebhookConfiguration := validatingWebhookConfigurations.Items[0]
-	if validatingWebhookConfiguration.ObjectMeta.CreationTimestamp.After(t.ObjectMeta.CreationTimestamp.Time) {
+	if validatingWebhookConfiguration.CreationTimestamp.After(t.CreationTimestamp.Time) {
 		if err = client.IgnoreNotFound(gardenClientSet.Delete(ctx, t)); err != nil {
 			return err
 		}
 
-		return fmt.Errorf("terminal %s has been created before validating webhook was configured. Deleting resource", t.ObjectMeta.Name)
+		return fmt.Errorf("terminal %s has been created before validating webhook was configured. Deleting resource", t.Name)
 	}
 
 	return nil
@@ -408,7 +408,7 @@ func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targe
 func (r *TerminalReconciler) deleteTargetClusterDependencies(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) error {
 	if targetClientSet != nil {
 		if err := r.deleteAccessToken(ctx, targetClientSet, t); err != nil {
-			return fmt.Errorf("Failed to delete access token %w", err)
+			return fmt.Errorf("failed to delete access token %w", err)
 		}
 	} else {
 		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconciling, "Could not clean up resources in target cluster for terminal identifier: %s", t.Spec.Identifier)
@@ -424,7 +424,7 @@ func (r *TerminalReconciler) deleteHostClusterDependencies(ctx context.Context, 
 		}
 
 		if err := hostClientSet.DeletePod(ctx, *t.Spec.Host.Namespace, extensionsv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier); err != nil {
-			return fmt.Errorf("Failed to delete terminal pod, %w", err)
+			return fmt.Errorf("failed to delete terminal pod, %w", err)
 		}
 
 		if err := deleteKubeconfigSecret(ctx, hostClientSet, t); err != nil {
@@ -1105,7 +1105,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 				VolumeSource: corev1.VolumeSource{},
 			}
 			if options.useProjectedToken {
-				tokenVolume.VolumeSource.Projected = &corev1.ProjectedVolumeSource{
+				tokenVolume.Projected = &corev1.ProjectedVolumeSource{
 					Sources: []corev1.VolumeProjection{
 						{
 							ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
@@ -1117,7 +1117,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 				}
 				pod.Spec.ServiceAccountName = options.serviceAccountName
 			} else {
-				tokenVolume.VolumeSource.Secret = &corev1.SecretVolumeSource{
+				tokenVolume.Secret = &corev1.SecretVolumeSource{
 					SecretName: options.tokenSecretName,
 				}
 			}

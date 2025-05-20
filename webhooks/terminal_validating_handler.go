@@ -66,20 +66,20 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		}
 
 		createdByFldPath := field.NewPath("metadata", "annotations", v1alpha1.GardenCreatedBy)
-		if err := validateImmutableField(t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy], oldT.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy], createdByFldPath); err != nil {
+		if err := validateImmutableField(t.Annotations[v1alpha1.GardenCreatedBy], oldT.Annotations[v1alpha1.GardenCreatedBy], createdByFldPath); err != nil {
 			return false, err.Error(), nil
 		}
 
 		// only same user is allowed to keep terminal session alive
-		userFromAnnotations := t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy]
+		userFromAnnotations := t.Annotations[v1alpha1.GardenCreatedBy]
 		changedBySameUser := userFromAnnotations == admissionReq.UserInfo.Username
 
-		if t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] != oldT.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] && !changedBySameUser {
+		if t.Annotations[v1alpha1.TerminalLastHeartbeat] != oldT.Annotations[v1alpha1.TerminalLastHeartbeat] && !changedBySameUser {
 			return false, field.Forbidden(field.NewPath("metadata", "annotations", v1alpha1.TerminalLastHeartbeat), userInfo.Username+" is not allowed to change this field").Error(), nil
 		}
 	}
 
-	lastHeartbeat := t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat]
+	lastHeartbeat := t.Annotations[v1alpha1.TerminalLastHeartbeat]
 	if len(lastHeartbeat) > 0 {
 		lastHeartBeatParsed, err := time.Parse(time.RFC3339, lastHeartbeat)
 		if err != nil {
@@ -518,8 +518,8 @@ func (h *TerminalValidator) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	if req.AdmissionRequest.Operation != admissionv1.Create {
-		err = h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj)
+	if req.Operation != admissionv1.Create {
+		err = h.Decoder.DecodeRaw(req.OldObject, oldObj)
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}

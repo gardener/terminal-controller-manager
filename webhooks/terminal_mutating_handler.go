@@ -31,12 +31,12 @@ type TerminalMutator struct {
 }
 
 func (h *TerminalMutator) mutatingTerminalFn(t *v1alpha1.Terminal, admissionReq admissionv1.AdmissionRequest) error {
-	if t.ObjectMeta.Annotations == nil {
-		t.ObjectMeta.Annotations = map[string]string{}
+	if t.Annotations == nil {
+		t.Annotations = map[string]string{}
 	}
 
 	if admissionReq.Operation == admissionv1.Create {
-		t.ObjectMeta.Annotations[v1alpha1.GardenCreatedBy] = admissionReq.UserInfo.Username
+		t.Annotations[v1alpha1.GardenCreatedBy] = admissionReq.UserInfo.Username
 
 		uuid := uuid.NewUUID()
 
@@ -49,12 +49,12 @@ func (h *TerminalMutator) mutatingTerminalFn(t *v1alpha1.Terminal, admissionReq 
 
 		h.mutateNamespaceIfTemporary(t, terminalIdentifier)
 
-		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
+		t.Annotations[v1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
 	}
 
-	if t.ObjectMeta.Annotations[v1alpha1.TerminalOperation] == v1alpha1.TerminalOperationKeepalive {
-		delete(t.ObjectMeta.Annotations, v1alpha1.TerminalOperation)
-		t.ObjectMeta.Annotations[v1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
+	if t.Annotations[v1alpha1.TerminalOperation] == v1alpha1.TerminalOperationKeepalive {
+		delete(t.Annotations, v1alpha1.TerminalOperation)
+		t.Annotations[v1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	return nil
