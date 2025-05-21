@@ -7,10 +7,10 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/gardener/terminal-controller-manager)](https://goreportcard.com/report/github.com/gardener/terminal-controller-manager)
 [![reuse compliant](https://reuse.software/badge/reuse-compliant.svg)](https://reuse.software/)
 
-The `terminal-controller-manager` is used for the [webterminal feature](https://github.com/gardener/dashboard/blob/master/docs/Webterminals.md) of the [gardener/dashboard](https://github.com/gardener/dashboard).
+The `terminal-controller-manager` is used for the [webterminal feature](https://github.com/gardener/dashboard/blob/master/docs/operations/webterminals.md) of the [gardener/dashboard](https://github.com/gardener/dashboard).
 
 The `terminal-controller-manager` watches `Terminal` resources under the `dashboard.gardener.cloud/v1alpha1` API group and ensures the desired state on the host and target cluster.
-Host and target cluster can also be the same. For more details and a usage scenario [see docs here](https://github.com/gardener/dashboard/blob/master/docs/Webterminals.md).
+Host and target cluster can also be the same. For more details and a usage scenario [see docs here](https://github.com/gardener/dashboard/blob/master/docs/operations/webterminals.md).
 
 ## Development Setup
 
