@@ -209,10 +209,26 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 	}
 
 	if hostClientSetErr != nil {
+		if ok, cause := isResourceNoLongerAvailableError(hostClientSetErr); ok {
+			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError,
+				"Host cluster credentials no longer available due to %s, deleting terminal: %s", cause, hostClientSetErr.Error())
+
+			// Trigger deletion by deleting the terminal resource
+			return r.deleteTerminalDueToMissingResources(ctx, t)
+		}
+
 		return ctrl.Result{}, hostClientSetErr
 	}
 
 	if targetClientSetErr != nil {
+		if ok, cause := isResourceNoLongerAvailableError(targetClientSetErr); ok {
+			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError,
+				"Target cluster credentials no longer available due to %s, deleting terminal: %s", cause, targetClientSetErr.Error())
+
+			// Trigger deletion by deleting the terminal resource
+			return r.deleteTerminalDueToMissingResources(ctx, t)
+		}
+
 		return ctrl.Result{}, targetClientSetErr
 	}
 
@@ -295,13 +311,23 @@ func (r *TerminalReconciler) deleteTerminal(ctx context.Context, t *extensionsv1
 		return ctrl.Result{}, nil
 	}
 
-	// in case of deletion we should be able to continue even if one of the secrets (host, target(, ingress)) is not there anymore, e.g. if the corresponding cluster was deleted
-	if hostClientSetErr != nil && !kErros.IsNotFound(hostClientSetErr) {
-		return ctrl.Result{}, hostClientSetErr
+	// During deletion, ensure cleanup continues even if host or target cluster credentials are unavailable, e.g., if the corresponding cluster has been deleted.
+	if hostClientSetErr != nil {
+		if ok, cause := isResourceNoLongerAvailableError(hostClientSetErr); ok {
+			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleting,
+				"Host cluster credentials no longer available due to %s during deletion, continuing cleanup: %s", cause, hostClientSetErr.Error())
+		} else {
+			return ctrl.Result{}, hostClientSetErr
+		}
 	}
 
-	if targetClientSetErr != nil && !kErros.IsNotFound(targetClientSetErr) {
-		return ctrl.Result{}, targetClientSetErr
+	if targetClientSetErr != nil {
+		if ok, cause := isResourceNoLongerAvailableError(targetClientSetErr); ok {
+			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleting,
+				"Target cluster credentials no longer available due to %s during deletion, continuing cleanup: %s", cause, targetClientSetErr.Error())
+		} else {
+			return ctrl.Result{}, targetClientSetErr
+		}
 	}
 
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
@@ -330,6 +356,37 @@ func (r *TerminalReconciler) deleteTerminal(ctx context.Context, t *extensionsv1
 func (r *TerminalReconciler) recordEventAndLog(ctx context.Context, t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
 	r.Recorder.Eventf(t, eventType, reason, messageFmt, args...)
 	log.FromContext(ctx).Info(fmt.Sprintf(messageFmt, args...))
+}
+
+// isResourceNoLongerAvailableError checks if an error indicates that referenced resources
+// (shoots, service accounts, or garden projects) no longer exist and the terminal should be deleted.
+// This follows the same pattern used by Kubernetes core controllers.
+// It returns true if the error matches, along with a string describing the specific cause.
+func isResourceNoLongerAvailableError(err error) (bool, string) {
+	if err == nil {
+		return false, ""
+	}
+
+	if kErros.IsNotFound(err) {
+		return true, "NotFound"
+	}
+
+	if kErros.HasStatusCause(err, corev1.NamespaceTerminatingCause) {
+		return true, "NamespaceTerminating"
+	}
+
+	return false, ""
+}
+
+// deleteTerminalDueToMissingResources triggers deletion of a terminal when referenced resources are no longer available.
+func (r *TerminalReconciler) deleteTerminalDueToMissingResources(ctx context.Context, t *extensionsv1alpha1.Terminal) (ctrl.Result, error) {
+	// Delete the terminal resource, which will trigger the normal deletion flow
+	if err := r.Delete(ctx, t); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to delete terminal due to missing resources: %w", err)
+	}
+
+	// Return success - the deletion will be handled in the next reconcile cycle
+	return ctrl.Result{}, nil
 }
 
 func (r *TerminalReconciler) ensureAdmissionWebhookConfigured(ctx context.Context, gardenClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal) error {
