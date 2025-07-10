@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package controllers
 
 import (
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -16,7 +17,9 @@ import (
 	kErros "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dashboardv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/test"
@@ -570,6 +573,644 @@ var _ = Describe("Terminal Controller", func() {
 			Expect(tolerationExists(tolerations, match(existingToleration))).To(BeTrue())
 
 			Expect(tolerationExists(tolerations, match(nonExistingToleration))).To(BeFalse())
+		})
+	})
+
+	Context("Terminal deletion when referenced resources are missing", func() {
+		Context("when host cluster credentials are missing", func() {
+			It("Should delete terminal and clean up target resources", func() {
+				Expect(terminalCreationError).Should(Not(HaveOccurred()))
+
+				By("Waiting for terminal to be ready")
+				Eventually(func() bool {
+					t := &dashboardv1alpha1.Terminal{}
+					err := e.K8sClient.Get(ctx, terminalKey, t)
+					if err != nil {
+						return false
+					}
+					return t.Status.AttachServiceAccountName != nil &&
+						t.Status.PodName != nil &&
+						*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier &&
+						*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier
+				}, timeout, interval).Should(BeTrue())
+
+				By("Deleting host service account to simulate missing credentials")
+				err := e.K8sClient.Delete(ctx, &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      HostServiceAccountName,
+						Namespace: hostNamespace,
+					},
+				})
+				Expect(err).To(Not(HaveOccurred()))
+
+				By("Triggering reconcile")
+				err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					if err := e.K8sClient.Get(ctx, terminalKey, terminal); err != nil {
+						return err
+					}
+					if terminal.Annotations == nil {
+						terminal.Annotations = map[string]string{}
+					}
+					terminal.Annotations["test-trigger"] = time.Now().String()
+					return e.K8sClient.Update(ctx, terminal)
+				})
+				Expect(err).To(Not(HaveOccurred()))
+
+				By("Expecting terminal to have deletion timestamp set")
+				Eventually(func(g Gomega) *metav1.Time {
+					t := &dashboardv1alpha1.Terminal{}
+					err := e.K8sClient.Get(ctx, terminalKey, t)
+					if kErros.IsNotFound(err) {
+						return &metav1.Time{Time: time.Now()} // Treat as deleted (non-nil)
+					}
+					g.Expect(err).To(Not(HaveOccurred()))
+					return t.DeletionTimestamp
+				}, timeout, interval).Should(Not(BeNil()))
+
+				By("Expecting terminal to be deleted")
+				Eventually(func() error {
+					t := &dashboardv1alpha1.Terminal{}
+					return e.K8sClient.Get(ctx, terminalKey, t)
+				}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+				By("Expecting target access service account to be removed")
+				Eventually(func() error {
+					sa := &corev1.ServiceAccount{}
+					return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, sa)
+				}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+				By("Expecting host pod to remain (skipped cleanup)")
+				Consistently(func() error {
+					pod := &corev1.Pod{}
+					return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+				}, timeout/2, interval).Should(Not(Satisfy(kErros.IsNotFound)))
+			})
+		})
+
+		Context("when target cluster credentials are missing", func() {
+			It("Should delete terminal and clean up host resources", func() {
+				Expect(terminalCreationError).Should(Not(HaveOccurred()))
+
+				By("Waiting for terminal to be ready")
+				Eventually(func() bool {
+					t := &dashboardv1alpha1.Terminal{}
+					err := e.K8sClient.Get(ctx, terminalKey, t)
+					if err != nil {
+						return false
+					}
+					return t.Status.AttachServiceAccountName != nil &&
+						t.Status.PodName != nil &&
+						*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier &&
+						*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier
+				}, timeout, interval).Should(BeTrue())
+
+				By("Deleting target service account to simulate missing credentials")
+				err := e.K8sClient.Delete(ctx, &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      TargetServiceAccountName,
+						Namespace: targetNamespace,
+					},
+				})
+				Expect(err).To(Not(HaveOccurred()))
+
+				By("Triggering reconcile")
+				err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					if err := e.K8sClient.Get(ctx, terminalKey, terminal); err != nil {
+						return err
+					}
+					if terminal.Annotations == nil {
+						terminal.Annotations = map[string]string{}
+					}
+					terminal.Annotations["test-trigger"] = time.Now().String()
+					return e.K8sClient.Update(ctx, terminal)
+				})
+				Expect(err).To(Not(HaveOccurred()))
+
+				By("Expecting terminal to have deletion timestamp set")
+				Eventually(func(g Gomega) *metav1.Time {
+					t := &dashboardv1alpha1.Terminal{}
+					err := e.K8sClient.Get(ctx, terminalKey, t)
+					if kErros.IsNotFound(err) {
+						return &metav1.Time{Time: time.Now()} // Treat as deleted (non-nil)
+					}
+					g.Expect(err).To(Not(HaveOccurred()))
+					return t.DeletionTimestamp
+				}, timeout, interval).Should(Not(BeNil()))
+
+				By("Expecting terminal to be deleted")
+				Eventually(func() error {
+					t := &dashboardv1alpha1.Terminal{}
+					return e.K8sClient.Get(ctx, terminalKey, t)
+				}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+				By("Expecting host pod to be removed")
+				Eventually(func() error {
+					pod := &corev1.Pod{}
+					return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+				}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+				By("Expecting target access service account to remain (skipped cleanup)")
+				Consistently(func() error {
+					sa := &corev1.ServiceAccount{}
+					return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, sa)
+				}, timeout/2, interval).Should(Not(Satisfy(kErros.IsNotFound)))
+			})
+		})
+
+		Context("when namespace is being terminated for host", func() {
+			It("Should delete terminal when host namespace is terminating", func() {
+				Expect(terminalCreationError).Should(Not(HaveOccurred()))
+
+				By("Waiting for terminal to be ready")
+				Eventually(func() bool {
+					t := &dashboardv1alpha1.Terminal{}
+					err := e.K8sClient.Get(ctx, terminalKey, t)
+					if err != nil {
+						return false
+					}
+					return t.Status.AttachServiceAccountName != nil &&
+						t.Status.PodName != nil &&
+						*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier &&
+						*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier
+				}, timeout, interval).Should(BeTrue())
+
+				By("Deleting host namespace")
+				ns := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: hostNamespace,
+					},
+				}
+				err := e.K8sClient.Delete(ctx, ns)
+				Expect(err).To(Not(HaveOccurred()))
+
+				By("Triggering reconcile")
+				err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					if err := e.K8sClient.Get(ctx, terminalKey, terminal); err != nil {
+						return err
+					}
+					if terminal.Annotations == nil {
+						terminal.Annotations = map[string]string{}
+					}
+					terminal.Annotations["test-trigger"] = time.Now().String()
+					return e.K8sClient.Update(ctx, terminal)
+				})
+				Expect(err).To(Not(HaveOccurred()))
+
+				By("Expecting terminal to have deletion timestamp set")
+				Eventually(func(g Gomega) *metav1.Time {
+					t := &dashboardv1alpha1.Terminal{}
+					err := e.K8sClient.Get(ctx, terminalKey, t)
+					if kErros.IsNotFound(err) {
+						return &metav1.Time{Time: time.Now()} // Treat as deleted (non-nil)
+					}
+					g.Expect(err).To(Not(HaveOccurred()))
+					return t.DeletionTimestamp
+				}, timeout, interval).Should(Not(BeNil()))
+
+				By("Expecting terminal to be deleted")
+				Eventually(func() error {
+					t := &dashboardv1alpha1.Terminal{}
+					return e.K8sClient.Get(ctx, terminalKey, t)
+				}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+				By("Expecting target access service account to be removed")
+				Eventually(func() error {
+					sa := &corev1.ServiceAccount{}
+					return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, sa)
+				}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+				By("Expecting host pod to remain (skipped cleanup)")
+				Consistently(func() error {
+					pod := &corev1.Pod{}
+					return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+				}, timeout/2, interval).Should(Not(Satisfy(kErros.IsNotFound)))
+			})
+		})
+
+		Context("when namespace is being terminated for target", func() {
+			It("Should delete terminal when target namespace is terminating", func() {
+				Expect(terminalCreationError).Should(Not(HaveOccurred()))
+
+				By("Waiting for terminal to be ready")
+				Eventually(func() bool {
+					t := &dashboardv1alpha1.Terminal{}
+					err := e.K8sClient.Get(ctx, terminalKey, t)
+					if err != nil {
+						return false
+					}
+					return t.Status.AttachServiceAccountName != nil &&
+						t.Status.PodName != nil &&
+						*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier &&
+						*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier
+				}, timeout, interval).Should(BeTrue())
+
+				By("Deleting target namespace")
+				ns := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: targetNamespace,
+					},
+				}
+				err := e.K8sClient.Delete(ctx, ns)
+				Expect(err).To(Not(HaveOccurred()))
+
+				By("Triggering reconcile")
+				err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					if err := e.K8sClient.Get(ctx, terminalKey, terminal); err != nil {
+						return err
+					}
+					if terminal.Annotations == nil {
+						terminal.Annotations = map[string]string{}
+					}
+					terminal.Annotations["test-trigger"] = time.Now().String()
+					return e.K8sClient.Update(ctx, terminal)
+				})
+				Expect(err).To(Not(HaveOccurred()))
+
+				By("Expecting terminal to have deletion timestamp set")
+				Eventually(func(g Gomega) *metav1.Time {
+					t := &dashboardv1alpha1.Terminal{}
+					err := e.K8sClient.Get(ctx, terminalKey, t)
+					if kErros.IsNotFound(err) {
+						return &metav1.Time{Time: time.Now()} // Treat as deleted (non-nil)
+					}
+					g.Expect(err).To(Not(HaveOccurred()))
+					return t.DeletionTimestamp
+				}, timeout, interval).Should(Not(BeNil()))
+
+				By("Expecting terminal to be deleted")
+				Eventually(func() error {
+					t := &dashboardv1alpha1.Terminal{}
+					return e.K8sClient.Get(ctx, terminalKey, t)
+				}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+				By("Expecting host pod to be removed")
+				Eventually(func() error {
+					pod := &corev1.Pod{}
+					return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+				}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+				By("Expecting target access service account to remain (skipped cleanup)")
+				Consistently(func() error {
+					sa := &corev1.ServiceAccount{}
+					return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, sa)
+				}, timeout/2, interval).Should(Not(Satisfy(kErros.IsNotFound)))
+			})
+		})
+	})
+
+	Context("Terminal deletion when referenced resources are missing", func() {
+		Context("using serviceAccountRef", func() {
+			Context("when host cluster credentials are missing", func() {
+				It("Should delete terminal when host service account does not exist", func() {
+					Expect(terminalCreationError).Should(Not(HaveOccurred()))
+
+					By("Waiting for terminal to be ready")
+					Eventually(func() bool {
+						t := &dashboardv1alpha1.Terminal{}
+						err := e.K8sClient.Get(ctx, terminalKey, t)
+						if err != nil {
+							return false
+						}
+						return t.Status.AttachServiceAccountName != nil &&
+							t.Status.PodName != nil &&
+							*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier &&
+							*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier
+					}, timeout, interval).Should(BeTrue())
+
+					By("Deleting host service account to simulate missing credentials")
+					err := e.K8sClient.Delete(ctx, &corev1.ServiceAccount{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      HostServiceAccountName,
+							Namespace: hostNamespace,
+						},
+					})
+					Expect(err).To(Not(HaveOccurred()))
+
+					By("Triggering reconcile")
+					err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+						if err := e.K8sClient.Get(ctx, terminalKey, terminal); err != nil {
+							return err
+						}
+						if terminal.Annotations == nil {
+							terminal.Annotations = map[string]string{}
+						}
+						terminal.Annotations["test-trigger"] = time.Now().String()
+						return e.K8sClient.Update(ctx, terminal)
+					})
+					Expect(err).To(Not(HaveOccurred()))
+
+					By("Expecting event for missing host credentials")
+					Eventually(func(g Gomega) {
+						events := &corev1.EventList{}
+						err := e.K8sClient.List(ctx, events, client.InNamespace(terminalNamespace), client.MatchingFields{"involvedObject.name": terminalName, "involvedObject.kind": "Terminal"})
+						g.Expect(err).To(Not(HaveOccurred()))
+						found := false
+						for _, event := range events.Items {
+							if event.Type == corev1.EventTypeWarning && event.Reason == dashboardv1alpha1.EventReconcileError &&
+								strings.Contains(event.Message, "Host cluster credentials no longer available") &&
+								strings.Contains(event.Message, "due to NotFound") {
+								found = true
+								break
+							}
+						}
+						g.Expect(found).To(BeTrue())
+					}, timeout, interval).Should(Succeed())
+
+					By("Expecting terminal to have deletion timestamp set")
+					Eventually(func(g Gomega) *metav1.Time {
+						t := &dashboardv1alpha1.Terminal{}
+						err := e.K8sClient.Get(ctx, terminalKey, t)
+						if kErros.IsNotFound(err) {
+							return &metav1.Time{Time: time.Now()} // Treat as deleted (non-nil)
+						}
+						g.Expect(err).To(Not(HaveOccurred()))
+						return t.DeletionTimestamp
+					}, timeout, interval).Should(Not(BeNil()))
+
+					By("Expecting terminal to be deleted")
+					Eventually(func() error {
+						t := &dashboardv1alpha1.Terminal{}
+						return e.K8sClient.Get(ctx, terminalKey, t)
+					}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+					By("Expecting target access service account to be removed")
+					Eventually(func() error {
+						sa := &corev1.ServiceAccount{}
+						return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, sa)
+					}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+					By("Expecting host pod to remain (skipped cleanup)")
+					Consistently(func() error {
+						pod := &corev1.Pod{}
+						return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+					}, timeout/2, interval).Should(Not(Satisfy(kErros.IsNotFound)))
+				})
+			})
+
+			Context("when host cluster namespace is terminating", func() {
+				It("Should delete terminal when host namespace is terminating", func() {
+					Expect(terminalCreationError).Should(Not(HaveOccurred()))
+
+					By("Waiting for terminal to be ready")
+					Eventually(func() bool {
+						t := &dashboardv1alpha1.Terminal{}
+						err := e.K8sClient.Get(ctx, terminalKey, t)
+						if err != nil {
+							return false
+						}
+						return t.Status.AttachServiceAccountName != nil &&
+							t.Status.PodName != nil &&
+							*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier &&
+							*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier
+					}, timeout, interval).Should(BeTrue())
+
+					By("Deleting host namespace to simulate termination")
+					err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+						ns := &corev1.Namespace{}
+						err := e.K8sClient.Get(ctx, types.NamespacedName{Name: hostNamespace}, ns)
+						if err != nil {
+							return err
+						}
+						return e.K8sClient.Delete(ctx, ns)
+					})
+					Expect(err).To(Not(HaveOccurred()))
+
+					By("Triggering reconcile")
+					err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+						if err := e.K8sClient.Get(ctx, terminalKey, terminal); err != nil {
+							return err
+						}
+						if terminal.Annotations == nil {
+							terminal.Annotations = map[string]string{}
+						}
+						terminal.Annotations["test-trigger"] = time.Now().String()
+						return e.K8sClient.Update(ctx, terminal)
+					})
+					Expect(err).To(Not(HaveOccurred()))
+
+					By("Expecting event for missing host credentials due to terminating namespace")
+					Eventually(func(g Gomega) {
+						events := &corev1.EventList{}
+						err := e.K8sClient.List(ctx, events, client.InNamespace(terminalNamespace), client.MatchingFields{"involvedObject.name": terminalName, "involvedObject.kind": "Terminal"})
+						g.Expect(err).To(Not(HaveOccurred()))
+						found := false
+						for _, event := range events.Items {
+							if event.Type == corev1.EventTypeWarning && event.Reason == dashboardv1alpha1.EventReconcileError &&
+								strings.Contains(event.Message, "Host cluster credentials no longer available") &&
+								strings.Contains(event.Message, "due to NamespaceTerminating") {
+								found = true
+								break
+							}
+						}
+						g.Expect(found).To(BeTrue())
+					}, timeout, interval).Should(Succeed())
+
+					By("Expecting terminal to have deletion timestamp set")
+					Eventually(func(g Gomega) *metav1.Time {
+						t := &dashboardv1alpha1.Terminal{}
+						err := e.K8sClient.Get(ctx, terminalKey, t)
+						if kErros.IsNotFound(err) {
+							return &metav1.Time{Time: time.Now()} // Treat as deleted (non-nil)
+						}
+						g.Expect(err).To(Not(HaveOccurred()))
+						return t.DeletionTimestamp
+					}, timeout, interval).Should(Not(BeNil()))
+
+					By("Expecting terminal to be deleted")
+					Eventually(func() error {
+						t := &dashboardv1alpha1.Terminal{}
+						return e.K8sClient.Get(ctx, terminalKey, t)
+					}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+					By("Expecting target access service account to be removed")
+					Eventually(func() error {
+						sa := &corev1.ServiceAccount{}
+						return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, sa)
+					}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+					By("Expecting host pod to remain (skipped cleanup)")
+					Consistently(func() error {
+						pod := &corev1.Pod{}
+						return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+					}, timeout/2, interval).Should(Not(Satisfy(kErros.IsNotFound)))
+				})
+			})
+
+			Context("when target cluster credentials are missing", func() {
+				It("Should delete terminal when target service account does not exist", func() {
+					Expect(terminalCreationError).Should(Not(HaveOccurred()))
+
+					By("Waiting for terminal to be ready")
+					Eventually(func() bool {
+						t := &dashboardv1alpha1.Terminal{}
+						err := e.K8sClient.Get(ctx, terminalKey, t)
+						if err != nil {
+							return false
+						}
+						return t.Status.AttachServiceAccountName != nil &&
+							t.Status.PodName != nil &&
+							*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier &&
+							*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier
+					}, timeout, interval).Should(BeTrue())
+
+					By("Deleting target service account to simulate missing credentials")
+					err := e.K8sClient.Delete(ctx, &corev1.ServiceAccount{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      TargetServiceAccountName,
+							Namespace: targetNamespace,
+						},
+					})
+					Expect(err).To(Not(HaveOccurred()))
+
+					By("Triggering reconcile")
+					err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+						if err := e.K8sClient.Get(ctx, terminalKey, terminal); err != nil {
+							return err
+						}
+						if terminal.Annotations == nil {
+							terminal.Annotations = map[string]string{}
+						}
+						terminal.Annotations["test-trigger"] = time.Now().String()
+						return e.K8sClient.Update(ctx, terminal)
+					})
+					Expect(err).To(Not(HaveOccurred()))
+
+					By("Expecting event for missing target credentials")
+					Eventually(func(g Gomega) {
+						events := &corev1.EventList{}
+						err := e.K8sClient.List(ctx, events, client.InNamespace(terminalNamespace), client.MatchingFields{"involvedObject.name": terminalName, "involvedObject.kind": "Terminal"})
+						g.Expect(err).To(Not(HaveOccurred()))
+						found := false
+						for _, event := range events.Items {
+							if event.Type == corev1.EventTypeWarning && event.Reason == dashboardv1alpha1.EventReconcileError &&
+								strings.Contains(event.Message, "Target cluster credentials no longer available") &&
+								strings.Contains(event.Message, "due to NotFound") {
+								found = true
+								break
+							}
+						}
+						g.Expect(found).To(BeTrue())
+					}, timeout, interval).Should(Succeed())
+
+					By("Expecting terminal to have deletion timestamp set")
+					Eventually(func(g Gomega) *metav1.Time {
+						t := &dashboardv1alpha1.Terminal{}
+						err := e.K8sClient.Get(ctx, terminalKey, t)
+						if kErros.IsNotFound(err) {
+							return &metav1.Time{Time: time.Now()} // Treat as deleted (non-nil)
+						}
+						g.Expect(err).To(Not(HaveOccurred()))
+						return t.DeletionTimestamp
+					}, timeout, interval).Should(Not(BeNil()))
+
+					By("Expecting terminal to be deleted")
+					Eventually(func() error {
+						t := &dashboardv1alpha1.Terminal{}
+						return e.K8sClient.Get(ctx, terminalKey, t)
+					}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+					By("Expecting host pod to be removed")
+					Eventually(func() error {
+						pod := &corev1.Pod{}
+						return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+					}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+					By("Expecting target access service account to remain (skipped cleanup)")
+					Consistently(func() error {
+						sa := &corev1.ServiceAccount{}
+						return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, sa)
+					}, timeout/2, interval).Should(Not(Satisfy(kErros.IsNotFound)))
+				})
+			})
+
+			Context("when target cluster namespace is terminating", func() {
+				It("Should delete terminal when target namespace is terminating", func() {
+					Expect(terminalCreationError).Should(Not(HaveOccurred()))
+
+					By("Waiting for terminal to be ready")
+					Eventually(func() bool {
+						t := &dashboardv1alpha1.Terminal{}
+						err := e.K8sClient.Get(ctx, terminalKey, t)
+						if err != nil {
+							return false
+						}
+						return t.Status.AttachServiceAccountName != nil &&
+							t.Status.PodName != nil &&
+							*t.Status.AttachServiceAccountName == dashboardv1alpha1.TerminalAttachResourceNamePrefix+t.Spec.Identifier &&
+							*t.Status.PodName == dashboardv1alpha1.TerminalPodResourceNamePrefix+t.Spec.Identifier
+					}, timeout, interval).Should(BeTrue())
+
+					By("Deleting target namespace to simulate termination")
+					err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+						ns := &corev1.Namespace{}
+						err := e.K8sClient.Get(ctx, types.NamespacedName{Name: targetNamespace}, ns)
+						if err != nil {
+							return err
+						}
+						return e.K8sClient.Delete(ctx, ns)
+					})
+					Expect(err).To(Not(HaveOccurred()))
+
+					By("Triggering reconcile")
+					err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+						if err := e.K8sClient.Get(ctx, terminalKey, terminal); err != nil {
+							return err
+						}
+						if terminal.Annotations == nil {
+							terminal.Annotations = map[string]string{}
+						}
+						terminal.Annotations["test-trigger"] = time.Now().String()
+						return e.K8sClient.Update(ctx, terminal)
+					})
+					Expect(err).To(Not(HaveOccurred()))
+
+					By("Expecting event for missing target credentials due to terminating namespace")
+					Eventually(func(g Gomega) {
+						events := &corev1.EventList{}
+						err := e.K8sClient.List(ctx, events, client.InNamespace(terminalNamespace), client.MatchingFields{"involvedObject.name": terminalName, "involvedObject.kind": "Terminal"})
+						g.Expect(err).To(Not(HaveOccurred()))
+						found := false
+						for _, event := range events.Items {
+							if event.Type == corev1.EventTypeWarning && event.Reason == dashboardv1alpha1.EventReconcileError &&
+								strings.Contains(event.Message, "Target cluster credentials no longer available") &&
+								strings.Contains(event.Message, "due to NamespaceTerminating") {
+								found = true
+								break
+							}
+						}
+						g.Expect(found).To(BeTrue())
+					}, timeout, interval).Should(Succeed())
+
+					By("Expecting terminal to have deletion timestamp set")
+					Eventually(func(g Gomega) *metav1.Time {
+						t := &dashboardv1alpha1.Terminal{}
+						err := e.K8sClient.Get(ctx, terminalKey, t)
+						if kErros.IsNotFound(err) {
+							return &metav1.Time{Time: time.Now()} // Treat as deleted (non-nil)
+						}
+						g.Expect(err).To(Not(HaveOccurred()))
+						return t.DeletionTimestamp
+					}, timeout, interval).Should(Not(BeNil()))
+
+					By("Expecting terminal to be deleted")
+					Eventually(func() error {
+						t := &dashboardv1alpha1.Terminal{}
+						return e.K8sClient.Get(ctx, terminalKey, t)
+					}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+					By("Expecting host pod to be removed")
+					Eventually(func() error {
+						pod := &corev1.Pod{}
+						return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalPodResourceNamePrefix + terminal.Spec.Identifier, Namespace: hostNamespace}, pod)
+					}, timeout, interval).Should(Satisfy(kErros.IsNotFound))
+
+					By("Expecting target access service account to remain (skipped cleanup)")
+					Consistently(func() error {
+						sa := &corev1.ServiceAccount{}
+						return e.K8sClient.Get(ctx, types.NamespacedName{Name: dashboardv1alpha1.TerminalAccessResourceNamePrefix + terminal.Spec.Identifier, Namespace: targetNamespace}, sa)
+					}, timeout/2, interval).Should(Not(Satisfy(kErros.IsNotFound)))
+				})
+			})
 		})
 	})
 })
