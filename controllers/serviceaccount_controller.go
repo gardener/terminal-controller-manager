@@ -27,7 +27,7 @@ import (
 
 	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
-	"github.com/gardener/terminal-controller-manager/internal/utils"
+	"github.com/gardener/terminal-controller-manager/internal/helpers"
 )
 
 // ServiceAccountReconciler reconciles a ServiceAccount object
@@ -94,7 +94,7 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 				return false
 			}
 
-			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, obj.Name)
+			nameAllowed := helpers.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, obj.Name)
 			if !nameAllowed {
 				logger.Info("service account name is not on allow-list -> event will be ignored")
 				return false
@@ -126,7 +126,7 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 				return false
 			}
 
-			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, oldObj.Name)
+			nameAllowed := helpers.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, oldObj.Name)
 			if !nameAllowed {
 				logger.Info("service account name is not on allow-list -> event will be ignored")
 				return false
@@ -166,7 +166,7 @@ func (r *ServiceAccountReconciler) serviceAccountPredicate() predicate.Funcs {
 				return false
 			}
 
-			nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, obj.Name)
+			nameAllowed := helpers.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, obj.Name)
 			if !nameAllowed {
 				logger.Info("service account name is not on allow-list -> event will be ignored")
 				return false
@@ -249,7 +249,7 @@ func (r *ServiceAccountReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	nameAllowed := utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, req.Name)
+	nameAllowed := helpers.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, req.Name)
 	if !nameAllowed {
 		logger.Info("service account name is not on allow-list and thus will not be reconciled. Removing terminal reference label and finalizer")
 		return ctrl.Result{}, r.removeTerminalReferenceLabelAndFinalizer(ctx, req)

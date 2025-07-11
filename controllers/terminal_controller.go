@@ -42,7 +42,7 @@ import (
 
 	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
-	"github.com/gardener/terminal-controller-manager/internal/utils"
+	"github.com/gardener/terminal-controller-manager/internal/helpers"
 )
 
 // TerminalReconciler reconciles a Terminal object
@@ -575,10 +575,10 @@ func isSameCluster(c1, c2 extensionsv1alpha1.ClusterCredentials) bool {
 	return false
 }
 
-func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) error {
+func (r *TerminalReconciler) reconcileTerminal(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *helpers.Set) error {
 	if ptr.Deref(r.getConfig().HonourCleanupProjectMembership, false) {
 		if ptr.Deref(t.Spec.Target.CleanupProjectMembership, false) &&
-			t.Spec.Target.Credentials.ServiceAccountRef != nil && utils.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, t.Spec.Target.Credentials.ServiceAccountRef.Name) {
+			t.Spec.Target.Credentials.ServiceAccountRef != nil && helpers.IsAllowed(r.getConfig().Controllers.ServiceAccount.AllowedServiceAccountNames, t.Spec.Target.Credentials.ServiceAccountRef.Name) {
 			if err := ensureServiceAccountMembershipCleanup(ctx, targetClientSet, *t.Spec.Target.Credentials.ServiceAccountRef); err != nil {
 				return fmt.Errorf("failed to add referenced label to target Service Account referenced in Terminal: %w", err)
 			}
@@ -657,7 +657,7 @@ func ensureServiceAccountMembershipCleanup(ctx context.Context, clientSet *garde
 	return nil
 }
 
-func (r *TerminalReconciler) createOrUpdateAttachServiceAccount(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) error {
+func (r *TerminalReconciler) createOrUpdateAttachServiceAccount(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *helpers.Set) error {
 	if ptr.Deref(t.Spec.Host.TemporaryNamespace, false) {
 		if _, err := hostClientSet.CreateOrUpdateNamespace(ctx, *t.Spec.Host.Namespace, labelSet, annotationSet); err != nil {
 			return err
@@ -736,14 +736,14 @@ func (r *TerminalReconciler) patchTerminalStatus(ctx context.Context, t *extensi
 	return r.Status().Patch(ctx, terminal, patch)
 }
 
-func (r *TerminalReconciler) createOrUpdateAccessServiceAccount(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.ServiceAccount, error) {
+func (r *TerminalReconciler) createOrUpdateAccessServiceAccount(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *helpers.Set) (*corev1.ServiceAccount, error) {
 	if ptr.Deref(t.Spec.Target.TemporaryNamespace, false) {
 		if _, err := targetClientSet.CreateOrUpdateNamespace(ctx, *t.Spec.Target.Namespace, labelSet, annotationSet); err != nil {
 			return nil, err
 		}
 	}
 
-	accessServiceAccountAnnotations := utils.MergeStringMap(*annotationSet, map[string]string{
+	accessServiceAccountAnnotations := helpers.MergeStringMap(*annotationSet, map[string]string{
 		extensionsv1alpha1.Description: "Temporary service account for web-terminal session. Managed by gardener/terminal-controller-manager",
 	})
 
@@ -797,7 +797,7 @@ func (r *TerminalReconciler) createOrUpdateAccessServiceAccount(ctx context.Cont
 	return accessServiceAccount, nil
 }
 
-func createOrUpdateBinding(ctx context.Context, targetClientSet *gardenclient.ClientSet, identifier string, namespace string, roleBinding *extensionsv1alpha1.RoleBinding, labelSet *labels.Set, annotationSet *utils.Set, accessServiceAccount *corev1.ServiceAccount) error {
+func createOrUpdateBinding(ctx context.Context, targetClientSet *gardenclient.ClientSet, identifier string, namespace string, roleBinding *extensionsv1alpha1.RoleBinding, labelSet *labels.Set, annotationSet *helpers.Set, accessServiceAccount *corev1.ServiceAccount) error {
 	subject := rbacv1.Subject{
 		Kind:      rbacv1.ServiceAccountKind,
 		Namespace: accessServiceAccount.Namespace,
@@ -833,7 +833,7 @@ func clusterNameForCredential(cred extensionsv1alpha1.ClusterCredentials) (strin
 	return "", errors.New("no cluster credentials provided")
 }
 
-func createOrUpdateKubeconfigSecret(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.Secret, error) {
+func createOrUpdateKubeconfigSecret(ctx context.Context, targetClientSet *gardenclient.ClientSet, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *helpers.Set) (*corev1.Secret, error) {
 	clusterName, err := clusterNameForCredential(t.Spec.Target.Credentials)
 	if err != nil {
 		return nil, err
@@ -905,7 +905,7 @@ func createOrUpdateKubeconfigSecret(ctx context.Context, targetClientSet *garden
 	return hostClientSet.CreateOrUpdateSecretData(ctx, *t.Spec.Host.Namespace, kubeconfigSecretName, data, labelSet, annotationSet)
 }
 
-func createOrUpdateServiceAccountTokenSecret(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, token string, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.Secret, error) {
+func createOrUpdateServiceAccountTokenSecret(ctx context.Context, hostClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, token string, labelSet *labels.Set, annotationSet *helpers.Set) (*corev1.Secret, error) {
 	secretName := extensionsv1alpha1.TokenSecretResourceNamePrefix + t.Spec.Identifier
 
 	data := map[string][]byte{
@@ -992,7 +992,7 @@ type terminalPodOptions struct {
 	serviceAccountName string
 }
 
-func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *utils.Set, options terminalPodOptions) error {
+func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *helpers.Set, options terminalPodOptions) error {
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: *t.Spec.Host.Namespace, Name: extensionsv1alpha1.TerminalPodResourceNamePrefix + t.Spec.Identifier}}
 
 	const (
@@ -1006,7 +1006,7 @@ func (r *TerminalReconciler) createOrUpdateTerminalPod(ctx context.Context, cs *
 	if err := gardenclient.CreateOrUpdateDiscardResult(ctx, cs, pod, func() error {
 		pod.Labels = labels.Merge(pod.Labels, t.Spec.Host.Pod.Labels)
 		pod.Labels = labels.Merge(pod.Labels, *labelSet)
-		pod.Annotations = utils.MergeStringMap(pod.Annotations, *annotationSet)
+		pod.Annotations = helpers.MergeStringMap(pod.Annotations, *annotationSet)
 
 		image := t.Spec.Host.Pod.ContainerImage
 		privileged := t.Spec.Host.Pod.Privileged

@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and Gardener con
 SPDX-License-Identifier: Apache-2.0
 */
 
-package utils_test
+package helpers_test
 
 import (
 	"testing"

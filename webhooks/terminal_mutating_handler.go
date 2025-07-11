@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/internal/utils"
+	"github.com/gardener/terminal-controller-manager/internal/helpers"
 )
 
 // TerminalMutator handles Terminal
@@ -40,7 +40,7 @@ func (h *TerminalMutator) mutatingTerminalFn(t *v1alpha1.Terminal, admissionReq 
 
 		uuid := uuid.NewUUID()
 
-		terminalIdentifier, err := utils.ToFnvHash(string(uuid))
+		terminalIdentifier, err := helpers.ToFnvHash(string(uuid))
 		if err != nil {
 			return err
 		}
