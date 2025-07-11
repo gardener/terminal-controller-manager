@@ -31,8 +31,9 @@ else
   echo "Global Git user.name is already set to $(git config --global user.name)"
 fi
 
-export GOLANGCI_LINT_ADDITIONAL_FLAGS="--verbose --timeout 5m"
-export GO_TEST_ADDITIONAL_FLAGS="-race"
+export GO_TEST_RACE=1
+export GOLANGCI_LINT_VERBOSE=1
+export GOLANGCI_LINT_TIMEOUT=5m
 
 if [ "${TEST_COV+yes}" = yes ] ; then
   # supposed to be run in release jobs
