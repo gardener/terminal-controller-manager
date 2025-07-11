@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
-	"github.com/gardener/terminal-controller-manager/internal/utils"
+	"github.com/gardener/terminal-controller-manager/internal/helpers"
 )
 
 const (
@@ -164,7 +164,7 @@ func NewClientSetFromServiceAccountRef(ctx context.Context, cs *ClientSet, ref *
 		return nil, err
 	}
 
-	caData, err := utils.DataFromSliceOrFile(cs.CAData, cs.CAFile)
+	caData, err := helpers.DataFromSliceOrFile(cs.CAData, cs.CAFile)
 	if err != nil {
 		return nil, err
 	}
@@ -325,12 +325,12 @@ func (s *ClientSet) DeleteNamespace(ctx context.Context, namespaceName string) e
 	return client.IgnoreNotFound(s.Delete(ctx, ns))
 }
 
-func (s *ClientSet) CreateOrUpdateRole(ctx context.Context, namespace string, name string, rules []rbacv1.PolicyRule, labelSet *labels.Set, annotationSet *utils.Set) (*rbacv1.Role, error) {
+func (s *ClientSet) CreateOrUpdateRole(ctx context.Context, namespace string, name string, rules []rbacv1.PolicyRule, labelSet *labels.Set, annotationSet *helpers.Set) (*rbacv1.Role, error) {
 	role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
 	return role, CreateOrUpdateDiscardResult(ctx, s, role, func() error {
 		role.Labels = labels.Merge(role.Labels, *labelSet)
-		role.Annotations = utils.MergeStringMap(role.Annotations, *annotationSet)
+		role.Annotations = helpers.MergeStringMap(role.Annotations, *annotationSet)
 
 		role.Rules = rules
 
@@ -338,34 +338,34 @@ func (s *ClientSet) CreateOrUpdateRole(ctx context.Context, namespace string, na
 	})
 }
 
-func (s *ClientSet) CreateOrUpdateNamespace(ctx context.Context, namespaceName string, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.Namespace, error) {
+func (s *ClientSet) CreateOrUpdateNamespace(ctx context.Context, namespaceName string, labelSet *labels.Set, annotationSet *helpers.Set) (*corev1.Namespace, error) {
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespaceName}}
 
 	return ns, CreateOrUpdateDiscardResult(ctx, s, ns, func() error {
 		ns.Labels = labels.Merge(ns.Labels, *labelSet)
-		ns.Annotations = utils.MergeStringMap(ns.Annotations, *annotationSet)
+		ns.Annotations = helpers.MergeStringMap(ns.Annotations, *annotationSet)
 
 		return nil
 	})
 }
 
-func (s *ClientSet) CreateOrUpdateServiceAccount(ctx context.Context, namespace string, name string, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.ServiceAccount, error) {
+func (s *ClientSet) CreateOrUpdateServiceAccount(ctx context.Context, namespace string, name string, labelSet *labels.Set, annotationSet *helpers.Set) (*corev1.ServiceAccount, error) {
 	serviceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
 	return serviceAccount, CreateOrUpdateDiscardResult(ctx, s, serviceAccount, func() error {
 		serviceAccount.Labels = labels.Merge(serviceAccount.Labels, *labelSet)
-		serviceAccount.Annotations = utils.MergeStringMap(serviceAccount.Annotations, *annotationSet)
+		serviceAccount.Annotations = helpers.MergeStringMap(serviceAccount.Annotations, *annotationSet)
 
 		return nil
 	})
 }
 
-func (s *ClientSet) CreateOrUpdateRoleBinding(ctx context.Context, namespace string, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelSet *labels.Set, annotationSet *utils.Set) (*rbacv1.RoleBinding, error) {
+func (s *ClientSet) CreateOrUpdateRoleBinding(ctx context.Context, namespace string, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelSet *labels.Set, annotationSet *helpers.Set) (*rbacv1.RoleBinding, error) {
 	roleBinding := &rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
 	return roleBinding, CreateOrUpdateDiscardResult(ctx, s, roleBinding, func() error {
 		roleBinding.Labels = labels.Merge(roleBinding.Labels, *labelSet)
-		roleBinding.Annotations = utils.MergeStringMap(roleBinding.Annotations, *annotationSet)
+		roleBinding.Annotations = helpers.MergeStringMap(roleBinding.Annotations, *annotationSet)
 
 		roleBinding.Subjects = []rbacv1.Subject{subject}
 		roleBinding.RoleRef = roleRef
@@ -390,12 +390,12 @@ func (s *ClientSet) RequestToken(ctx context.Context, serviceAccount *corev1.Ser
 	return tokenRequest.Status.Token, nil
 }
 
-func (s *ClientSet) CreateOrUpdateClusterRoleBinding(ctx context.Context, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelSet *labels.Set, annotationSet *utils.Set) (*rbacv1.ClusterRoleBinding, error) {
+func (s *ClientSet) CreateOrUpdateClusterRoleBinding(ctx context.Context, name string, subject rbacv1.Subject, roleRef rbacv1.RoleRef, labelSet *labels.Set, annotationSet *helpers.Set) (*rbacv1.ClusterRoleBinding, error) {
 	clusterRoleBinding := &rbacv1.ClusterRoleBinding{ObjectMeta: metav1.ObjectMeta{Name: name}}
 
 	return clusterRoleBinding, CreateOrUpdateDiscardResult(ctx, s, clusterRoleBinding, func() error {
 		clusterRoleBinding.Labels = labels.Merge(clusterRoleBinding.Labels, *labelSet)
-		clusterRoleBinding.Annotations = utils.MergeStringMap(clusterRoleBinding.Annotations, *annotationSet)
+		clusterRoleBinding.Annotations = helpers.MergeStringMap(clusterRoleBinding.Annotations, *annotationSet)
 
 		clusterRoleBinding.Subjects = []rbacv1.Subject{subject}
 		clusterRoleBinding.RoleRef = roleRef
@@ -404,12 +404,12 @@ func (s *ClientSet) CreateOrUpdateClusterRoleBinding(ctx context.Context, name s
 	})
 }
 
-func (s *ClientSet) CreateOrUpdateSecretData(ctx context.Context, namespace string, name string, data map[string][]byte, labelSet *labels.Set, annotationSet *utils.Set) (*corev1.Secret, error) {
+func (s *ClientSet) CreateOrUpdateSecretData(ctx context.Context, namespace string, name string, data map[string][]byte, labelSet *labels.Set, annotationSet *helpers.Set) (*corev1.Secret, error) {
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}
 
 	return secret, CreateOrUpdateDiscardResult(ctx, s, secret, func() error {
 		secret.Labels = labels.Merge(secret.Labels, *labelSet)
-		secret.Annotations = utils.MergeStringMap(secret.Annotations, *annotationSet)
+		secret.Annotations = helpers.MergeStringMap(secret.Annotations, *annotationSet)
 
 		secret.Data = data
 		secret.Type = corev1.SecretTypeOpaque

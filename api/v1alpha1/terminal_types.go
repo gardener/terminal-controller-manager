@@ -18,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
 
-	"github.com/gardener/terminal-controller-manager/internal/utils"
+	"github.com/gardener/terminal-controller-manager/internal/helpers"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -494,12 +494,12 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 		return nil, errors.New("createdBy annotation not set")
 	}
 
-	targetNamespaceHash, err := utils.ToFnvHash(*t.Spec.Target.Namespace)
+	targetNamespaceHash, err := helpers.ToFnvHash(*t.Spec.Target.Namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	createdByHash, err := utils.ToFnvHash(t.Annotations[GardenCreatedBy])
+	createdByHash, err := helpers.ToFnvHash(t.Annotations[GardenCreatedBy])
 	if err != nil {
 		return nil, err
 	}
@@ -512,7 +512,7 @@ func (t *Terminal) NewLabelsSet() (*labels.Set, error) {
 	}, nil
 }
 
-func (t *Terminal) NewAnnotationsSet() (*utils.Set, error) {
+func (t *Terminal) NewAnnotationsSet() (*helpers.Set, error) {
 	if t.Spec.Target.Namespace == nil {
 		return nil, errors.New("target namespace not set")
 	}
@@ -524,7 +524,7 @@ func (t *Terminal) NewAnnotationsSet() (*utils.Set, error) {
 	targetNamespace := *t.Spec.Target.Namespace
 	createdBy := t.Annotations[GardenCreatedBy]
 
-	return &utils.Set{
+	return &helpers.Set{
 		"terminal.dashboard.gardener.cloud/target-ns":  targetNamespace,
 		"terminal.dashboard.gardener.cloud/created-by": createdBy,
 	}, nil
