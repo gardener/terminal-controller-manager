@@ -8,7 +8,7 @@
 !test/*.go
 !internal/*.go
 !internal/gardenclient/*.go
-!internal/utils/*.go
+!internal/helpers/*.go
 !webhooks/*.go
 !main.go
 !go.mod
