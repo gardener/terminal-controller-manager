@@ -16,7 +16,9 @@ fi
 export SOURCE_PATH="$(readlink -f "$SOURCE_PATH")"
 
 ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.30"}
-GO_TEST_ADDITIONAL_FLAGS=${GO_TEST_ADDITIONAL_FLAGS:-""}
+
+GO_TEST_TIMEOUT="${GO_TEST_TIMEOUT:-5m}"
+GO_TEST_RACE="${GO_TEST_RACE:-0}"
 
 OS=${OS:-$(go env GOOS)}
 ARCH=${ARCH:-$(go env GOARCH)}
@@ -24,11 +26,9 @@ ARCH=${ARCH:-$(go env GOARCH)}
 run_test() {
   local component=$1
   local target_dir=$2
-  local go_test_additional_flags=$3
   echo "> Test $component"
 
   pushd "$target_dir"
-
 
   make envtest
 
@@ -36,9 +36,14 @@ run_test() {
   export KUBEBUILDER_ASSETS="$("bin/setup-envtest" use --use-env -p path ${ENVTEST_K8S_VERSION})"
   echo "> Using envtest tools installed at '$KUBEBUILDER_ASSETS'"
 
-  GO111MODULE=on go test ./... ${go_test_additional_flags} -coverprofile cover.out
+  RACE_FLAG=""
+  if [ "${GO_TEST_RACE}" = "1" ]; then
+    RACE_FLAG="-race"
+  fi
+
+  GO111MODULE=on go test ./... ${RACE_FLAG} -timeout "${GO_TEST_TIMEOUT}" -coverprofile cover.out
 
   popd
 }
 
-run_test terminal-controller-manager "${SOURCE_PATH}" "${GO_TEST_ADDITIONAL_FLAGS}"
+run_test terminal-controller-manager "${SOURCE_PATH}"
