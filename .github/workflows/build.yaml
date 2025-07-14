@@ -55,12 +55,38 @@ jobs:
       ocm-labels: ${{ toJSON(matrix.args.ocm-labels) }}
       extra-tags: ${{ inputs.mode == 'release' && 'latest' || '' }}
 
-  verify:
+  verify-others:
+      name: Verify (${{ matrix.task }})
+      runs-on: ubuntu-latest
+      permissions:
+        contents: read
+      env:
+        GO_TEST_RACE: 1
+        GOLANGCI_LINT_VERBOSE: 1
+        GOLANGCI_LINT_TIMEOUT: 5m
+      strategy:
+        fail-fast: false
+        matrix:
+          task: ["check-generate", "lint", "go-test"]
+      steps:
+        - name: Trusted Checkout
+          uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+
+        - name: Set up Go
+          uses: actions/setup-go@v5
+          with:
+            go-version-file: 'go.mod'
+            cache: true
+
+        - name: Run ${{ matrix.task }}
+          run: make ${{ matrix.task }}
+
+  verify-sast:
     uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
     permissions:
       contents: read
     with:
       linter: gosec
       run: |
-        TEST_COV=yes \
-          .ci/verify
+        make sast-report
+      go-version: greatest # TODO use go-version-file once supported by cc-utils
