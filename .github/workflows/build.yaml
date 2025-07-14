@@ -78,6 +78,14 @@ jobs:
             go-version-file: 'go.mod'
             cache: true
 
+        - name: Set Git user email
+          if: matrix.task == 'check-generate'
+          run: git config --global user.email "gardener@sap.com"
+
+        - name: Set Git user name
+          if: matrix.task == 'check-generate'
+          run: git config --global user.name "Gardener CI/CD"
+
         - name: Run ${{ matrix.task }}
           run: make ${{ matrix.task }}
 
