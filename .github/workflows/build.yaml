@@ -97,4 +97,4 @@ jobs:
       linter: gosec
       run: |
         make sast-report
-      go-version: greatest # TODO use go-version-file once supported by cc-utils
+      go-version-file: 'go.mod'
