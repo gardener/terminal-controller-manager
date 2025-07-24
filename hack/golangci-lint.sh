@@ -15,7 +15,7 @@ fi
 export SOURCE_PATH="$(readlink -f "$SOURCE_PATH")"
 
 # renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION=v2.2.2
+GOLANGCI_LINT_VERSION=v2.3.0
 
 GOLANGCI_LINT_TIMEOUT="${GOLANGCI_LINT_TIMEOUT:-1m}"
 GOLANGCI_LINT_VERBOSE="${GOLANGCI_LINT_VERBOSE:-0}"
