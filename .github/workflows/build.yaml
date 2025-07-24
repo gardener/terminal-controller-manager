@@ -56,11 +56,34 @@ jobs:
       extra-tags: ${{ inputs.mode == 'release' && 'latest' || '' }}
 
   verify:
-    uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
+    runs-on: ubuntu-latest
     permissions:
-      contents: read
-    with:
-      linter: gosec
-      run: |
-        TEST_COV=yes \
-          .ci/verify
+          contents: read
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
+        with:
+          linter: gosec
+          run: |
+            TEST_COV=yes \
+
+            mkdir /tmp/blobs.d
+
+            .ci/verify |& tee /tmp/blobs.d/verify-log.txt
+            tar czf /tmp/blobs.d/verify-log.tar.gz -C/tmp/blobs.d verify-log.txt
+      - name: add-test-report-to-component-descriptor
+        uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
+        with:
+          blobs-directory: /tmp/blobs.d
+          ocm-resources: |
+            name: test-results
+            relation: local
+            access:
+              type: localBlob
+              localReference: verify-log.tar.gz
+            labels:
+              - name: gardener.cloud/purposes
+                value:
+                  - test
