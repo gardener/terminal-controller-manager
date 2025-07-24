@@ -179,7 +179,6 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 	}
 
 	result, err := r.handleTerminal(ctx, t)
-
 	if updateErr := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
 		if err != nil {
 			terminal.Status.LastError = lastError(err.Error())
