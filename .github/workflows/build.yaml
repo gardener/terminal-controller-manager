@@ -55,12 +55,62 @@ jobs:
       ocm-labels: ${{ toJSON(matrix.args.ocm-labels) }}
       extra-tags: ${{ inputs.mode == 'release' && 'latest' || '' }}
 
-  verify:
+  verify-others:
+      name: Verify (${{ matrix.task }})
+      runs-on: ubuntu-latest
+      permissions:
+        contents: read
+      env:
+        GO_TEST_RACE: 1
+        GOLANGCI_LINT_VERBOSE: 1
+        GOLANGCI_LINT_TIMEOUT: 5m
+      strategy:
+        fail-fast: false
+        matrix:
+          task: ["check-generate", "lint", "go-test"]
+      steps:
+        - name: Trusted Checkout
+          uses: gardener/cc-utils/.github/actions/trusted-checkout@master
+
+        - name: Set up Go
+          uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0
+          with:
+            go-version-file: 'go.mod'
+            cache: true
+
+        - name: Setup Git Identity
+          if: matrix.task == 'check-generate'
+          uses: gardener/cc-utils/.github/actions/setup-git-identity@master
+
+        - name: Run ${{ matrix.task }}
+          shell: bash
+          run: |
+            set -eu
+            mkdir -p /tmp/blobs.d
+            make ${{ matrix.task }} |& tee /tmp/blobs.d/logs.txt
+            tar czf /tmp/blobs.d/logs.tar.gz -C/tmp/blobs.d logs.txt
+        - name: add-reports-to-component-descriptor
+          if: ${{ matrix.task == 'go-test' }}
+          uses: gardener/cc-utils/.github/actions/export-ocm-fragments@master
+          with:
+            blobs-directory: /tmp/blobs.d
+            ocm-resources: |
+              name: test-results
+              relation: local
+              access:
+                type: localBlob
+                localReference: logs.tar.gz
+              labels:
+                - name: gardener.cloud/purposes
+                  value:
+                    - test
+
+  verify-sast:
     uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@master
     permissions:
       contents: read
     with:
       linter: gosec
       run: |
-        TEST_COV=yes \
-          .ci/verify
+        make sast-report
+      go-version-file: 'go.mod'
