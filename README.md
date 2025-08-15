@@ -2,7 +2,7 @@
 <img src="https://user-images.githubusercontent.com/5526658/65958014-a64a9b00-e44e-11e9-9b0a-166247582b05.png" width="180"/>
 
 [![REUSE status](https://api.reuse.software/badge/github.com/gardener/terminal-controller-manager)](https://api.reuse.software/info/github.com/gardener/terminal-controller-manager)
-[![CI Build status](https://concourse.ci.gardener.cloud/api/v1/teams/gardener/pipelines/terminal-controller-manager-master/jobs/master-head-update-job/badge)](https://concourse.ci.gardener.cloud/teams/gardener/pipelines/terminal-controller-manager-master/jobs/master-head-update-job)
+[![Build](https://github.com/gardener/terminal-controller-manager/actions/workflows/non-release.yaml/badge.svg)](https://github.com/gardener/terminal-controller-manager/actions/workflows/non-release.yaml)
 [![Slack workspace](https://img.shields.io/badge/Slack-Gardener%20Project-brightgreen.svg?logo=slack)](https://gardener-cloud.slack.com/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gardener/terminal-controller-manager)](https://goreportcard.com/report/github.com/gardener/terminal-controller-manager)
 [![reuse compliant](https://reuse.software/badge/reuse-compliant.svg)](https://reuse.software/)
