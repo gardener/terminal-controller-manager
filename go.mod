@@ -3,10 +3,10 @@ module github.com/gardener/terminal-controller-manager
 go 1.25.3
 
 require (
-	github.com/gardener/gardener v1.122.3
+	github.com/gardener/gardener v1.134.0
 	github.com/go-logr/logr v1.4.2
-	github.com/onsi/ginkgo/v2 v2.23.4
-	github.com/onsi/gomega v1.37.0
+	github.com/onsi/ginkgo/v2 v2.27.3
+	github.com/onsi/gomega v1.38.3
 	k8s.io/api v0.33.2
 	k8s.io/apimachinery v0.33.2
 	k8s.io/client-go v0.33.2
