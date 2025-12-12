@@ -996,9 +996,6 @@ func GenerateKubeconfig(clusterName string, contextNamespace string, server stri
 	kubeconfig := &clientcmdv1.Config{
 		APIVersion: "v1",
 		Kind:       "Config",
-		Preferences: clientcmdv1.Preferences{
-			Colors: false,
-		},
 		Clusters: []clientcmdv1.NamedCluster{
 			{
 				Name: clusterName,

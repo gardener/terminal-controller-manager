@@ -644,7 +644,7 @@ var _ = Describe("Validating Webhook", func() {
 					BeforeEach(func() {
 						terminal.Spec.Target.RoleName = "foo"
 					})
-					AssertFailedBehavior("spec.target.bindingKind: Invalid value: : field should be either ClusterRoleBinding or RoleBinding")
+					AssertFailedBehavior("spec.target.bindingKind: Invalid value: \"\": field should be either ClusterRoleBinding or RoleBinding")
 				})
 
 				Context("roleRef binding kind", func() {
@@ -659,7 +659,7 @@ var _ = Describe("Validating Webhook", func() {
 							},
 						}
 					})
-					AssertFailedBehavior("spec.target.authorization.roleBindings[0].bindingKind: Invalid value: : field should be either ClusterRoleBinding or RoleBinding")
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].bindingKind: Invalid value: \"\": field should be either ClusterRoleBinding or RoleBinding")
 				})
 
 				Context("rolebinding nameSuffix", func() {
