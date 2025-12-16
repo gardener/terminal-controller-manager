@@ -91,23 +91,23 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		}
 	}
 
-	if err := validateRequiredNamespaceFields(t); err != nil {
+	if err := validateNamespaceFields(t); err != nil {
 		return false, err.Error(), nil
 	}
 
-	if err := validateRequiredPodFields(t); err != nil {
+	if err := validatePodFields(t); err != nil {
 		return false, err.Error(), nil
 	}
 
-	if err := h.validateRequiredCredentials(t); err != nil {
+	if err := h.validateCredentials(t); err != nil {
 		return false, err.Error(), nil
 	}
 
-	if err := h.validateRequiredTargetAuthorization(t); err != nil {
+	if err := h.validateTargetAuthorization(t); err != nil {
 		return false, err.Error(), nil
 	}
 
-	if err := validateRequiredAPIServerFields(t); err != nil {
+	if err := validateAPIServerFields(t); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -146,7 +146,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	return true, "allowed to be admitted", nil
 }
 
-func validateRequiredNamespaceFields(t *v1alpha1.Terminal) error {
+func validateNamespaceFields(t *v1alpha1.Terminal) error {
 	// The mutating webhook ensures that a target namespace is always set
 	if err := validateRequiredField(t.Spec.Target.Namespace, field.NewPath("spec", "target", "namespace")); err != nil {
 		return err
@@ -180,7 +180,7 @@ func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) err
 	return nil
 }
 
-func validateRequiredPodFields(t *v1alpha1.Terminal) error {
+func validatePodFields(t *v1alpha1.Terminal) error {
 	if len(t.Spec.Host.Pod.ContainerImage) == 0 {
 		return validateRequiredContainerFields(t.Spec.Host.Pod.Container, field.NewPath("spec", "host", "pod", "container"))
 	}
@@ -196,7 +196,7 @@ func validateRequiredContainerFields(container *v1alpha1.Container, fldPath *fie
 	return validateRequiredField(&container.Image, fldPath.Child("image"))
 }
 
-func validateRequiredAPIServerFields(t *v1alpha1.Terminal) error {
+func validateAPIServerFields(t *v1alpha1.Terminal) error {
 	if t.Spec.Target.APIServerServiceRef != nil {
 		return validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name"))
 	}
@@ -219,15 +219,15 @@ func toAuthZExtraValue(authNVal map[string]authenticationv1.ExtraValue) map[stri
 	return authZVal
 }
 
-func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) error {
-	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.getConfig().HonourServiceAccountRefTargetCluster); err != nil {
+func (h *TerminalValidator) validateCredentials(t *v1alpha1.Terminal) error {
+	if err := validateCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.getConfig().HonourServiceAccountRefTargetCluster); err != nil {
 		return err
 	}
 
-	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.getConfig().HonourServiceAccountRefHostCluster)
+	return validateCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.getConfig().HonourServiceAccountRefHostCluster)
 }
 
-func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef *bool) error {
+func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef *bool) error {
 	if cred.ShootRef != nil && cred.ServiceAccountRef != nil {
 		return field.Forbidden(fldPath, "only one of 'shootRef' or 'serviceAccountRef' must be set")
 	}
@@ -269,7 +269,7 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 	return nil
 }
 
-func (h *TerminalValidator) validateRequiredTargetAuthorization(t *v1alpha1.Terminal) error {
+func (h *TerminalValidator) validateTargetAuthorization(t *v1alpha1.Terminal) error {
 	fldPath := field.NewPath("spec", "target")
 
 	if t.Spec.Target.RoleName != "" {
