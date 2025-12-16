@@ -93,7 +93,30 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		}
 	}
 
-	if err := validateNamespaceFields(t); err != nil {
+	fldPath := field.NewPath("spec", "target", "namespace")
+	if err := validateRequiredField(t.Spec.Target.Namespace, fldPath); err != nil {
+		return false, err.Error(), nil
+	}
+
+	if err := validateDNS1123Subdomain(*t.Spec.Target.Namespace, fldPath); err != nil {
+		return false, err.Error(), nil
+	}
+
+	fldPath = field.NewPath("spec", "host", "namespace")
+	if err := validateRequiredField(t.Spec.Host.Namespace, fldPath); err != nil {
+		return false, err.Error(), nil
+	}
+
+	if err := validateDNS1123Subdomain(*t.Spec.Host.Namespace, fldPath); err != nil {
+		return false, err.Error(), nil
+	}
+
+	fldPath = field.NewPath("spec", "target", "kubeconfigContextNamespace")
+	if err := validateRequiredField(&t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
+		return false, err.Error(), nil
+	}
+
+	if err := validateDNS1123Subdomain(t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -148,34 +171,6 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	return true, "allowed to be admitted", nil
 }
 
-func validateNamespaceFields(t *v1alpha1.Terminal) error {
-	fldPath := field.NewPath("spec", "target", "namespace")
-	if err := validateRequiredField(t.Spec.Target.Namespace, fldPath); err != nil {
-		return err
-	}
-	if err := validateDNS1123Subdomain(*t.Spec.Target.Namespace, fldPath); err != nil {
-		return err
-	}
-
-	fldPath = field.NewPath("spec", "host", "namespace")
-	if err := validateRequiredField(t.Spec.Host.Namespace, fldPath); err != nil {
-		return err
-	}
-	if err := validateDNS1123Subdomain(*t.Spec.Host.Namespace, fldPath); err != nil {
-		return err
-	}
-
-	fldPath = field.NewPath("spec", "target", "kubeconfigContextNamespace")
-	if err := validateRequiredField(&t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
-		return err
-	}
-	if err := validateDNS1123Subdomain(t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func validateRequiredField(val *string, fldPath *field.Path) error {
 	if val == nil || len(*val) == 0 {
 		return field.Required(fldPath, "field is required")
@@ -188,6 +183,7 @@ func validateDNS1123Subdomain(value string, fldPath *field.Path) error {
 	if errs := utilvalidation.IsDNS1123Subdomain(value); len(errs) > 0 {
 		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
 	}
+
 	return nil
 }
 
