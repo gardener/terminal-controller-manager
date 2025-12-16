@@ -446,6 +446,13 @@ var _ = Describe("Validating Webhook", func() {
 				AssertFailedBehavior("spec.target.namespace: Required value")
 			})
 
+			Context("target kubeconfigContextNamespace", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.KubeconfigContextNamespace = ""
+				})
+				AssertFailedBehavior("spec.target.kubeconfigContextNamespace: Required value")
+			})
+
 			Context("target authorization", func() {
 				Context("roleRef name", func() {
 					BeforeEach(func() {

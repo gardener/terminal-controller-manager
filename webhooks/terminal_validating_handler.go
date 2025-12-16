@@ -91,8 +91,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		}
 	}
 
-	fldValidations := getFieldValidations(t)
-	if err := validateRequiredFields(fldValidations); err != nil {
+	if err := validateRequiredNamespaceFields(t); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -147,35 +146,19 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	return true, "allowed to be admitted", nil
 }
 
-func getFieldValidations(t *v1alpha1.Terminal) *[]fldValidation {
-	fldValidations := &[]fldValidation{
-		{
-			value:   t.Spec.Target.Namespace, // The mutating webhook ensures that a target namespace is always set
-			fldPath: field.NewPath("spec", "target", "namespace"),
-		},
-		{
-			value:   t.Spec.Host.Namespace, // The mutating webhook ensures that a host namespace is set in case TemporaryNamespace is true
-			fldPath: field.NewPath("spec", "host", "namespace"),
-		},
-		{
-			value:   &t.Spec.Target.KubeconfigContextNamespace,
-			fldPath: field.NewPath("spec", "target", "kubeconfigContextNamespace"),
-		},
+func validateRequiredNamespaceFields(t *v1alpha1.Terminal) error {
+	// The mutating webhook ensures that a target namespace is always set
+	if err := validateRequiredField(t.Spec.Target.Namespace, field.NewPath("spec", "target", "namespace")); err != nil {
+		return err
 	}
 
-	return fldValidations
-}
+	// The mutating webhook ensures that a host namespace is set in case TemporaryNamespace is true
+	if err := validateRequiredField(t.Spec.Host.Namespace, field.NewPath("spec", "host", "namespace")); err != nil {
+		return err
+	}
 
-type fldValidation struct {
-	value   *string
-	fldPath *field.Path
-}
-
-func validateRequiredFields(fldValidations *[]fldValidation) error {
-	for _, fldValidation := range *fldValidations {
-		if err := validateRequiredField(fldValidation.value, fldValidation.fldPath); err != nil {
-			return err
-		}
+	if err := validateRequiredField(&t.Spec.Target.KubeconfigContextNamespace, field.NewPath("spec", "target", "kubeconfigContextNamespace")); err != nil {
+		return err
 	}
 
 	return nil
@@ -264,33 +247,21 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 	}
 
 	if cred.ShootRef != nil {
-		fldValidations := &[]fldValidation{
-			{
-				value:   &cred.ShootRef.Name,
-				fldPath: fldPath.Child("shootRef", "name"),
-			},
-			{
-				value:   &cred.ShootRef.Namespace,
-				fldPath: fldPath.Child("shootRef", "namespace"),
-			},
+		if err := validateRequiredField(&cred.ShootRef.Name, fldPath.Child("shootRef", "name")); err != nil {
+			return err
 		}
-		if err := validateRequiredFields(fldValidations); err != nil {
+
+		if err := validateRequiredField(&cred.ShootRef.Namespace, fldPath.Child("shootRef", "namespace")); err != nil {
 			return err
 		}
 	}
 
 	if cred.ServiceAccountRef != nil {
-		fldValidations := &[]fldValidation{
-			{
-				value:   &cred.ServiceAccountRef.Name,
-				fldPath: fldPath.Child("serviceAccountRef", "name"),
-			},
-			{
-				value:   &cred.ServiceAccountRef.Namespace,
-				fldPath: fldPath.Child("serviceAccountRef", "namespace"),
-			},
+		if err := validateRequiredField(&cred.ServiceAccountRef.Name, fldPath.Child("serviceAccountRef", "name")); err != nil {
+			return err
 		}
-		if err := validateRequiredFields(fldValidations); err != nil {
+
+		if err := validateRequiredField(&cred.ServiceAccountRef.Namespace, fldPath.Child("serviceAccountRef", "namespace")); err != nil {
 			return err
 		}
 	}
