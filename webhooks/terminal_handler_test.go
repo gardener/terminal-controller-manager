@@ -826,6 +826,59 @@ var _ = Describe("Validating Webhook", func() {
 					AssertFailedBehavior("spec.target.authorization.roleBindings[1].nameSuffix: Invalid value: \"same\": name must be unique")
 				})
 
+				Context("roleRef name validation", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name: "invalid/role-name", // Invalid: contains "/"
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.name: Invalid value: \"invalid/role-name\"")
+				})
+
+				Context("rolebinding nameSuffix validation", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "invalid/suffix", // Invalid: contains "/"
+									RoleRef: rbacv1.RoleRef{
+										Name: "valid-role",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].nameSuffix: Invalid value: \"invalid/suffix\"")
+				})
+
+				Context("rolebinding valid components", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name: "valid-role",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					It("should succeed with valid roleRef name and nameSuffix", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
 				Context("projectName validation", func() {
 					BeforeEach(func() {
 						cmConfig.HonourProjectMemberships = ptr.To(true)

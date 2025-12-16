@@ -22,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/api/validation/path"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
@@ -211,6 +212,23 @@ func validateDNS1035Label(value string, fldPath *field.Path) error {
 	return nil
 }
 
+// ValidateRBACName is exported to allow types outside of the RBAC API group to reuse this validation logic
+// Minimal validation of names for roles and bindings. Identical to the validation for Openshift. See:
+// * https://github.com/kubernetes/kubernetes/blob/60db507b279ce45bd16ea3db49bf181f2aeb3c3d/pkg/api/validation/name.go
+// * https://github.com/openshift/origin/blob/388478c40e751c4295dcb9a44dd69e5ac65d0e3b/pkg/api/helpers.go
+// Source: https://github.com/kubernetes/kubernetes/blob/df11db1c0f08fab3c0baee1e5ce6efbf816af7f1/pkg/apis/rbac/validation/validation.go#L28C1-L34C2
+func ValidateRBACName(name string) []string {
+	return path.IsValidPathSegmentName(name)
+}
+
+func validateRBACName(value string, fldPath *field.Path) error {
+	if errs := ValidateRBACName(value); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
 func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) error {
 	if !equality.Semantic.DeepEqual(oldVal, newVal) {
 		return field.Invalid(fldPath, newVal, validation.FieldImmutableErrorMsg)
@@ -340,6 +358,10 @@ func (h *TerminalValidator) validateTargetAuthorization(t *v1alpha1.Terminal) er
 	fldPath := field.NewPath("spec", "target")
 
 	if t.Spec.Target.RoleName != "" {
+		if err := validateRBACName(t.Spec.Target.RoleName, fldPath.Child("roleName")); err != nil {
+			return err
+		}
+
 		if t.Spec.Target.BindingKind != v1alpha1.BindingKindClusterRoleBinding && t.Spec.Target.BindingKind != v1alpha1.BindingKindRoleBinding {
 			return field.Invalid(fldPath.Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either "+v1alpha1.BindingKindClusterRoleBinding.String()+" or "+v1alpha1.BindingKindRoleBinding.String())
 		}
@@ -366,6 +388,21 @@ func validateRoleBindings(t *v1alpha1.Terminal, fldPath *field.Path) error {
 	for index, roleBinding := range t.Spec.Target.Authorization.RoleBindings {
 		if err := validateRequiredField(&roleBinding.RoleRef.Name, fldPath.Index(index).Child("roleRef", "name")); err != nil {
 			return err
+		}
+
+		if err := validateRBACName(roleBinding.RoleRef.Name, fldPath.Index(index).Child("roleRef", "name")); err != nil {
+			return err
+		}
+
+		if err := validateRBACName(roleBinding.NameSuffix, fldPath.Index(index).Child("nameSuffix")); err != nil {
+			return err
+		}
+
+		// Validate the complete final binding name
+		bindingName := v1alpha1.TerminalAccessResourceNamePrefix + t.Spec.Identifier + roleBinding.NameSuffix
+		if err := validateRBACName(bindingName, fldPath.Index(index).Child("nameSuffix")); err != nil {
+			return field.Invalid(fldPath.Index(index).Child("nameSuffix"), roleBinding.NameSuffix,
+				fmt.Sprintf("complete binding name '%s' is invalid: %s", bindingName, err.Error()))
 		}
 
 		if roleBinding.BindingKind != v1alpha1.BindingKindClusterRoleBinding && roleBinding.BindingKind != v1alpha1.BindingKindRoleBinding {
