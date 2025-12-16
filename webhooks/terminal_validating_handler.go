@@ -402,6 +402,10 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 			return err
 		}
 
+		if err := validateDNSSubdomain(projectMembership.ProjectName, fldPath.Index(index).Child("projectName")); err != nil {
+			return err
+		}
+
 		if len(projectMembership.Roles) == 0 {
 			return field.Required(fldPath.Index(index).Child("roles"), "field is required")
 		}

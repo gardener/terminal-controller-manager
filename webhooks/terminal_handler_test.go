@@ -825,6 +825,21 @@ var _ = Describe("Validating Webhook", func() {
 					})
 					AssertFailedBehavior("spec.target.authorization.roleBindings[1].nameSuffix: Invalid value: \"same\": name must be unique")
 				})
+
+				Context("projectName validation", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "Invalid_Project_Name",
+									Roles:       []string{"admin"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].projectName: Invalid value: \"Invalid_Project_Name\"")
+				})
 			})
 		})
 
