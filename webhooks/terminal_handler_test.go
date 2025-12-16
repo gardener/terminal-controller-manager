@@ -645,6 +645,75 @@ var _ = Describe("Validating Webhook", func() {
 		})
 
 		Context("for invalid value", func() {
+			Context("namespace DNS validation", func() {
+				Context("target namespace", func() {
+					BeforeEach(func() {
+						invalidNamespace := "Invalid_Namespace"
+						terminal.Spec.Target.Namespace = &invalidNamespace
+					})
+					AssertFailedBehavior("spec.target.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("host namespace", func() {
+					BeforeEach(func() {
+						invalidNamespace := "Invalid_Namespace"
+						terminal.Spec.Host.Namespace = &invalidNamespace
+					})
+					AssertFailedBehavior("spec.host.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("kubeconfigContextNamespace", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.KubeconfigContextNamespace = "Invalid_Namespace"
+					})
+					AssertFailedBehavior("spec.target.kubeconfigContextNamespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("shootRef namespace (target credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Credentials.ServiceAccountRef = nil
+						terminal.Spec.Target.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
+							Namespace: "Invalid_Namespace",
+							Name:      "test-shoot",
+						}
+					})
+					AssertFailedBehavior("spec.target.credentials.shootRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("shootRef namespace (host credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Credentials.ServiceAccountRef = nil
+						terminal.Spec.Host.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
+							Namespace: "Invalid_Namespace",
+							Name:      "test-shoot",
+						}
+					})
+					AssertFailedBehavior("spec.host.credentials.shootRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("serviceAccountRef namespace (target credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Credentials.ShootRef = nil
+						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
+							Namespace: "Invalid_Namespace",
+							Name:      "test-sa",
+						}
+					})
+					AssertFailedBehavior("spec.target.credentials.serviceAccountRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("serviceAccountRef namespace (host credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Credentials.ShootRef = nil
+						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
+							Namespace: "Invalid_Namespace",
+							Name:      "test-sa",
+						}
+					})
+					AssertFailedBehavior("spec.host.credentials.serviceAccountRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+			})
+
 			Context("target authorization", func() {
 				// this test can be removed once the deprecated fields are removed
 				Context("binding kind - deprecated", func() {

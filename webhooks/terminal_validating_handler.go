@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -147,17 +149,27 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 }
 
 func validateNamespaceFields(t *v1alpha1.Terminal) error {
-	// The mutating webhook ensures that a target namespace is always set
-	if err := validateRequiredField(t.Spec.Target.Namespace, field.NewPath("spec", "target", "namespace")); err != nil {
+	fldPath := field.NewPath("spec", "target", "namespace")
+	if err := validateRequiredField(t.Spec.Target.Namespace, fldPath); err != nil {
+		return err
+	}
+	if err := validateDNS1123Subdomain(*t.Spec.Target.Namespace, fldPath); err != nil {
 		return err
 	}
 
-	// The mutating webhook ensures that a host namespace is set in case TemporaryNamespace is true
-	if err := validateRequiredField(t.Spec.Host.Namespace, field.NewPath("spec", "host", "namespace")); err != nil {
+	fldPath = field.NewPath("spec", "host", "namespace")
+	if err := validateRequiredField(t.Spec.Host.Namespace, fldPath); err != nil {
+		return err
+	}
+	if err := validateDNS1123Subdomain(*t.Spec.Host.Namespace, fldPath); err != nil {
 		return err
 	}
 
-	if err := validateRequiredField(&t.Spec.Target.KubeconfigContextNamespace, field.NewPath("spec", "target", "kubeconfigContextNamespace")); err != nil {
+	fldPath = field.NewPath("spec", "target", "kubeconfigContextNamespace")
+	if err := validateRequiredField(&t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
+		return err
+	}
+	if err := validateDNS1123Subdomain(t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
 		return err
 	}
 
@@ -169,6 +181,13 @@ func validateRequiredField(val *string, fldPath *field.Path) error {
 		return field.Required(fldPath, "field is required")
 	}
 
+	return nil
+}
+
+func validateDNS1123Subdomain(value string, fldPath *field.Path) error {
+	if errs := utilvalidation.IsDNS1123Subdomain(value); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
 	return nil
 }
 
@@ -254,6 +273,10 @@ func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, h
 		if err := validateRequiredField(&cred.ShootRef.Namespace, fldPath.Child("shootRef", "namespace")); err != nil {
 			return err
 		}
+
+		if err := validateDNS1123Subdomain(cred.ShootRef.Namespace, fldPath.Child("shootRef", "namespace")); err != nil {
+			return err
+		}
 	}
 
 	if cred.ServiceAccountRef != nil {
@@ -262,6 +285,10 @@ func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, h
 		}
 
 		if err := validateRequiredField(&cred.ServiceAccountRef.Namespace, fldPath.Child("serviceAccountRef", "namespace")); err != nil {
+			return err
+		}
+
+		if err := validateDNS1123Subdomain(cred.ServiceAccountRef.Namespace, fldPath.Child("serviceAccountRef", "namespace")); err != nil {
 			return err
 		}
 	}
