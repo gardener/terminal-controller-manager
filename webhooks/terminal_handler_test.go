@@ -734,6 +734,28 @@ var _ = Describe("Validating Webhook", func() {
 					})
 					AssertFailedBehavior("spec.host.credentials.serviceAccountRef.name: Invalid value: \"Invalid_ServiceAccount_Name\"")
 				})
+
+				Context("shootRef name (target credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Credentials.ServiceAccountRef = nil
+						terminal.Spec.Target.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
+							Namespace: "foo",
+							Name:      "Invalid_Shoot_Name",
+						}
+					})
+					AssertFailedBehavior("spec.target.credentials.shootRef.name: Invalid value: \"Invalid_Shoot_Name\"")
+				})
+
+				Context("shootRef name (host credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Credentials.ServiceAccountRef = nil
+						terminal.Spec.Host.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
+							Namespace: "foo",
+							Name:      "Invalid_Shoot_Name",
+						}
+					})
+					AssertFailedBehavior("spec.host.credentials.shootRef.name: Invalid value: \"Invalid_Shoot_Name\"")
+				})
 			})
 
 			Context("target authorization", func() {

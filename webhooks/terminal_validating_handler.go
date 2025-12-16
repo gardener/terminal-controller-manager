@@ -195,6 +195,14 @@ func validateDNSSubdomain(value string, fldPath *field.Path) error {
 	return nil
 }
 
+func validateDNSLabel(value string, fldPath *field.Path) error {
+	if errs := validation.NameIsDNSLabel(value, false); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
 func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) error {
 	if !equality.Semantic.DeepEqual(oldVal, newVal) {
 		return field.Invalid(fldPath, newVal, validation.FieldImmutableErrorMsg)
@@ -271,6 +279,10 @@ func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, h
 
 	if cred.ShootRef != nil {
 		if err := validateRequiredField(&cred.ShootRef.Name, fldPath.Child("shootRef", "name")); err != nil {
+			return err
+		}
+
+		if err := validateDNSLabel(cred.ShootRef.Name, fldPath.Child("shootRef", "name")); err != nil {
 			return err
 		}
 
