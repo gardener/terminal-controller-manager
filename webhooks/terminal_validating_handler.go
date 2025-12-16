@@ -187,6 +187,14 @@ func validateDNS1123Subdomain(value string, fldPath *field.Path) error {
 	return nil
 }
 
+func validateDNSSubdomain(value string, fldPath *field.Path) error {
+	if errs := validation.NameIsDNSSubdomain(value, false); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
 func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) error {
 	if !equality.Semantic.DeepEqual(oldVal, newVal) {
 		return field.Invalid(fldPath, newVal, validation.FieldImmutableErrorMsg)
@@ -277,6 +285,10 @@ func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, h
 
 	if cred.ServiceAccountRef != nil {
 		if err := validateRequiredField(&cred.ServiceAccountRef.Name, fldPath.Child("serviceAccountRef", "name")); err != nil {
+			return err
+		}
+
+		if err := validateDNSSubdomain(cred.ServiceAccountRef.Name, fldPath.Child("serviceAccountRef", "name")); err != nil {
 			return err
 		}
 

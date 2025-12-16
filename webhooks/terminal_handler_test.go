@@ -712,6 +712,28 @@ var _ = Describe("Validating Webhook", func() {
 					})
 					AssertFailedBehavior("spec.host.credentials.serviceAccountRef.namespace: Invalid value: \"Invalid_Namespace\"")
 				})
+
+				Context("serviceAccountRef name (target credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Credentials.ShootRef = nil
+						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
+							Namespace: "foo",
+							Name:      "Invalid_ServiceAccount_Name",
+						}
+					})
+					AssertFailedBehavior("spec.target.credentials.serviceAccountRef.name: Invalid value: \"Invalid_ServiceAccount_Name\"")
+				})
+
+				Context("serviceAccountRef name (host credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Credentials.ShootRef = nil
+						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
+							Namespace: "foo",
+							Name:      "Invalid_ServiceAccount_Name",
+						}
+					})
+					AssertFailedBehavior("spec.host.credentials.serviceAccountRef.name: Invalid value: \"Invalid_ServiceAccount_Name\"")
+				})
 			})
 
 			Context("target authorization", func() {
