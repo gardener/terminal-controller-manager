@@ -756,6 +756,26 @@ var _ = Describe("Validating Webhook", func() {
 					})
 					AssertFailedBehavior("spec.host.credentials.shootRef.name: Invalid value: \"Invalid_Shoot_Name\"")
 				})
+
+				Context("apiServerServiceRef name - deprecated", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
+							Name: "Invalid_Service_Name",
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServerServiceRef.name: Invalid value: \"Invalid_Service_Name\"")
+				})
+
+				Context("apiServer serviceRef name", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							ServiceRef: &corev1.ObjectReference{
+								Name: "Invalid_Service_Name",
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.serviceRef.name: Invalid value: \"Invalid_Service_Name\"")
+				})
 			})
 
 			Context("target authorization", func() {

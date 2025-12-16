@@ -203,6 +203,14 @@ func validateDNSLabel(value string, fldPath *field.Path) error {
 	return nil
 }
 
+func validateDNS1035Label(value string, fldPath *field.Path) error {
+	if errs := utilvalidation.IsDNS1035Label(value); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
 func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) error {
 	if !equality.Semantic.DeepEqual(oldVal, newVal) {
 		return field.Invalid(fldPath, newVal, validation.FieldImmutableErrorMsg)
@@ -229,12 +237,24 @@ func validateRequiredContainerFields(container *v1alpha1.Container, fldPath *fie
 
 func validateAPIServerFields(t *v1alpha1.Terminal) error {
 	if t.Spec.Target.APIServerServiceRef != nil {
-		return validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name"))
+		if err := validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name")); err != nil {
+			return err
+		}
+
+		if err := validateDNS1035Label(t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name")); err != nil {
+			return err
+		}
 	}
 
 	if t.Spec.Target.APIServer != nil {
 		if t.Spec.Target.APIServer.ServiceRef != nil {
-			return validateRequiredField(&t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name"))
+			if err := validateRequiredField(&t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name")); err != nil {
+				return err
+			}
+
+			if err := validateDNS1035Label(t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name")); err != nil {
+				return err
+			}
 		}
 	}
 
