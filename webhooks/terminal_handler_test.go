@@ -502,12 +502,144 @@ var _ = Describe("Validating Webhook", func() {
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
 									ProjectName: "foo",
-									Roles:       []string{"role1", ""},
+									Roles:       []string{"admin", ""},
 								},
 							},
 						}
 					})
-					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[1]: Required value")
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[1]: Unsupported value: \"\": supported values: \"admin\", \"owner\", \"serviceaccountmanager\", \"uam\", \"viewer\", \"extension:*\"")
+				})
+
+				Context("project membership duplicate roles", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"admin", "viewer", "admin"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[2]: Duplicate value: \"admin\"")
+				})
+
+				Context("project membership unsupported role", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"unsupported-role"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[0]: Unsupported value: \"unsupported-role\": supported values: \"admin\", \"owner\", \"serviceaccountmanager\", \"uam\", \"viewer\", \"extension:*\"")
+				})
+
+				Context("project membership valid extension role", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"extension:custom-role"},
+								},
+							},
+						}
+					})
+					It("should allow valid extension role", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("project membership extension role too long", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"extension:this-extension-role-name-is-way-too-long-to-be-valid"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[0]: Too long: may not be more than 20 bytes")
+				})
+
+				Context("project membership extension role with invalid characters", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"extension:invalid/role"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[0]: Invalid value: \"invalid/role\"")
+				})
+
+				Context("project membership multiple valid roles", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"admin", "viewer", "extension:custom"},
+								},
+							},
+						}
+					})
+					It("should allow multiple valid roles", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("project membership all supported standard roles", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "test-project",
+									Roles:       []string{"owner", "admin", "viewer", "uam", "serviceaccountmanager"},
+								},
+							},
+						}
+					})
+					It("should allow all supported standard roles", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("project membership multiple project memberships", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "project-1",
+									Roles:       []string{"admin"},
+								},
+								{
+									ProjectName: "project-2",
+									Roles:       []string{"viewer"},
+								},
+							},
+						}
+					})
+					It("should allow multiple project memberships", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
 				})
 			})
 

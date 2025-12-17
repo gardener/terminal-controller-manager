@@ -145,7 +145,7 @@ type Authorization struct {
 	// +optional
 	RoleBindings []RoleBinding `json:"roleBindings,omitempty"`
 
-	// ProjectMemberships defines the (temporary) project memberships of the "access" service account. Each project is updated by using the target.credential, hence the target has the be the (virtual) garden cluster.
+	// ProjectMemberships defines the (temporary) project memberships of the "access" service account. Each project is updated by using the target.credential, hence the target has to be the (virtual) garden cluster.
 	// +optional
 	ProjectMemberships []ProjectMembership `json:"projectMemberships,omitempty"`
 }

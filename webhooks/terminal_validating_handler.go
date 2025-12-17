@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/api/validation/path"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
@@ -31,6 +32,20 @@ import (
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
+)
+
+// Supported roles for project members, based on Gardener's core types
+var supportedRoles = sets.New(
+	"owner",
+	"admin",
+	"viewer",
+	"uam", // user access manager
+	"serviceaccountmanager",
+)
+
+const (
+	extensionRoleMaxLength = 20
+	extensionRolePrefix    = "extension:"
 )
 
 // TerminalValidator handles Terminal
@@ -447,9 +462,34 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 			return field.Required(fldPath.Index(index).Child("roles"), "field is required")
 		}
 
+		foundRoles := make(sets.Set[string], len(projectMembership.Roles))
 		for rolesIndex, role := range projectMembership.Roles {
-			if err := validateRequiredField(&role, fldPath.Index(index).Child("roles").Index(rolesIndex)); err != nil {
-				return err
+			rolesPath := fldPath.Index(index).Child("roles").Index(rolesIndex)
+
+			if foundRoles.Has(role) {
+				return field.Duplicate(rolesPath, role)
+			}
+
+			foundRoles.Insert(role)
+
+			if !supportedRoles.Has(role) && !strings.HasPrefix(role, extensionRolePrefix) {
+				supportedRolesList := sets.List(supportedRoles)
+				supportedRolesList = append(supportedRolesList, extensionRolePrefix+"*")
+
+				return field.NotSupported(rolesPath, role, supportedRolesList)
+			}
+
+			if strings.HasPrefix(role, extensionRolePrefix) {
+				extensionRoleName := strings.TrimPrefix(role, extensionRolePrefix)
+
+				if len(extensionRoleName) > extensionRoleMaxLength {
+					return field.TooLong(rolesPath, role, extensionRoleMaxLength)
+				}
+
+				// the extension role name will be used as part of a ClusterRole name
+				if err := validateRBACName(extensionRoleName, rolesPath); err != nil {
+					return err
+				}
 			}
 		}
 	}
