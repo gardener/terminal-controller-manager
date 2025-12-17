@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/api/validation/path"
+	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -244,6 +245,15 @@ func validateRBACName(value string, fldPath *field.Path) error {
 	return nil
 }
 
+// validateLabels validates that the provided labels map contains valid Kubernetes label keys and values
+func validateLabels(labels map[string]string, fldPath *field.Path) error {
+	if errs := metav1validation.ValidateLabels(labels, fldPath); len(errs) > 0 {
+		return errs.ToAggregate()
+	}
+
+	return nil
+}
+
 func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) error {
 	if !equality.Semantic.DeepEqual(oldVal, newVal) {
 		return field.Invalid(fldPath, newVal, validation.FieldImmutableErrorMsg)
@@ -254,7 +264,17 @@ func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) err
 
 func validatePodFields(t *v1alpha1.Terminal) error {
 	if len(t.Spec.Host.Pod.ContainerImage) == 0 {
-		return validateRequiredContainerFields(t.Spec.Host.Pod.Container, field.NewPath("spec", "host", "pod", "container"))
+		if err := validateRequiredContainerFields(t.Spec.Host.Pod.Container, field.NewPath("spec", "host", "pod", "container")); err != nil {
+			return err
+		}
+	}
+
+	if err := validateLabels(t.Spec.Host.Pod.Labels, field.NewPath("spec", "host", "pod", "labels")); err != nil {
+		return err
+	}
+
+	if err := validateLabels(t.Spec.Host.Pod.NodeSelector, field.NewPath("spec", "host", "pod", "nodeSelector")); err != nil {
+		return err
 	}
 
 	return nil

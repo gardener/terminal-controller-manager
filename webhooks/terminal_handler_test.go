@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package webhooks
 
 import (
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -1024,6 +1025,162 @@ var _ = Describe("Validating Webhook", func() {
 						}
 					})
 					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].projectName: Invalid value: \"Invalid_Project_Name\"")
+				})
+			})
+
+			Context("pod labels validation", func() {
+				Context("invalid label key", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"invalid/key/with/too/many/slashes": "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("invalid label key - too long", func() {
+					BeforeEach(func() {
+						// Create a key longer than 63 characters for the name part
+						longKey := strings.Repeat("a", 64)
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							longKey: "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("invalid label value - too long", func() {
+					BeforeEach(func() {
+						// Create a value longer than 63 characters
+						longValue := strings.Repeat("a", 64)
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"valid-key": longValue,
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("invalid label key - invalid characters", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"invalid@key": "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("invalid label value - invalid characters", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"valid-key": "invalid@value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("valid labels", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"app":                        "my-app",
+							"version":                    "v1.0.0",
+							"environment":                "production",
+							"kubernetes.io/managed-by":   "terminal-controller",
+							"example.com/component":      "backend",
+							"valid-key-with-dashes":      "valid-value-with-dashes",
+							"valid_key_with_underscores": "valid_value_with_underscores",
+							"valid.key.with.dots":        "valid.value.with.dots",
+							"123numeric":                 "123numeric",
+						}
+					})
+					It("should allow valid labels", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+			})
+
+			Context("node selector validation", func() {
+				Context("invalid node selector key", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"invalid/key/with/too/many/slashes": "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("invalid node selector key - too long", func() {
+					BeforeEach(func() {
+						// Create a key longer than 63 characters for the name part
+						longKey := strings.Repeat("a", 64)
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							longKey: "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("invalid node selector value - too long", func() {
+					BeforeEach(func() {
+						// Create a value longer than 63 characters
+						longValue := strings.Repeat("a", 64)
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"kubernetes.io/arch": longValue,
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("invalid node selector key - invalid characters", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"invalid@key": "amd64",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("invalid node selector value - invalid characters", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"kubernetes.io/arch": "invalid@value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("valid node selector", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"kubernetes.io/arch":               "amd64",
+							"kubernetes.io/os":                 "linux",
+							"node.kubernetes.io/instance-type": "m5.large",
+							"topology.kubernetes.io/zone":      "us-west-2a",
+							"custom-label":                     "custom-value",
+						}
+					})
+					It("should allow valid node selector", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+			})
+
+			Context("empty labels and node selector", func() {
+				BeforeEach(func() {
+					terminal.Spec.Host.Pod.Labels = nil
+					terminal.Spec.Host.Pod.NodeSelector = nil
+				})
+				It("should allow nil labels and node selector", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("empty maps for labels and node selector", func() {
+				BeforeEach(func() {
+					terminal.Spec.Host.Pod.Labels = map[string]string{}
+					terminal.Spec.Host.Pod.NodeSelector = map[string]string{}
+				})
+				It("should allow empty maps for labels and node selector", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
 				})
 			})
 		})
