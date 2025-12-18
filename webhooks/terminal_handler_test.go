@@ -7,9 +7,15 @@ SPDX-License-Identifier: Apache-2.0
 package webhooks
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"strings"
 	"time"
 
+	"github.com/gardener/gardener/pkg/utils/secrets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +32,53 @@ const (
 	randomLength = 5
 	charset      = "abcdefghijklmnopqrstuvwxyz0123456789"
 )
+
+func generateCaCert() *secrets.Certificate {
+	csc := &secrets.CertificateSecretConfig{
+		Name:       "ca-test",
+		CommonName: "ca-test",
+		CertType:   secrets.CACert,
+	}
+	caCertificate, err := csc.GenerateCertificate()
+	Expect(err).ToNot(HaveOccurred())
+
+	return caCertificate
+}
+
+func generatePrivateKeyPEM() []byte {
+	csc := &secrets.CertificateSecretConfig{
+		Name:       "test-key",
+		CommonName: "test-key",
+		CertType:   secrets.ServerCert,
+	}
+	cert, err := csc.GenerateCertificate()
+	Expect(err).ToNot(HaveOccurred())
+
+	return cert.PrivateKeyPEM
+}
+
+func generateCSRPEM() []byte {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	Expect(err).ToNot(HaveOccurred())
+
+	template := x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:   "test-csr",
+			Organization: []string{"Test Organization"},
+		},
+		SignatureAlgorithm: x509.SHA256WithRSA,
+	}
+
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, &template, privateKey)
+	Expect(err).ToNot(HaveOccurred())
+
+	csrPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE REQUEST",
+		Bytes: csrDER,
+	})
+
+	return csrPEM
+}
 
 var _ = Describe("Validating Webhook", func() {
 	const (
@@ -196,6 +249,69 @@ var _ = Describe("Validating Webhook", func() {
 			})
 			It("should allow to not specify serviceRef, server and caData", func() {
 				Expect(terminalCreationError).To(Not(HaveOccurred()))
+			})
+		})
+
+		Context("api server caData validation", func() {
+			Context("valid CA certificate", func() {
+				BeforeEach(func() {
+					caCert := generateCaCert()
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: caCert.CertificatePEM,
+					}
+				})
+				It("should accept a valid CA certificate", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("CA bundle with multiple certificates", func() {
+				BeforeEach(func() {
+					caCert1 := generateCaCert()
+					caCert2 := generateCaCert()
+					bundleData := append(caCert1.CertificatePEM, caCert2.CertificatePEM...)
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: bundleData,
+					}
+				})
+				It("should accept CA bundle with multiple certificates", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("CA bundle with trailing whitespace", func() {
+				BeforeEach(func() {
+					caCert := generateCaCert()
+					dataWithWhitespace := append(caCert.CertificatePEM, []byte("\n  \t  \n")...)
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: dataWithWhitespace,
+					}
+				})
+				It("should accept CA certificate with trailing whitespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("empty CA bundle data", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: nil, // Use nil instead of empty byte slice to avoid serialization issue
+					}
+				})
+				It("should accept empty CA data (optional field)", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("nil CA bundle data", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: nil,
+					}
+				})
+				It("should accept nil CA data (optional field)", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
 			})
 		})
 	})
@@ -908,6 +1024,79 @@ var _ = Describe("Validating Webhook", func() {
 						}
 					})
 					AssertFailedBehavior("spec.target.apiServer.serviceRef.name: Invalid value: \"Invalid_Service_Name\"")
+				})
+
+				Context("apiServer caData validation", func() {
+					Context("invalid PEM data", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: []byte("-----BEGIN CERTIFICATE-----\ninvalid-data\n-----END CERTIFICATE-----"),
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": CA bundle must contain at least one PEM-encoded certificate")
+					})
+
+					Context("non-PEM data", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: []byte("not a certificate"),
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": CA bundle must contain at least one PEM-encoded certificate")
+					})
+
+					Context("empty PEM block", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: []byte("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": cannot parse X.509 certificate")
+					})
+
+					Context("non-CERTIFICATE PEM block", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: generatePrivateKeyPEM(),
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": unexpected PEM block type \"RSA PRIVATE KEY\" (expected CERTIFICATE)")
+					})
+
+					Context("CA bundle with trailing non-PEM data", func() {
+						BeforeEach(func() {
+							caCert := generateCaCert()
+							dataWithTrailing := append(caCert.CertificatePEM, []byte("\nsome trailing data")...)
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: dataWithTrailing,
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": CA bundle contains trailing non-PEM data")
+					})
+
+					Context("mixed PEM types in bundle", func() {
+						BeforeEach(func() {
+							caCert := generateCaCert()
+							privateKey := generatePrivateKeyPEM()
+							mixedBundle := append(caCert.CertificatePEM, privateKey...)
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: mixedBundle,
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": unexpected PEM block type \"RSA PRIVATE KEY\" (expected CERTIFICATE)")
+					})
+
+					Context("CA bundle with certificate followed by CSR", func() {
+						BeforeEach(func() {
+							caCert := generateCaCert()
+							csr := generateCSRPEM()
+							bundleWithCSR := append(caCert.CertificatePEM, csr...)
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: bundleWithCSR,
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": unexpected PEM block type \"CERTIFICATE REQUEST\" (expected CERTIFICATE)")
+					})
 				})
 			})
 

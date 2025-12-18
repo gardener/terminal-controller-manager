@@ -7,7 +7,11 @@ SPDX-License-Identifier: Apache-2.0
 package webhooks
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -288,6 +292,47 @@ func validateRequiredContainerFields(container *v1alpha1.Container, fldPath *fie
 	return validateRequiredField(&container.Image, fldPath.Child("image"))
 }
 
+// ValidateCAData validates that caData is either empty or a PEM bundle consisting
+// of one or more "CERTIFICATE" blocks, each parseable as an X.509 certificate,
+// with no trailing non-PEM data.
+func ValidateCAData(caData []byte) error {
+	if len(caData) == 0 {
+		return nil // optional
+	}
+
+	rest := caData
+	parsedAny := false
+
+	for {
+		var block *pem.Block
+
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+
+		if block.Type != "CERTIFICATE" {
+			return fmt.Errorf("unexpected PEM block type %q (expected CERTIFICATE)", block.Type)
+		}
+
+		if _, err := x509.ParseCertificate(block.Bytes); err != nil {
+			return fmt.Errorf("cannot parse X.509 certificate: %w", err)
+		}
+
+		parsedAny = true
+	}
+
+	if !parsedAny {
+		return errors.New("CA bundle must contain at least one PEM-encoded certificate")
+	}
+
+	if len(bytes.TrimSpace(rest)) != 0 {
+		return errors.New("CA bundle contains trailing non-PEM data")
+	}
+
+	return nil
+}
+
 func validateAPIServerFields(t *v1alpha1.Terminal) error {
 	if t.Spec.Target.APIServerServiceRef != nil {
 		if err := validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name")); err != nil {
@@ -308,6 +353,10 @@ func validateAPIServerFields(t *v1alpha1.Terminal) error {
 			if err := validateDNS1035Label(t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name")); err != nil {
 				return err
 			}
+		}
+
+		if err := ValidateCAData(t.Spec.Target.APIServer.CAData); err != nil {
+			return field.Invalid(field.NewPath("spec", "target", "apiServer", "caData"), "<redacted>", err.Error())
 		}
 	}
 
