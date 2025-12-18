@@ -386,6 +386,12 @@ func validateAPIServerFields(t *v1alpha1.Terminal) error {
 		if err := validateDNS1035Label(t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name")); err != nil {
 			return err
 		}
+
+		if t.Spec.Target.APIServerServiceRef.Namespace != "" {
+			if err := validateDNS1123Subdomain(t.Spec.Target.APIServerServiceRef.Namespace, field.NewPath("spec", "target", "apiServerServiceRef", "namespace")); err != nil {
+				return err
+			}
+		}
 	}
 
 	if t.Spec.Target.APIServer != nil {
@@ -396,6 +402,12 @@ func validateAPIServerFields(t *v1alpha1.Terminal) error {
 
 			if err := validateDNS1035Label(t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name")); err != nil {
 				return err
+			}
+
+			if t.Spec.Target.APIServer.ServiceRef.Namespace != "" {
+				if err := validateDNS1123Subdomain(t.Spec.Target.APIServer.ServiceRef.Namespace, field.NewPath("spec", "target", "apiServer", "serviceRef", "namespace")); err != nil {
+					return err
+				}
 			}
 		}
 

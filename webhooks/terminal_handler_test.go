@@ -287,6 +287,34 @@ var _ = Describe("Validating Webhook", func() {
 			})
 		})
 
+		Context("api server namespace validation", func() {
+			Context("valid apiServerServiceRef namespace - deprecated", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
+						Name:      "kubernetes",
+						Namespace: "default",
+					}
+				})
+				It("should accept valid namespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("valid apiServer serviceRef namespace", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						ServiceRef: &corev1.ObjectReference{
+							Name:      "kubernetes",
+							Namespace: "kube-system",
+						},
+					}
+				})
+				It("should accept valid namespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+		})
+
 		Context("api server caData validation", func() {
 			Context("valid CA certificate", func() {
 				BeforeEach(func() {
@@ -1059,6 +1087,28 @@ var _ = Describe("Validating Webhook", func() {
 						}
 					})
 					AssertFailedBehavior("spec.target.apiServer.serviceRef.name: Invalid value: \"Invalid_Service_Name\"")
+				})
+
+				Context("apiServerServiceRef namespace - deprecated", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
+							Name:      "valid-service",
+							Namespace: "Invalid_Namespace",
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServerServiceRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("apiServer serviceRef namespace", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							ServiceRef: &corev1.ObjectReference{
+								Name:      "valid-service",
+								Namespace: "Invalid_Namespace",
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.serviceRef.namespace: Invalid value: \"Invalid_Namespace\"")
 				})
 
 				Context("apiServer server field validation - invalid URLs", func() {
