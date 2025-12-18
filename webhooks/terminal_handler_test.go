@@ -1197,7 +1197,9 @@ var _ = Describe("Validating Webhook", func() {
 							RoleBindings: []dashboardv1alpha1.RoleBinding{
 								{
 									RoleRef: rbacv1.RoleRef{
-										Name: "foo",
+										Name:     "foo",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
 									},
 								},
 							},
@@ -1213,21 +1215,25 @@ var _ = Describe("Validating Webhook", func() {
 								{
 									NameSuffix: "same",
 									RoleRef: rbacv1.RoleRef{
-										Name: "foo",
+										Name:     "foo",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
 									},
 									BindingKind: "ClusterRoleBinding",
 								},
 								{
 									NameSuffix: "same",
 									RoleRef: rbacv1.RoleRef{
-										Name: "bar",
+										Name:     "bar",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
 									},
 									BindingKind: "ClusterRoleBinding",
 								},
 							},
 						}
 					})
-					AssertFailedBehavior("spec.target.authorization.roleBindings[1].nameSuffix: Invalid value: \"same\": name must be unique")
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"Role\": ClusterRoleBinding can only reference a ClusterRole")
 				})
 
 				Context("roleRef name validation", func() {
@@ -1254,7 +1260,9 @@ var _ = Describe("Validating Webhook", func() {
 								{
 									NameSuffix: "invalid/suffix", // Invalid: contains "/"
 									RoleRef: rbacv1.RoleRef{
-										Name: "valid-role",
+										Name:     "valid-role",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
 									},
 									BindingKind: "ClusterRoleBinding",
 								},
@@ -1264,6 +1272,82 @@ var _ = Describe("Validating Webhook", func() {
 					AssertFailedBehavior("spec.target.authorization.roleBindings[0].nameSuffix: Invalid value: \"invalid/suffix\"")
 				})
 
+				Context("roleRef kind validation", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "", // Invalid: empty kind
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"\": ClusterRoleBinding can only reference a ClusterRole")
+				})
+
+				Context("roleRef kind invalid value", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "InvalidKind", // Invalid: not Role or ClusterRole
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"InvalidKind\": ClusterRoleBinding can only reference a ClusterRole")
+				})
+
+				Context("roleRef apiGroup validation", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "Role",
+										APIGroup: "", // Invalid: empty apiGroup
+									},
+									BindingKind: "RoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.apiGroup: Invalid value: \"\": must be 'rbac.authorization.k8s.io'")
+				})
+
+				Context("roleRef apiGroup invalid value", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "Role",
+										APIGroup: "invalid.api.group", // Invalid: not rbac.authorization.k8s.io
+									},
+									BindingKind: "RoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.apiGroup: Invalid value: \"invalid.api.group\": must be 'rbac.authorization.k8s.io'")
+				})
+
 				Context("rolebinding valid components", func() {
 					BeforeEach(func() {
 						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
@@ -1271,15 +1355,171 @@ var _ = Describe("Validating Webhook", func() {
 								{
 									NameSuffix: "valid-suffix",
 									RoleRef: rbacv1.RoleRef{
-										Name: "valid-role",
+										Name:     "valid-role",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "RoleBinding",
+								},
+							},
+						}
+					})
+					It("should succeed with valid roleRef name, kind, apiGroup and nameSuffix", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("rolebinding valid with ClusterRole", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-cluster-role",
+										Kind:     "ClusterRole",
+										APIGroup: "rbac.authorization.k8s.io",
 									},
 									BindingKind: "ClusterRoleBinding",
 								},
 							},
 						}
 					})
-					It("should succeed with valid roleRef name and nameSuffix", func() {
+					It("should succeed with valid ClusterRole roleRef", func() {
 						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("rolebinding multiple valid roleBindings", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "role-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "my-role",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "RoleBinding",
+								},
+								{
+									NameSuffix: "cluster-role-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "my-cluster-role",
+										Kind:     "ClusterRole",
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					It("should succeed with multiple valid roleBindings", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("roleRef validation based on BindingKind", func() {
+					Context("ClusterRoleBinding with Role reference - invalid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "invalid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-role",
+											Kind:     "Role", // Invalid: ClusterRoleBinding cannot reference Role
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "ClusterRoleBinding",
+									},
+								},
+							}
+						})
+						AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"Role\": ClusterRoleBinding can only reference a ClusterRole")
+					})
+
+					Context("ClusterRoleBinding with ClusterRole reference - valid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "valid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-cluster-role",
+											Kind:     "ClusterRole", // Valid: ClusterRoleBinding can reference ClusterRole
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "ClusterRoleBinding",
+									},
+								},
+							}
+						})
+						It("should succeed with ClusterRoleBinding referencing ClusterRole", func() {
+							Expect(terminalCreationError).To(Not(HaveOccurred()))
+						})
+					})
+
+					Context("RoleBinding with Role reference - valid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "valid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-role",
+											Kind:     "Role", // Valid: RoleBinding can reference Role
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "RoleBinding",
+									},
+								},
+							}
+						})
+						It("should succeed with RoleBinding referencing Role", func() {
+							Expect(terminalCreationError).To(Not(HaveOccurred()))
+						})
+					})
+
+					Context("RoleBinding with ClusterRole reference - valid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "valid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-cluster-role",
+											Kind:     "ClusterRole", // Valid: RoleBinding can reference ClusterRole
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "RoleBinding",
+									},
+								},
+							}
+						})
+						It("should succeed with RoleBinding referencing ClusterRole", func() {
+							Expect(terminalCreationError).To(Not(HaveOccurred()))
+						})
+					})
+
+					Context("RoleBinding with invalid Kind - invalid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "valid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-resource",
+											Kind:     "CustomRole", // Invalid: not Role or ClusterRole
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "RoleBinding",
+									},
+								},
+							}
+						})
+						AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"CustomRole\": RoleBinding can only reference a Role or ClusterRole")
 					})
 				})
 

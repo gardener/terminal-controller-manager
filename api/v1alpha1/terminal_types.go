@@ -154,7 +154,7 @@ type RoleBinding struct {
 	// NameSuffix is the name suffix of the temporary (Cluster)RoleBinding that will be created. NameSuffix should be unique
 	NameSuffix string `json:"nameSuffix"`
 
-	// RoleRef can reference a Role in the current namespace or a ClusterRole in the global namespace.
+	// RoleRef references the Role or ClusterRole to bind to. For RoleBinding, it can reference a Role in the same namespace or a ClusterRole. For ClusterRoleBinding, it can only reference a ClusterRole.
 	RoleRef rbacv1.RoleRef `json:"roleRef"`
 
 	// BindingKind defines the desired role binding. ClusterRoleBinding will result in a ClusterRoleBinding. RoleBinding will result in a RoleBinding.

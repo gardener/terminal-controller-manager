@@ -25,6 +25,7 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/api/validation/path"
@@ -245,6 +246,26 @@ func ValidateRBACName(name string) []string {
 func validateRBACName(value string, fldPath *field.Path) error {
 	if errs := ValidateRBACName(value); len(errs) > 0 {
 		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+// validateRoleRefForBindingKind validates RoleRef based on BindingKind restrictions:
+// - For RoleBinding: can reference a Role in the same namespace or a ClusterRole
+// - For ClusterRoleBinding: can only reference a ClusterRole
+func validateRoleRefForBindingKind(roleRef rbacv1.RoleRef, bindingKind v1alpha1.BindingKind, fldPath *field.Path) error {
+	switch bindingKind {
+	case v1alpha1.BindingKindClusterRoleBinding:
+		if roleRef.Kind != "ClusterRole" {
+			return field.Invalid(fldPath.Child("kind"), roleRef.Kind, "ClusterRoleBinding can only reference a ClusterRole")
+		}
+	case v1alpha1.BindingKindRoleBinding:
+		if roleRef.Kind != "Role" && roleRef.Kind != "ClusterRole" {
+			return field.Invalid(fldPath.Child("kind"), roleRef.Kind, "RoleBinding can only reference a Role or ClusterRole")
+		}
+	default:
+		return field.Invalid(field.NewPath("bindingKind"), bindingKind, "must be 'RoleBinding' or 'ClusterRoleBinding'")
 	}
 
 	return nil
@@ -505,6 +526,10 @@ func validateRoleBindings(t *v1alpha1.Terminal, fldPath *field.Path) error {
 			return err
 		}
 
+		if roleBinding.RoleRef.APIGroup != "rbac.authorization.k8s.io" {
+			return field.Invalid(fldPath.Index(index).Child("roleRef", "apiGroup"), roleBinding.RoleRef.APIGroup, "must be 'rbac.authorization.k8s.io'")
+		}
+
 		if err := validateRBACName(roleBinding.NameSuffix, fldPath.Index(index).Child("nameSuffix")); err != nil {
 			return err
 		}
@@ -518,6 +543,10 @@ func validateRoleBindings(t *v1alpha1.Terminal, fldPath *field.Path) error {
 
 		if roleBinding.BindingKind != v1alpha1.BindingKindClusterRoleBinding && roleBinding.BindingKind != v1alpha1.BindingKindRoleBinding {
 			return field.Invalid(fldPath.Index(index).Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either "+v1alpha1.BindingKindClusterRoleBinding.String()+" or "+v1alpha1.BindingKindRoleBinding.String())
+		}
+
+		if err := validateRoleRefForBindingKind(roleBinding.RoleRef, roleBinding.BindingKind, fldPath.Index(index).Child("roleRef")); err != nil {
+			return err
 		}
 	}
 
