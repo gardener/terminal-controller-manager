@@ -252,6 +252,41 @@ var _ = Describe("Validating Webhook", func() {
 			})
 		})
 
+		Context("api server server field validation", func() {
+			Context("valid HTTPS URL", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						Server: "https://kubernetes.default.svc.cluster.local:443",
+					}
+				})
+				It("should accept valid HTTPS URL", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("valid HTTPS URL with path", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						Server: "https://api.cluster.example.com/k8s/clusters/c-12345",
+					}
+				})
+				It("should accept valid HTTPS URL with path", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("empty server field", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						Server: "",
+					}
+				})
+				It("should accept empty server field (optional)", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+		})
+
 		Context("api server caData validation", func() {
 			Context("valid CA certificate", func() {
 				BeforeEach(func() {
@@ -1024,6 +1059,53 @@ var _ = Describe("Validating Webhook", func() {
 						}
 					})
 					AssertFailedBehavior("spec.target.apiServer.serviceRef.name: Invalid value: \"Invalid_Service_Name\"")
+				})
+
+				Context("apiServer server field validation - invalid URLs", func() {
+					Context("invalid URL scheme - HTTP not allowed", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "http://kubernetes.default.svc.cluster.local:443",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"http://kubernetes.default.svc.cluster.local:443\": URL scheme must be https")
+					})
+
+					Context("invalid URL scheme - ftp", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "ftp://kubernetes.default.svc.cluster.local:443",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"ftp://kubernetes.default.svc.cluster.local:443\": URL scheme must be https")
+					})
+
+					Context("invalid URL scheme - missing scheme", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "kubernetes.default.svc.cluster.local:443",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"kubernetes.default.svc.cluster.local:443\": URL scheme must be https")
+					})
+
+					Context("invalid URL - malformed", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "ht!tp://invalid-url",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"ht!tp://invalid-url\": must be a valid URL:")
+					})
+
+					Context("invalid URL - missing host", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "https://",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"https://\": URL must have a host")
+					})
 				})
 
 				Context("apiServer caData validation", func() {

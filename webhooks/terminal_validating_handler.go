@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -333,6 +334,28 @@ func ValidateCAData(caData []byte) error {
 	return nil
 }
 
+// validateURL validates that the provided string is a valid URL with https scheme.
+func validateURL(value string, fldPath *field.Path) error {
+	if value == "" {
+		return nil // optional
+	}
+
+	u, err := url.Parse(value)
+	if err != nil {
+		return field.Invalid(fldPath, value, fmt.Sprintf("must be a valid URL: %v", err))
+	}
+
+	if u.Scheme != "https" {
+		return field.Invalid(fldPath, value, "URL scheme must be https")
+	}
+
+	if u.Host == "" {
+		return field.Invalid(fldPath, value, "URL must have a host")
+	}
+
+	return nil
+}
+
 func validateAPIServerFields(t *v1alpha1.Terminal) error {
 	if t.Spec.Target.APIServerServiceRef != nil {
 		if err := validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name")); err != nil {
@@ -353,6 +376,10 @@ func validateAPIServerFields(t *v1alpha1.Terminal) error {
 			if err := validateDNS1035Label(t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name")); err != nil {
 				return err
 			}
+		}
+
+		if err := validateURL(t.Spec.Target.APIServer.Server, field.NewPath("spec", "target", "apiServer", "server")); err != nil {
+			return err
 		}
 
 		if err := ValidateCAData(t.Spec.Target.APIServer.CAData); err != nil {
