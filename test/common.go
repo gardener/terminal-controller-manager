@@ -175,6 +175,7 @@ func New(mutator admission.Handler, validator admission.Handler) Environment {
 	//+kubebuilder:scaffold:scheme
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:         kubernetes.GardenScheme,
 		LeaderElection: false,
@@ -218,12 +219,14 @@ func (e Environment) Start(ctx context.Context) {
 
 	gomega.Eventually(func() error {
 		serverURL := net.JoinHostPort(e.GardenEnv.WebhookInstallOptions.LocalServingHost, strconv.Itoa(e.GardenEnv.WebhookInstallOptions.LocalServingPort))
+
 		conn, err := tls.DialWithDialer(d, "tcp", serverURL, &tls.Config{
 			InsecureSkipVerify: true, // #nosec G402 - Test only.
 		})
 		if err != nil {
 			return err
 		}
+
 		return conn.Close()
 	}).Should(gomega.Succeed())
 }
