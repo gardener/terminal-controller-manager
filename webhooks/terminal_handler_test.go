@@ -7,8 +7,15 @@ SPDX-License-Identifier: Apache-2.0
 package webhooks
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"strings"
 	"time"
 
+	"github.com/gardener/gardener/pkg/utils/secrets"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -25,6 +32,53 @@ const (
 	randomLength = 5
 	charset      = "abcdefghijklmnopqrstuvwxyz0123456789"
 )
+
+func generateCaCert() *secrets.Certificate {
+	csc := &secrets.CertificateSecretConfig{
+		Name:       "ca-test",
+		CommonName: "ca-test",
+		CertType:   secrets.CACert,
+	}
+	caCertificate, err := csc.GenerateCertificate()
+	Expect(err).ToNot(HaveOccurred())
+
+	return caCertificate
+}
+
+func generatePrivateKeyPEM() []byte {
+	csc := &secrets.CertificateSecretConfig{
+		Name:       "test-key",
+		CommonName: "test-key",
+		CertType:   secrets.ServerCert,
+	}
+	cert, err := csc.GenerateCertificate()
+	Expect(err).ToNot(HaveOccurred())
+
+	return cert.PrivateKeyPEM
+}
+
+func generateCSRPEM() []byte {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	Expect(err).ToNot(HaveOccurred())
+
+	template := x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:   "test-csr",
+			Organization: []string{"Test Organization"},
+		},
+		SignatureAlgorithm: x509.SHA256WithRSA,
+	}
+
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, &template, privateKey)
+	Expect(err).ToNot(HaveOccurred())
+
+	csrPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE REQUEST",
+		Bytes: csrDER,
+	})
+
+	return csrPEM
+}
 
 var _ = Describe("Validating Webhook", func() {
 	const (
@@ -195,6 +249,132 @@ var _ = Describe("Validating Webhook", func() {
 			})
 			It("should allow to not specify serviceRef, server and caData", func() {
 				Expect(terminalCreationError).To(Not(HaveOccurred()))
+			})
+		})
+
+		Context("api server server field validation", func() {
+			Context("valid HTTPS URL", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						Server: "https://kubernetes.default.svc.cluster.local:443",
+					}
+				})
+				It("should accept valid HTTPS URL", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("valid HTTPS URL with path", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						Server: "https://api.cluster.example.com/k8s/clusters/c-12345",
+					}
+				})
+				It("should accept valid HTTPS URL with path", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("empty server field", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						Server: "",
+					}
+				})
+				It("should accept empty server field (optional)", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+		})
+
+		Context("api server namespace validation", func() {
+			Context("valid apiServerServiceRef namespace - deprecated", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
+						Name:      "kubernetes",
+						Namespace: "default",
+					}
+				})
+				It("should accept valid namespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("valid apiServer serviceRef namespace", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						ServiceRef: &corev1.ObjectReference{
+							Name:      "kubernetes",
+							Namespace: "kube-system",
+						},
+					}
+				})
+				It("should accept valid namespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+		})
+
+		Context("api server caData validation", func() {
+			Context("valid CA certificate", func() {
+				BeforeEach(func() {
+					caCert := generateCaCert()
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: caCert.CertificatePEM,
+					}
+				})
+				It("should accept a valid CA certificate", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("CA bundle with multiple certificates", func() {
+				BeforeEach(func() {
+					caCert1 := generateCaCert()
+					caCert2 := generateCaCert()
+					bundleData := append(caCert1.CertificatePEM, caCert2.CertificatePEM...)
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: bundleData,
+					}
+				})
+				It("should accept CA bundle with multiple certificates", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("CA bundle with trailing whitespace", func() {
+				BeforeEach(func() {
+					caCert := generateCaCert()
+					dataWithWhitespace := append(caCert.CertificatePEM, []byte("\n  \t  \n")...)
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: dataWithWhitespace,
+					}
+				})
+				It("should accept CA certificate with trailing whitespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("empty CA bundle data", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: nil, // Use nil instead of empty byte slice to avoid serialization issue
+					}
+				})
+				It("should accept empty CA data (optional field)", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("nil CA bundle data", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						CAData: nil,
+					}
+				})
+				It("should accept nil CA data (optional field)", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
 			})
 		})
 	})
@@ -446,6 +626,13 @@ var _ = Describe("Validating Webhook", func() {
 				AssertFailedBehavior("spec.target.namespace: Required value")
 			})
 
+			Context("target kubeconfigContextNamespace", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.KubeconfigContextNamespace = ""
+				})
+				AssertFailedBehavior("spec.target.kubeconfigContextNamespace: Required value")
+			})
+
 			Context("target authorization", func() {
 				Context("roleRef name", func() {
 					BeforeEach(func() {
@@ -495,12 +682,144 @@ var _ = Describe("Validating Webhook", func() {
 							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
 								{
 									ProjectName: "foo",
-									Roles:       []string{"role1", ""},
+									Roles:       []string{"admin", ""},
 								},
 							},
 						}
 					})
-					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[1]: Required value")
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[1]: Unsupported value: \"\": supported values: \"admin\", \"owner\", \"serviceaccountmanager\", \"uam\", \"viewer\", \"extension:*\"")
+				})
+
+				Context("project membership duplicate roles", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"admin", "viewer", "admin"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[2]: Duplicate value: \"admin\"")
+				})
+
+				Context("project membership unsupported role", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"unsupported-role"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[0]: Unsupported value: \"unsupported-role\": supported values: \"admin\", \"owner\", \"serviceaccountmanager\", \"uam\", \"viewer\", \"extension:*\"")
+				})
+
+				Context("project membership valid extension role", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"extension:custom-role"},
+								},
+							},
+						}
+					})
+					It("should allow valid extension role", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("project membership extension role too long", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"extension:this-extension-role-name-is-way-too-long-to-be-valid"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[0]: Too long: may not be more than 20 bytes")
+				})
+
+				Context("project membership extension role with invalid characters", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"extension:invalid/role"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].roles[0]: Invalid value: \"invalid/role\"")
+				})
+
+				Context("project membership multiple valid roles", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "foo",
+									Roles:       []string{"admin", "viewer", "extension:custom"},
+								},
+							},
+						}
+					})
+					It("should allow multiple valid roles", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("project membership all supported standard roles", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "test-project",
+									Roles:       []string{"owner", "admin", "viewer", "uam", "serviceaccountmanager"},
+								},
+							},
+						}
+					})
+					It("should allow all supported standard roles", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("project membership multiple project memberships", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "project-1",
+									Roles:       []string{"admin"},
+								},
+								{
+									ProjectName: "project-2",
+									Roles:       []string{"viewer"},
+								},
+							},
+						}
+					})
+					It("should allow multiple project memberships", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
 				})
 			})
 
@@ -638,6 +957,281 @@ var _ = Describe("Validating Webhook", func() {
 		})
 
 		Context("for invalid value", func() {
+			Context("namespace DNS validation", func() {
+				Context("target namespace", func() {
+					BeforeEach(func() {
+						invalidNamespace := "Invalid_Namespace"
+						terminal.Spec.Target.Namespace = &invalidNamespace
+					})
+					AssertFailedBehavior("spec.target.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("host namespace", func() {
+					BeforeEach(func() {
+						invalidNamespace := "Invalid_Namespace"
+						terminal.Spec.Host.Namespace = &invalidNamespace
+					})
+					AssertFailedBehavior("spec.host.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("kubeconfigContextNamespace", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.KubeconfigContextNamespace = "Invalid_Namespace"
+					})
+					AssertFailedBehavior("spec.target.kubeconfigContextNamespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("shootRef namespace (target credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Credentials.ServiceAccountRef = nil
+						terminal.Spec.Target.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
+							Namespace: "Invalid_Namespace",
+							Name:      "test-shoot",
+						}
+					})
+					AssertFailedBehavior("spec.target.credentials.shootRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("shootRef namespace (host credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Credentials.ServiceAccountRef = nil
+						terminal.Spec.Host.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
+							Namespace: "Invalid_Namespace",
+							Name:      "test-shoot",
+						}
+					})
+					AssertFailedBehavior("spec.host.credentials.shootRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("serviceAccountRef namespace (target credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Credentials.ShootRef = nil
+						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
+							Namespace: "Invalid_Namespace",
+							Name:      "test-sa",
+						}
+					})
+					AssertFailedBehavior("spec.target.credentials.serviceAccountRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("serviceAccountRef namespace (host credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Credentials.ShootRef = nil
+						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
+							Namespace: "Invalid_Namespace",
+							Name:      "test-sa",
+						}
+					})
+					AssertFailedBehavior("spec.host.credentials.serviceAccountRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("serviceAccountRef name (target credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Credentials.ShootRef = nil
+						terminal.Spec.Target.Credentials.ServiceAccountRef = &corev1.ObjectReference{
+							Namespace: "foo",
+							Name:      "Invalid_ServiceAccount_Name",
+						}
+					})
+					AssertFailedBehavior("spec.target.credentials.serviceAccountRef.name: Invalid value: \"Invalid_ServiceAccount_Name\"")
+				})
+
+				Context("serviceAccountRef name (host credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Credentials.ShootRef = nil
+						terminal.Spec.Host.Credentials.ServiceAccountRef = &corev1.ObjectReference{
+							Namespace: "foo",
+							Name:      "Invalid_ServiceAccount_Name",
+						}
+					})
+					AssertFailedBehavior("spec.host.credentials.serviceAccountRef.name: Invalid value: \"Invalid_ServiceAccount_Name\"")
+				})
+
+				Context("shootRef name (target credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Credentials.ServiceAccountRef = nil
+						terminal.Spec.Target.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
+							Namespace: "foo",
+							Name:      "Invalid_Shoot_Name",
+						}
+					})
+					AssertFailedBehavior("spec.target.credentials.shootRef.name: Invalid value: \"Invalid_Shoot_Name\"")
+				})
+
+				Context("shootRef name (host credential)", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Credentials.ServiceAccountRef = nil
+						terminal.Spec.Host.Credentials.ShootRef = &dashboardv1alpha1.ShootRef{
+							Namespace: "foo",
+							Name:      "Invalid_Shoot_Name",
+						}
+					})
+					AssertFailedBehavior("spec.host.credentials.shootRef.name: Invalid value: \"Invalid_Shoot_Name\"")
+				})
+
+				Context("apiServerServiceRef name - deprecated", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
+							Name: "Invalid_Service_Name",
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServerServiceRef.name: Invalid value: \"Invalid_Service_Name\"")
+				})
+
+				Context("apiServer serviceRef name", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							ServiceRef: &corev1.ObjectReference{
+								Name: "Invalid_Service_Name",
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.serviceRef.name: Invalid value: \"Invalid_Service_Name\"")
+				})
+
+				Context("apiServerServiceRef namespace - deprecated", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
+							Name:      "valid-service",
+							Namespace: "Invalid_Namespace",
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServerServiceRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("apiServer serviceRef namespace", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							ServiceRef: &corev1.ObjectReference{
+								Name:      "valid-service",
+								Namespace: "Invalid_Namespace",
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.serviceRef.namespace: Invalid value: \"Invalid_Namespace\"")
+				})
+
+				Context("apiServer server field validation - invalid URLs", func() {
+					Context("invalid URL scheme - HTTP not allowed", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "http://kubernetes.default.svc.cluster.local:443",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"http://kubernetes.default.svc.cluster.local:443\": URL scheme must be https")
+					})
+
+					Context("invalid URL scheme - ftp", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "ftp://kubernetes.default.svc.cluster.local:443",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"ftp://kubernetes.default.svc.cluster.local:443\": URL scheme must be https")
+					})
+
+					Context("invalid URL scheme - missing scheme", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "kubernetes.default.svc.cluster.local:443",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"kubernetes.default.svc.cluster.local:443\": URL scheme must be https")
+					})
+
+					Context("invalid URL - malformed", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "ht!tp://invalid-url",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"ht!tp://invalid-url\": must be a valid URL:")
+					})
+
+					Context("invalid URL - missing host", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "https://",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"https://\": URL must have a host")
+					})
+				})
+
+				Context("apiServer caData validation", func() {
+					Context("invalid PEM data", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: []byte("-----BEGIN CERTIFICATE-----\ninvalid-data\n-----END CERTIFICATE-----"),
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": CA bundle must contain at least one PEM-encoded certificate")
+					})
+
+					Context("non-PEM data", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: []byte("not a certificate"),
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": CA bundle must contain at least one PEM-encoded certificate")
+					})
+
+					Context("empty PEM block", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: []byte("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": cannot parse X.509 certificate")
+					})
+
+					Context("non-CERTIFICATE PEM block", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: generatePrivateKeyPEM(),
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": unexpected PEM block type \"RSA PRIVATE KEY\" (expected CERTIFICATE)")
+					})
+
+					Context("CA bundle with trailing non-PEM data", func() {
+						BeforeEach(func() {
+							caCert := generateCaCert()
+							dataWithTrailing := append(caCert.CertificatePEM, []byte("\nsome trailing data")...)
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: dataWithTrailing,
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": CA bundle contains trailing non-PEM data")
+					})
+
+					Context("mixed PEM types in bundle", func() {
+						BeforeEach(func() {
+							caCert := generateCaCert()
+							privateKey := generatePrivateKeyPEM()
+							mixedBundle := append(caCert.CertificatePEM, privateKey...)
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: mixedBundle,
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": unexpected PEM block type \"RSA PRIVATE KEY\" (expected CERTIFICATE)")
+					})
+
+					Context("CA bundle with certificate followed by CSR", func() {
+						BeforeEach(func() {
+							caCert := generateCaCert()
+							csr := generateCSRPEM()
+							bundleWithCSR := append(caCert.CertificatePEM, csr...)
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								CAData: bundleWithCSR,
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.caData: Invalid value: \"<redacted>\": unexpected PEM block type \"CERTIFICATE REQUEST\" (expected CERTIFICATE)")
+					})
+				})
+			})
+
 			Context("target authorization", func() {
 				// this test can be removed once the deprecated fields are removed
 				Context("binding kind - deprecated", func() {
@@ -653,7 +1247,9 @@ var _ = Describe("Validating Webhook", func() {
 							RoleBindings: []dashboardv1alpha1.RoleBinding{
 								{
 									RoleRef: rbacv1.RoleRef{
-										Name: "foo",
+										Name:     "foo",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
 									},
 								},
 							},
@@ -669,21 +1265,483 @@ var _ = Describe("Validating Webhook", func() {
 								{
 									NameSuffix: "same",
 									RoleRef: rbacv1.RoleRef{
-										Name: "foo",
+										Name:     "foo",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
 									},
 									BindingKind: "ClusterRoleBinding",
 								},
 								{
 									NameSuffix: "same",
 									RoleRef: rbacv1.RoleRef{
-										Name: "bar",
+										Name:     "bar",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
 									},
 									BindingKind: "ClusterRoleBinding",
 								},
 							},
 						}
 					})
-					AssertFailedBehavior("spec.target.authorization.roleBindings[1].nameSuffix: Invalid value: \"same\": name must be unique")
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"Role\": ClusterRoleBinding can only reference a ClusterRole")
+				})
+
+				Context("roleRef name validation", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name: "invalid/role-name", // Invalid: contains "/"
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.name: Invalid value: \"invalid/role-name\"")
+				})
+
+				Context("rolebinding nameSuffix validation", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "invalid/suffix", // Invalid: contains "/"
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].nameSuffix: Invalid value: \"invalid/suffix\"")
+				})
+
+				Context("roleRef kind validation", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "", // Invalid: empty kind
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"\": ClusterRoleBinding can only reference a ClusterRole")
+				})
+
+				Context("roleRef kind invalid value", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "InvalidKind", // Invalid: not Role or ClusterRole
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"InvalidKind\": ClusterRoleBinding can only reference a ClusterRole")
+				})
+
+				Context("roleRef apiGroup validation", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "Role",
+										APIGroup: "", // Invalid: empty apiGroup
+									},
+									BindingKind: "RoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.apiGroup: Invalid value: \"\": must be 'rbac.authorization.k8s.io'")
+				})
+
+				Context("roleRef apiGroup invalid value", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "Role",
+										APIGroup: "invalid.api.group", // Invalid: not rbac.authorization.k8s.io
+									},
+									BindingKind: "RoleBinding",
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.apiGroup: Invalid value: \"invalid.api.group\": must be 'rbac.authorization.k8s.io'")
+				})
+
+				Context("rolebinding valid components", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-role",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "RoleBinding",
+								},
+							},
+						}
+					})
+					It("should succeed with valid roleRef name, kind, apiGroup and nameSuffix", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("rolebinding valid with ClusterRole", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "valid-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "valid-cluster-role",
+										Kind:     "ClusterRole",
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					It("should succeed with valid ClusterRole roleRef", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("rolebinding multiple valid roleBindings", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							RoleBindings: []dashboardv1alpha1.RoleBinding{
+								{
+									NameSuffix: "role-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "my-role",
+										Kind:     "Role",
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "RoleBinding",
+								},
+								{
+									NameSuffix: "cluster-role-suffix",
+									RoleRef: rbacv1.RoleRef{
+										Name:     "my-cluster-role",
+										Kind:     "ClusterRole",
+										APIGroup: "rbac.authorization.k8s.io",
+									},
+									BindingKind: "ClusterRoleBinding",
+								},
+							},
+						}
+					})
+					It("should succeed with multiple valid roleBindings", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+
+				Context("roleRef validation based on BindingKind", func() {
+					Context("ClusterRoleBinding with Role reference - invalid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "invalid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-role",
+											Kind:     "Role", // Invalid: ClusterRoleBinding cannot reference Role
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "ClusterRoleBinding",
+									},
+								},
+							}
+						})
+						AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"Role\": ClusterRoleBinding can only reference a ClusterRole")
+					})
+
+					Context("ClusterRoleBinding with ClusterRole reference - valid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "valid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-cluster-role",
+											Kind:     "ClusterRole", // Valid: ClusterRoleBinding can reference ClusterRole
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "ClusterRoleBinding",
+									},
+								},
+							}
+						})
+						It("should succeed with ClusterRoleBinding referencing ClusterRole", func() {
+							Expect(terminalCreationError).To(Not(HaveOccurred()))
+						})
+					})
+
+					Context("RoleBinding with Role reference - valid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "valid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-role",
+											Kind:     "Role", // Valid: RoleBinding can reference Role
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "RoleBinding",
+									},
+								},
+							}
+						})
+						It("should succeed with RoleBinding referencing Role", func() {
+							Expect(terminalCreationError).To(Not(HaveOccurred()))
+						})
+					})
+
+					Context("RoleBinding with ClusterRole reference - valid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "valid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-cluster-role",
+											Kind:     "ClusterRole", // Valid: RoleBinding can reference ClusterRole
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "RoleBinding",
+									},
+								},
+							}
+						})
+						It("should succeed with RoleBinding referencing ClusterRole", func() {
+							Expect(terminalCreationError).To(Not(HaveOccurred()))
+						})
+					})
+
+					Context("RoleBinding with invalid Kind - invalid", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+								RoleBindings: []dashboardv1alpha1.RoleBinding{
+									{
+										NameSuffix: "valid-suffix",
+										RoleRef: rbacv1.RoleRef{
+											Name:     "my-resource",
+											Kind:     "CustomRole", // Invalid: not Role or ClusterRole
+											APIGroup: "rbac.authorization.k8s.io",
+										},
+										BindingKind: "RoleBinding",
+									},
+								},
+							}
+						})
+						AssertFailedBehavior("spec.target.authorization.roleBindings[0].roleRef.kind: Invalid value: \"CustomRole\": RoleBinding can only reference a Role or ClusterRole")
+					})
+				})
+
+				Context("projectName validation", func() {
+					BeforeEach(func() {
+						cmConfig.HonourProjectMemberships = ptr.To(true)
+						terminal.Spec.Target.Authorization = &dashboardv1alpha1.Authorization{
+							ProjectMemberships: []dashboardv1alpha1.ProjectMembership{
+								{
+									ProjectName: "Invalid_Project_Name",
+									Roles:       []string{"admin"},
+								},
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.authorization.projectMemberships[0].projectName: Invalid value: \"Invalid_Project_Name\"")
+				})
+			})
+
+			Context("pod labels validation", func() {
+				Context("invalid label key", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"invalid/key/with/too/many/slashes": "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("invalid label key - too long", func() {
+					BeforeEach(func() {
+						// Create a key longer than 63 characters for the name part
+						longKey := strings.Repeat("a", 64)
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							longKey: "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("invalid label value - too long", func() {
+					BeforeEach(func() {
+						// Create a value longer than 63 characters
+						longValue := strings.Repeat("a", 64)
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"valid-key": longValue,
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("invalid label key - invalid characters", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"invalid@key": "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("invalid label value - invalid characters", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"valid-key": "invalid@value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.labels: Invalid value")
+				})
+
+				Context("valid labels", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.Labels = map[string]string{
+							"app":                        "my-app",
+							"version":                    "v1.0.0",
+							"environment":                "production",
+							"kubernetes.io/managed-by":   "terminal-controller",
+							"example.com/component":      "backend",
+							"valid-key-with-dashes":      "valid-value-with-dashes",
+							"valid_key_with_underscores": "valid_value_with_underscores",
+							"valid.key.with.dots":        "valid.value.with.dots",
+							"123numeric":                 "123numeric",
+						}
+					})
+					It("should allow valid labels", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+			})
+
+			Context("node selector validation", func() {
+				Context("invalid node selector key", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"invalid/key/with/too/many/slashes": "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("invalid node selector key - too long", func() {
+					BeforeEach(func() {
+						// Create a key longer than 63 characters for the name part
+						longKey := strings.Repeat("a", 64)
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							longKey: "value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("invalid node selector value - too long", func() {
+					BeforeEach(func() {
+						// Create a value longer than 63 characters
+						longValue := strings.Repeat("a", 64)
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"kubernetes.io/arch": longValue,
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("invalid node selector key - invalid characters", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"invalid@key": "amd64",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("invalid node selector value - invalid characters", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"kubernetes.io/arch": "invalid@value",
+						}
+					})
+					AssertFailedBehavior("spec.host.pod.nodeSelector: Invalid value")
+				})
+
+				Context("valid node selector", func() {
+					BeforeEach(func() {
+						terminal.Spec.Host.Pod.NodeSelector = map[string]string{
+							"kubernetes.io/arch":               "amd64",
+							"kubernetes.io/os":                 "linux",
+							"node.kubernetes.io/instance-type": "m5.large",
+							"topology.kubernetes.io/zone":      "us-west-2a",
+							"custom-label":                     "custom-value",
+						}
+					})
+					It("should allow valid node selector", func() {
+						Expect(terminalCreationError).To(Not(HaveOccurred()))
+					})
+				})
+			})
+
+			Context("empty labels and node selector", func() {
+				BeforeEach(func() {
+					terminal.Spec.Host.Pod.Labels = nil
+					terminal.Spec.Host.Pod.NodeSelector = nil
+				})
+				It("should allow nil labels and node selector", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("empty maps for labels and node selector", func() {
+				BeforeEach(func() {
+					terminal.Spec.Host.Pod.Labels = map[string]string{}
+					terminal.Spec.Host.Pod.NodeSelector = map[string]string{}
+				})
+				It("should allow empty maps for labels and node selector", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
 				})
 			})
 		})

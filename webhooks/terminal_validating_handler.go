@@ -7,9 +7,15 @@ SPDX-License-Identifier: Apache-2.0
 package webhooks
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,8 +25,13 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/validation"
+	"k8s.io/apimachinery/pkg/api/validation/path"
+	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
+	"k8s.io/apimachinery/pkg/util/sets"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +39,20 @@ import (
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
+)
+
+// Supported roles for project members, based on Gardener's core types
+var supportedRoles = sets.New(
+	"owner",
+	"admin",
+	"viewer",
+	"uam", // user access manager
+	"serviceaccountmanager",
+)
+
+const (
+	extensionRoleMaxLength = 20
+	extensionRolePrefix    = "extension:"
 )
 
 // TerminalValidator handles Terminal
@@ -91,24 +116,46 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		}
 	}
 
-	fldValidations := getFieldValidations(t)
-	if err := validateRequiredFields(fldValidations); err != nil {
+	fldPath := field.NewPath("spec", "target", "namespace")
+	if err := validateRequiredField(t.Spec.Target.Namespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
-	if err := validateRequiredPodFields(t); err != nil {
+	if err := validateDNS1123Subdomain(*t.Spec.Target.Namespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
-	if err := h.validateRequiredCredentials(t); err != nil {
+	fldPath = field.NewPath("spec", "host", "namespace")
+	if err := validateRequiredField(t.Spec.Host.Namespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
-	if err := h.validateRequiredTargetAuthorization(t); err != nil {
+	if err := validateDNS1123Subdomain(*t.Spec.Host.Namespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
-	if err := validateRequiredAPIServerFields(t); err != nil {
+	fldPath = field.NewPath("spec", "target", "kubeconfigContextNamespace")
+	if err := validateRequiredField(&t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
+		return false, err.Error(), nil
+	}
+
+	if err := validateDNS1123Subdomain(t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
+		return false, err.Error(), nil
+	}
+
+	if err := validatePodFields(t); err != nil {
+		return false, err.Error(), nil
+	}
+
+	if err := h.validateCredentials(t); err != nil {
+		return false, err.Error(), nil
+	}
+
+	if err := h.validateTargetAuthorization(t); err != nil {
+		return false, err.Error(), nil
+	}
+
+	if err := validateAPIServerFields(t); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -147,43 +194,87 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 	return true, "allowed to be admitted", nil
 }
 
-func getFieldValidations(t *v1alpha1.Terminal) *[]fldValidation {
-	fldValidations := &[]fldValidation{
-		{
-			value:   t.Spec.Target.Namespace, // The mutating webhook ensures that a target namespace is always set
-			fldPath: field.NewPath("spec", "target", "namespace"),
-		},
-		{
-			value:   t.Spec.Host.Namespace, // The mutating webhook ensures that a host namespace is set in case TemporaryNamespace is true
-			fldPath: field.NewPath("spec", "host", "namespace"),
-		},
-		{
-			value:   &t.Spec.Target.KubeconfigContextNamespace,
-			fldPath: field.NewPath("spec", "target", "kubeconfigContextNamespace"),
-		},
-	}
-
-	return fldValidations
-}
-
-type fldValidation struct {
-	value   *string
-	fldPath *field.Path
-}
-
-func validateRequiredFields(fldValidations *[]fldValidation) error {
-	for _, fldValidation := range *fldValidations {
-		if err := validateRequiredField(fldValidation.value, fldValidation.fldPath); err != nil {
-			return err
-		}
+func validateRequiredField(val *string, fldPath *field.Path) error {
+	if val == nil || len(*val) == 0 {
+		return field.Required(fldPath, "field is required")
 	}
 
 	return nil
 }
 
-func validateRequiredField(val *string, fldPath *field.Path) error {
-	if val == nil || len(*val) == 0 {
-		return field.Required(fldPath, "field is required")
+func validateDNS1123Subdomain(value string, fldPath *field.Path) error {
+	if errs := utilvalidation.IsDNS1123Subdomain(value); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+func validateDNSSubdomain(value string, fldPath *field.Path) error {
+	if errs := validation.NameIsDNSSubdomain(value, false); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+func validateDNSLabel(value string, fldPath *field.Path) error {
+	if errs := validation.NameIsDNSLabel(value, false); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+func validateDNS1035Label(value string, fldPath *field.Path) error {
+	if errs := utilvalidation.IsDNS1035Label(value); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+// ValidateRBACName is exported to allow types outside of the RBAC API group to reuse this validation logic
+// Minimal validation of names for roles and bindings. Identical to the validation for Openshift. See:
+// * https://github.com/kubernetes/kubernetes/blob/60db507b279ce45bd16ea3db49bf181f2aeb3c3d/pkg/api/validation/name.go
+// * https://github.com/openshift/origin/blob/388478c40e751c4295dcb9a44dd69e5ac65d0e3b/pkg/api/helpers.go
+// Source: https://github.com/kubernetes/kubernetes/blob/df11db1c0f08fab3c0baee1e5ce6efbf816af7f1/pkg/apis/rbac/validation/validation.go#L28C1-L34C2
+func ValidateRBACName(name string) []string {
+	return path.IsValidPathSegmentName(name)
+}
+
+func validateRBACName(value string, fldPath *field.Path) error {
+	if errs := ValidateRBACName(value); len(errs) > 0 {
+		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+// validateRoleRefForBindingKind validates RoleRef based on BindingKind restrictions:
+// - For RoleBinding: can reference a Role in the same namespace or a ClusterRole
+// - For ClusterRoleBinding: can only reference a ClusterRole
+func validateRoleRefForBindingKind(roleRef rbacv1.RoleRef, bindingKind v1alpha1.BindingKind, fldPath *field.Path) error {
+	switch bindingKind {
+	case v1alpha1.BindingKindClusterRoleBinding:
+		if roleRef.Kind != "ClusterRole" {
+			return field.Invalid(fldPath.Child("kind"), roleRef.Kind, "ClusterRoleBinding can only reference a ClusterRole")
+		}
+	case v1alpha1.BindingKindRoleBinding:
+		if roleRef.Kind != "Role" && roleRef.Kind != "ClusterRole" {
+			return field.Invalid(fldPath.Child("kind"), roleRef.Kind, "RoleBinding can only reference a Role or ClusterRole")
+		}
+	default:
+		return field.Invalid(field.NewPath("bindingKind"), bindingKind, "must be 'RoleBinding' or 'ClusterRoleBinding'")
+	}
+
+	return nil
+}
+
+// validateLabels validates that the provided labels map contains valid Kubernetes label keys and values
+func validateLabels(labels map[string]string, fldPath *field.Path) error {
+	if errs := metav1validation.ValidateLabels(labels, fldPath); len(errs) > 0 {
+		return errs.ToAggregate()
 	}
 
 	return nil
@@ -197,9 +288,19 @@ func validateImmutableField(newVal, oldVal interface{}, fldPath *field.Path) err
 	return nil
 }
 
-func validateRequiredPodFields(t *v1alpha1.Terminal) error {
+func validatePodFields(t *v1alpha1.Terminal) error {
 	if len(t.Spec.Host.Pod.ContainerImage) == 0 {
-		return validateRequiredContainerFields(t.Spec.Host.Pod.Container, field.NewPath("spec", "host", "pod", "container"))
+		if err := validateRequiredContainerFields(t.Spec.Host.Pod.Container, field.NewPath("spec", "host", "pod", "container")); err != nil {
+			return err
+		}
+	}
+
+	if err := validateLabels(t.Spec.Host.Pod.Labels, field.NewPath("spec", "host", "pod", "labels")); err != nil {
+		return err
+	}
+
+	if err := validateLabels(t.Spec.Host.Pod.NodeSelector, field.NewPath("spec", "host", "pod", "nodeSelector")); err != nil {
+		return err
 	}
 
 	return nil
@@ -213,14 +314,109 @@ func validateRequiredContainerFields(container *v1alpha1.Container, fldPath *fie
 	return validateRequiredField(&container.Image, fldPath.Child("image"))
 }
 
-func validateRequiredAPIServerFields(t *v1alpha1.Terminal) error {
+// ValidateCAData validates that caData is either empty or a PEM bundle consisting
+// of one or more "CERTIFICATE" blocks, each parseable as an X.509 certificate,
+// with no trailing non-PEM data.
+func ValidateCAData(caData []byte) error {
+	if len(caData) == 0 {
+		return nil // optional
+	}
+
+	rest := caData
+	parsedAny := false
+
+	for {
+		var block *pem.Block
+
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+
+		if block.Type != "CERTIFICATE" {
+			return fmt.Errorf("unexpected PEM block type %q (expected CERTIFICATE)", block.Type)
+		}
+
+		if _, err := x509.ParseCertificate(block.Bytes); err != nil {
+			return fmt.Errorf("cannot parse X.509 certificate: %w", err)
+		}
+
+		parsedAny = true
+	}
+
+	if !parsedAny {
+		return errors.New("CA bundle must contain at least one PEM-encoded certificate")
+	}
+
+	if len(bytes.TrimSpace(rest)) != 0 {
+		return errors.New("CA bundle contains trailing non-PEM data")
+	}
+
+	return nil
+}
+
+// validateURL validates that the provided string is a valid URL with https scheme.
+func validateURL(value string, fldPath *field.Path) error {
+	if value == "" {
+		return nil // optional
+	}
+
+	u, err := url.Parse(value)
+	if err != nil {
+		return field.Invalid(fldPath, value, fmt.Sprintf("must be a valid URL: %v", err))
+	}
+
+	if u.Scheme != "https" {
+		return field.Invalid(fldPath, value, "URL scheme must be https")
+	}
+
+	if u.Host == "" {
+		return field.Invalid(fldPath, value, "URL must have a host")
+	}
+
+	return nil
+}
+
+func validateAPIServerFields(t *v1alpha1.Terminal) error {
 	if t.Spec.Target.APIServerServiceRef != nil {
-		return validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name"))
+		if err := validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name")); err != nil {
+			return err
+		}
+
+		if err := validateDNS1035Label(t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name")); err != nil {
+			return err
+		}
+
+		if t.Spec.Target.APIServerServiceRef.Namespace != "" {
+			if err := validateDNS1123Subdomain(t.Spec.Target.APIServerServiceRef.Namespace, field.NewPath("spec", "target", "apiServerServiceRef", "namespace")); err != nil {
+				return err
+			}
+		}
 	}
 
 	if t.Spec.Target.APIServer != nil {
 		if t.Spec.Target.APIServer.ServiceRef != nil {
-			return validateRequiredField(&t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name"))
+			if err := validateRequiredField(&t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name")); err != nil {
+				return err
+			}
+
+			if err := validateDNS1035Label(t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name")); err != nil {
+				return err
+			}
+
+			if t.Spec.Target.APIServer.ServiceRef.Namespace != "" {
+				if err := validateDNS1123Subdomain(t.Spec.Target.APIServer.ServiceRef.Namespace, field.NewPath("spec", "target", "apiServer", "serviceRef", "namespace")); err != nil {
+					return err
+				}
+			}
+		}
+
+		if err := validateURL(t.Spec.Target.APIServer.Server, field.NewPath("spec", "target", "apiServer", "server")); err != nil {
+			return err
+		}
+
+		if err := ValidateCAData(t.Spec.Target.APIServer.CAData); err != nil {
+			return field.Invalid(field.NewPath("spec", "target", "apiServer", "caData"), "<redacted>", err.Error())
 		}
 	}
 
@@ -236,15 +432,15 @@ func toAuthZExtraValue(authNVal map[string]authenticationv1.ExtraValue) map[stri
 	return authZVal
 }
 
-func (h *TerminalValidator) validateRequiredCredentials(t *v1alpha1.Terminal) error {
-	if err := validateRequiredCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.getConfig().HonourServiceAccountRefTargetCluster); err != nil {
+func (h *TerminalValidator) validateCredentials(t *v1alpha1.Terminal) error {
+	if err := validateCredential(t.Spec.Target.Credentials, field.NewPath("spec", "target", "credentials"), h.getConfig().HonourServiceAccountRefTargetCluster); err != nil {
 		return err
 	}
 
-	return validateRequiredCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.getConfig().HonourServiceAccountRefHostCluster)
+	return validateCredential(t.Spec.Host.Credentials, field.NewPath("spec", "host", "credentials"), h.getConfig().HonourServiceAccountRefHostCluster)
 }
 
-func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef *bool) error {
+func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, honourServiceAccountRef *bool) error {
 	if cred.ShootRef != nil && cred.ServiceAccountRef != nil {
 		return field.Forbidden(fldPath, "only one of 'shootRef' or 'serviceAccountRef' must be set")
 	}
@@ -264,33 +460,37 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 	}
 
 	if cred.ShootRef != nil {
-		fldValidations := &[]fldValidation{
-			{
-				value:   &cred.ShootRef.Name,
-				fldPath: fldPath.Child("shootRef", "name"),
-			},
-			{
-				value:   &cred.ShootRef.Namespace,
-				fldPath: fldPath.Child("shootRef", "namespace"),
-			},
+		if err := validateRequiredField(&cred.ShootRef.Name, fldPath.Child("shootRef", "name")); err != nil {
+			return err
 		}
-		if err := validateRequiredFields(fldValidations); err != nil {
+
+		if err := validateDNSLabel(cred.ShootRef.Name, fldPath.Child("shootRef", "name")); err != nil {
+			return err
+		}
+
+		if err := validateRequiredField(&cred.ShootRef.Namespace, fldPath.Child("shootRef", "namespace")); err != nil {
+			return err
+		}
+
+		if err := validateDNS1123Subdomain(cred.ShootRef.Namespace, fldPath.Child("shootRef", "namespace")); err != nil {
 			return err
 		}
 	}
 
 	if cred.ServiceAccountRef != nil {
-		fldValidations := &[]fldValidation{
-			{
-				value:   &cred.ServiceAccountRef.Name,
-				fldPath: fldPath.Child("serviceAccountRef", "name"),
-			},
-			{
-				value:   &cred.ServiceAccountRef.Namespace,
-				fldPath: fldPath.Child("serviceAccountRef", "namespace"),
-			},
+		if err := validateRequiredField(&cred.ServiceAccountRef.Name, fldPath.Child("serviceAccountRef", "name")); err != nil {
+			return err
 		}
-		if err := validateRequiredFields(fldValidations); err != nil {
+
+		if err := validateDNSSubdomain(cred.ServiceAccountRef.Name, fldPath.Child("serviceAccountRef", "name")); err != nil {
+			return err
+		}
+
+		if err := validateRequiredField(&cred.ServiceAccountRef.Namespace, fldPath.Child("serviceAccountRef", "namespace")); err != nil {
+			return err
+		}
+
+		if err := validateDNS1123Subdomain(cred.ServiceAccountRef.Namespace, fldPath.Child("serviceAccountRef", "namespace")); err != nil {
 			return err
 		}
 	}
@@ -298,10 +498,14 @@ func validateRequiredCredential(cred v1alpha1.ClusterCredentials, fldPath *field
 	return nil
 }
 
-func (h *TerminalValidator) validateRequiredTargetAuthorization(t *v1alpha1.Terminal) error {
+func (h *TerminalValidator) validateTargetAuthorization(t *v1alpha1.Terminal) error {
 	fldPath := field.NewPath("spec", "target")
 
 	if t.Spec.Target.RoleName != "" {
+		if err := validateRBACName(t.Spec.Target.RoleName, fldPath.Child("roleName")); err != nil {
+			return err
+		}
+
 		if t.Spec.Target.BindingKind != v1alpha1.BindingKindClusterRoleBinding && t.Spec.Target.BindingKind != v1alpha1.BindingKindRoleBinding {
 			return field.Invalid(fldPath.Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either "+v1alpha1.BindingKindClusterRoleBinding.String()+" or "+v1alpha1.BindingKindRoleBinding.String())
 		}
@@ -330,8 +534,31 @@ func validateRoleBindings(t *v1alpha1.Terminal, fldPath *field.Path) error {
 			return err
 		}
 
+		if err := validateRBACName(roleBinding.RoleRef.Name, fldPath.Index(index).Child("roleRef", "name")); err != nil {
+			return err
+		}
+
+		if roleBinding.RoleRef.APIGroup != "rbac.authorization.k8s.io" {
+			return field.Invalid(fldPath.Index(index).Child("roleRef", "apiGroup"), roleBinding.RoleRef.APIGroup, "must be 'rbac.authorization.k8s.io'")
+		}
+
+		if err := validateRBACName(roleBinding.NameSuffix, fldPath.Index(index).Child("nameSuffix")); err != nil {
+			return err
+		}
+
+		// Validate the complete final binding name
+		bindingName := v1alpha1.TerminalAccessResourceNamePrefix + t.Spec.Identifier + roleBinding.NameSuffix
+		if err := validateRBACName(bindingName, fldPath.Index(index).Child("nameSuffix")); err != nil {
+			return field.Invalid(fldPath.Index(index).Child("nameSuffix"), roleBinding.NameSuffix,
+				fmt.Sprintf("complete binding name '%s' is invalid: %s", bindingName, err.Error()))
+		}
+
 		if roleBinding.BindingKind != v1alpha1.BindingKindClusterRoleBinding && roleBinding.BindingKind != v1alpha1.BindingKindRoleBinding {
 			return field.Invalid(fldPath.Index(index).Child("bindingKind"), t.Spec.Target.BindingKind, "field should be either "+v1alpha1.BindingKindClusterRoleBinding.String()+" or "+v1alpha1.BindingKindRoleBinding.String())
+		}
+
+		if err := validateRoleRefForBindingKind(roleBinding.RoleRef, roleBinding.BindingKind, fldPath.Index(index).Child("roleRef")); err != nil {
+			return err
 		}
 	}
 
@@ -364,13 +591,42 @@ func (h *TerminalValidator) validateProjectMemberships(t *v1alpha1.Terminal, fld
 			return err
 		}
 
+		if err := validateDNSSubdomain(projectMembership.ProjectName, fldPath.Index(index).Child("projectName")); err != nil {
+			return err
+		}
+
 		if len(projectMembership.Roles) == 0 {
 			return field.Required(fldPath.Index(index).Child("roles"), "field is required")
 		}
 
+		foundRoles := make(sets.Set[string], len(projectMembership.Roles))
 		for rolesIndex, role := range projectMembership.Roles {
-			if err := validateRequiredField(&role, fldPath.Index(index).Child("roles").Index(rolesIndex)); err != nil {
-				return err
+			rolesPath := fldPath.Index(index).Child("roles").Index(rolesIndex)
+
+			if foundRoles.Has(role) {
+				return field.Duplicate(rolesPath, role)
+			}
+
+			foundRoles.Insert(role)
+
+			if !supportedRoles.Has(role) && !strings.HasPrefix(role, extensionRolePrefix) {
+				supportedRolesList := sets.List(supportedRoles)
+				supportedRolesList = append(supportedRolesList, extensionRolePrefix+"*")
+
+				return field.NotSupported(rolesPath, role, supportedRolesList)
+			}
+
+			if strings.HasPrefix(role, extensionRolePrefix) {
+				extensionRoleName := strings.TrimPrefix(role, extensionRolePrefix)
+
+				if len(extensionRoleName) > extensionRoleMaxLength {
+					return field.TooLong(rolesPath, role, extensionRoleMaxLength)
+				}
+
+				// the extension role name will be used as part of a ClusterRole name
+				if err := validateRBACName(extensionRoleName, rolesPath); err != nil {
+					return err
+				}
 			}
 		}
 	}
