@@ -16,6 +16,7 @@ path = [
   ".gimps.yaml",
   ".gitignore",
   ".golangci.yaml",
+  ".ocm/branch-info.yaml",
   "CODEOWNERS",
   "OWNERS",
   "OWNERS_ALIASES",
