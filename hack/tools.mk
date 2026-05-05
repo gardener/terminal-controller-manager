@@ -9,6 +9,7 @@ SYSTEM_ARCH                := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/
 TOOLS_BIN_DIR              := $(TOOLS_DIR)/bin/$(SYSTEM_NAME)-$(SYSTEM_ARCH)
 CONTROLLER_GEN             := $(TOOLS_BIN_DIR)/controller-gen
 GOSEC                      := $(TOOLS_BIN_DIR)/gosec
+SETUP_ENVTEST              := $(TOOLS_BIN_DIR)/setup-envtest
 
 # default tool versions
 # renovate: datasource=github-releases depName=securego/gosec
@@ -16,6 +17,7 @@ GOSEC_VERSION ?= v2.22.11
 
 # tool versions from go.mod
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
+CONTROLLER_RUNTIME_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-runtime)
 
 export TOOLS_BIN_DIR := $(TOOLS_BIN_DIR)
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
@@ -49,7 +51,7 @@ clean-tools-bin:
 	rm -f $(TOOLS_BIN_DIR)/{*,.version_*}
 
 .PHONY: create-tools-bin
-create-tools-bin: $(CONTROLLER_GEN) $(GOSEC)
+create-tools-bin: $(CONTROLLER_GEN) $(GOSEC) $(SETUP_ENVTEST)
 
 
 #########################################
@@ -61,3 +63,7 @@ $(CONTROLLER_GEN): $(call tool_version_file,$(CONTROLLER_GEN),$(CONTROLLER_GEN_V
 
 $(GOSEC): $(call tool_version_file,$(GOSEC),$(GOSEC_VERSION))
 	@GOSEC_VERSION=$(GOSEC_VERSION) $(TOOLS_PKG_PATH)/install-gosec.sh
+
+$(SETUP_ENVTEST): $(call tool_version_file,$(SETUP_ENVTEST),$(CONTROLLER_RUNTIME_VERSION))
+	curl -Lo $(SETUP_ENVTEST) https://github.com/kubernetes-sigs/controller-runtime/releases/download/$(CONTROLLER_RUNTIME_VERSION)/setup-envtest-$(SYSTEM_NAME)-$(SYSTEM_ARCH)
+	chmod +x $(SETUP_ENVTEST)
