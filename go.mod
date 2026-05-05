@@ -4,7 +4,7 @@ go 1.25.7
 
 require (
 	github.com/gardener/gardener v1.141.1
-	github.com/gardener/gardener/pkg/apis v1.140.0
+	github.com/gardener/gardener/pkg/apis v1.141.1
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.40.0
