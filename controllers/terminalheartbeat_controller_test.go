@@ -101,6 +101,7 @@ var _ = Describe("Terminal Heartbeat Controller", func() {
 		}
 
 		By("By creating namespaces")
+
 		namespaces := []string{terminalNamespace, hostNamespace, targetNamespace}
 		for _, namespace := range namespaces {
 			terminalNamespaceKey := types.NamespacedName{Name: namespace}
@@ -129,10 +130,12 @@ var _ = Describe("Terminal Heartbeat Controller", func() {
 
 				Eventually(func() bool {
 					t := &dashboardv1alpha1.Terminal{}
+
 					err := e.K8sClient.Get(ctx, terminalKey, t)
 					if kErros.IsNotFound(err) {
 						return true
 					}
+
 					return t.DeletionTimestamp != nil
 				}, timeout, interval).Should(BeTrue())
 			})
@@ -145,22 +148,26 @@ var _ = Describe("Terminal Heartbeat Controller", func() {
 				By("Expecting terminal to be created and clearing the last heartbeat time")
 				Eventually(func() error {
 					terminal = &dashboardv1alpha1.Terminal{}
+
 					err := e.K8sClient.Get(ctx, terminalKey, terminal)
 					if err != nil {
 						return err
 					}
 
 					terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
+
 					return e.K8sClient.Update(ctx, terminal)
 				}, timeout, interval).Should(Succeed())
 
 				By("Expecting terminal to be deleted")
 				Eventually(func() bool {
 					t := &dashboardv1alpha1.Terminal{}
+
 					err := e.K8sClient.Get(ctx, terminalKey, t)
 					if kErros.IsNotFound(err) {
 						return true
 					}
+
 					return t.DeletionTimestamp != nil
 				}, timeout, interval).Should(BeTrue())
 			})

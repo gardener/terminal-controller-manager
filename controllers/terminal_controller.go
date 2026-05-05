@@ -187,6 +187,7 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 			terminal.Status.LastError = nil
 			terminal.Status.LastOperation = reconcileSucceeded(lastOperationType, "Terminal has been successfully reconciled.")
 		}
+
 		return nil
 	}); client.IgnoreNotFound(updateErr) != nil {
 		return ctrl.Result{}, errors.Join(updateErr, err)

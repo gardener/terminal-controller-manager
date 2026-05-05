@@ -109,6 +109,7 @@ var _ = Describe("ServiceAccount Controller", func() {
 		}
 
 		By("By creating namespaces")
+
 		namespaces := []string{terminalNamespace, hostNamespace}
 		for _, namespace := range namespaces {
 			terminalNamespaceKey := types.NamespacedName{Name: namespace}
@@ -118,6 +119,7 @@ var _ = Describe("ServiceAccount Controller", func() {
 		By("By creating host serviceaccount")
 		e.AddClusterAdminServiceAccount(ctx, HostServiceAccountName, hostNamespace, timeout, interval)
 		By("By creating target serviceaccount")
+
 		targetServiceAccount := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
 			Name:      TargetServiceAccountName,
 			Namespace: targetNamespace,
@@ -125,6 +127,7 @@ var _ = Describe("ServiceAccount Controller", func() {
 		Expect(e.K8sClient.Create(ctx, targetServiceAccount)).To(Succeed())
 
 		By("By creating project")
+
 		projectName = test.StringWithCharset(randomLength, charset)
 
 		project := &gardencorev1beta1.Project{
@@ -164,6 +167,7 @@ var _ = Describe("ServiceAccount Controller", func() {
 					Verbs:     []string{"create"},
 				},
 			}
+
 			return nil
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -186,16 +190,20 @@ var _ = Describe("ServiceAccount Controller", func() {
 			Eventually(func() bool {
 				terminal = &dashboardv1alpha1.Terminal{}
 				err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
 			By("Adding terminal ownerReference to service account")
+
 			targetServiceAccount := &corev1.ServiceAccount{}
 			err := e.K8sClient.Get(ctx, targetServiceAccountKey, targetServiceAccount)
 			Expect(err).ToNot(HaveOccurred())
+
 			if targetServiceAccount.OwnerReferences == nil {
 				targetServiceAccount.OwnerReferences = []metav1.OwnerReference{}
 			}
+
 			targetServiceAccount.OwnerReferences = append(targetServiceAccount.OwnerReferences, metav1.OwnerReference{
 				APIVersion: "dashboard.gardener.cloud/v1alpha1",
 				Kind:       "Terminal",
@@ -206,12 +214,14 @@ var _ = Describe("ServiceAccount Controller", func() {
 
 			isTargetServiceAccountMember := func() bool {
 				project := &gardencorev1beta1.Project{ObjectMeta: metav1.ObjectMeta{Name: projectName}}
+
 				err := e.K8sClient.Get(ctx, client.ObjectKeyFromObject(project), project)
 				if err != nil {
 					return false
 				}
 
 				isMember, _ := gardenclient.IsMember(project.Spec.Members, targetServiceAccountKey)
+
 				return isMember
 			}
 
@@ -224,16 +234,19 @@ var _ = Describe("ServiceAccount Controller", func() {
 				if err := e.K8sClient.Get(ctx, targetServiceAccountKey, targetServiceAccount); err != nil {
 					return false
 				}
+
 				return targetServiceAccount.Labels[dashboardv1alpha1.TerminalReference] == "true"
 			}, timeout, interval).Should(BeTrue())
 
 			By("Deleting the terminal")
+
 			err = e.K8sClient.Delete(ctx, terminal)
 			Expect(err).To(Not(HaveOccurred()))
 
 			Eventually(func() bool {
 				t := &dashboardv1alpha1.Terminal{}
 				err := e.K8sClient.Get(ctx, terminalKey, t)
+
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 
@@ -244,6 +257,7 @@ var _ = Describe("ServiceAccount Controller", func() {
 			Eventually(func() bool {
 				targetServiceAccount := &corev1.ServiceAccount{}
 				err := e.K8sClient.Get(ctx, targetServiceAccountKey, targetServiceAccount)
+
 				return kErros.IsNotFound(err)
 			}, timeout, interval).Should(BeFalse())
 		})
