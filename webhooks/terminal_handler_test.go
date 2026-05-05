@@ -101,6 +101,7 @@ var _ = Describe("Validating Webhook", func() {
 		terminal                *dashboardv1alpha1.Terminal
 		terminalCreationError   error
 	)
+
 	BeforeEach(func() {
 		cmConfig = test.DefaultConfiguration()
 		validator.injectConfig(cmConfig)
@@ -157,6 +158,7 @@ var _ = Describe("Validating Webhook", func() {
 		}
 
 		By("By creating namespaces")
+
 		namespaces := []string{terminalNamespace, hostNamespace, targetNamespace}
 		for _, namespace := range namespaces {
 			terminalNamespaceKey := types.NamespacedName{Name: namespace}
@@ -207,17 +209,20 @@ var _ = Describe("Validating Webhook", func() {
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
 					err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 				Expect(terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat]).To(Not(BeEmpty()))
 
 				By("clearing last heartbeat and setting keepalive annotation")
+
 				terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = ""
 				terminal.Annotations[dashboardv1alpha1.TerminalOperation] = dashboardv1alpha1.TerminalOperationKeepalive
 				err := e.K8sClient.Update(ctx, terminal)
 				Expect(err).To(Not(HaveOccurred()))
 
 				By("by reading the terminal")
+
 				terminal = &dashboardv1alpha1.Terminal{}
 				err = e.K8sClient.Get(ctx, terminalKey, terminal)
 				Expect(err).To(Not(HaveOccurred()))
@@ -388,10 +393,12 @@ var _ = Describe("Validating Webhook", func() {
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
 					err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
 				By("updating the last heartbeat time")
+
 				terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = time.Now().UTC().Format(time.RFC3339)
 				err := e.K8sClient.Update(ctx, terminal)
 
@@ -410,6 +417,7 @@ var _ = Describe("Validating Webhook", func() {
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
 						err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
@@ -427,6 +435,7 @@ var _ = Describe("Validating Webhook", func() {
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
 						err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
@@ -445,6 +454,7 @@ var _ = Describe("Validating Webhook", func() {
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
 						err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
@@ -463,6 +473,7 @@ var _ = Describe("Validating Webhook", func() {
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
 						err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
@@ -483,6 +494,7 @@ var _ = Describe("Validating Webhook", func() {
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
 						err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
@@ -503,6 +515,7 @@ var _ = Describe("Validating Webhook", func() {
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
 						err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
@@ -520,6 +533,7 @@ var _ = Describe("Validating Webhook", func() {
 					Eventually(func() bool {
 						terminal = &dashboardv1alpha1.Terminal{}
 						err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 						return err == nil
 					}, timeout, interval).Should(BeTrue())
 
@@ -538,6 +552,7 @@ var _ = Describe("Validating Webhook", func() {
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
 					err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
@@ -555,10 +570,12 @@ var _ = Describe("Validating Webhook", func() {
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
 					err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
 				By("updating the last heartbeat time to the future")
+
 				future := time.Now().Local().Add(time.Hour)
 				terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = future.UTC().Format(time.RFC3339)
 				err := e.K8sClient.Update(ctx, terminal)
@@ -574,10 +591,12 @@ var _ = Describe("Validating Webhook", func() {
 				Eventually(func() bool {
 					terminal = &dashboardv1alpha1.Terminal{}
 					err := e.K8sClient.Get(ctx, terminalKey, terminal)
+
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 
 				By("setting an invalid value as last heartbeat time")
+
 				terminal.Annotations[dashboardv1alpha1.TerminalLastHeartbeat] = "invalid"
 				err := e.K8sClient.Update(ctx, terminal)
 

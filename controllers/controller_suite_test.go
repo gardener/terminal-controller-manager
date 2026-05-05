@@ -123,9 +123,11 @@ func CreateRecorder(kubeClient kubernetes.Interface, scheme *runtime.Scheme) rec
 var _ = AfterSuite(func() {
 	cancel()
 	By("tearing down the test environment")
+
 	if e.GardenEnv == nil {
 		return
 	}
+
 	err := e.GardenEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })

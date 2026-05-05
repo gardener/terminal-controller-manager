@@ -63,6 +63,7 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	cancel()
 	By("tearing down the test environment")
+
 	err := e.GardenEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
