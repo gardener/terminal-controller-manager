@@ -1011,7 +1011,7 @@ func GenerateKubeconfig(clusterName string, contextNamespace string, server stri
 			{
 				Name: clusterName,
 				AuthInfo: clientcmdv1.AuthInfo{
-					TokenFile: "/mnt/.auth/token",
+					TokenFile: "/mnt/.auth/token", // #nosec G101 -- not a credential, just a file path
 				},
 			},
 		},
