@@ -17,16 +17,6 @@
     {
       customType: 'regex',
       managerFilePatterns: [
-        '/^.ci/pipeline_definitions$/',
-      ],
-      matchStrings: [
-        'image: [\'"]?(?<depName>.*?):(?<currentValue>.*?)[\'"]?\\s',
-      ],
-      datasourceTemplate: 'docker',
-    },
-    {
-      customType: 'regex',
-      managerFilePatterns: [
         '/Makefile$/',
         '/\\.mk$/',
         '/\\.sh$/',
