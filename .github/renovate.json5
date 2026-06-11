@@ -34,10 +34,17 @@
       automerge: true,
     },
     {
+      // Don't bump the go directive in go.mod: gardener depends on TCM, so
+      // raising it here would force gardener's toolchain forward on every TCM
+      // release. The golang builder image in the Dockerfile is handled by the
+      // dockerfile manager and is unaffected.
+      matchManagers: [
+        'gomod',
+      ],
       matchDatasources: [
         'golang-version',
       ],
-      rangeStrategy: 'bump',
+      enabled: false,
     },
     {
       groupName: 'Update tools',
