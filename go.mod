@@ -6,7 +6,7 @@ require (
 	github.com/gardener/gardener v1.144.1
 	github.com/gardener/gardener/pkg/apis v1.144.1
 	github.com/go-logr/logr v1.4.3
-	github.com/onsi/ginkgo/v2 v2.29.0
+	github.com/onsi/ginkgo/v2 v2.30.0
 	github.com/onsi/gomega v1.41.0
 	k8s.io/api v0.35.5
 	k8s.io/apimachinery v0.35.5
