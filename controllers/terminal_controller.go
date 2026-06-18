@@ -738,7 +738,7 @@ func (r *TerminalReconciler) createOrUpdateAttachServiceAccount(ctx context.Cont
 		{
 			Resources:     []string{"pods/attach"},
 			APIGroups:     []string{corev1.GroupName},
-			Verbs:         []string{"get"},
+			Verbs:         []string{"get", "create"},
 			ResourceNames: []string{podResourceName},
 		},
 		{
