@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
@@ -36,14 +38,55 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
 	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
 	"github.com/gardener/terminal-controller-manager/internal/helpers"
 )
+
+const (
+	// TerminalShootRef is the field index key used to look up Terminal resources by
+	// their referenced Shoot (both host and target credentials).
+	TerminalShootRef = "terminal-shoot-ref"
+
+	shootHibernationRequeueAfter = time.Hour
+)
+
+var errShootHibernated = errors.New("shoot is hibernated")
+
+// IndexTerminalByShootRef returns an IndexerFunc that indexes Terminal resources
+// by the Shoot references in their host and target credentials.
+func IndexTerminalByShootRef(obj client.Object) []string {
+	t, ok := obj.(*extensionsv1alpha1.Terminal)
+	if !ok {
+		return nil
+	}
+
+	var keys []string
+
+	addKey := func(ref *extensionsv1alpha1.ShootRef) {
+		if ref == nil {
+			return
+		}
+
+		key := (types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}).String()
+		if slices.Contains(keys, key) {
+			return
+		}
+
+		keys = append(keys, key)
+	}
+
+	addKey(t.Spec.Host.Credentials.ShootRef)
+	addKey(t.Spec.Target.Credentials.ShootRef)
+
+	return keys
+}
 
 // TerminalReconciler reconciles a Terminal object
 type TerminalReconciler struct {
@@ -76,11 +119,71 @@ func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager, config extension
 				return false
 			},
 		})).
+		Watches(
+			&gardencorev1beta1.Shoot{},
+			handler.EnqueueRequestsFromMapFunc(r.mapShootToTerminals),
+			builder.WithPredicates(shootWakeUpPredicate()),
+		).
 		Named("main").
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: config.MaxConcurrentReconciles,
 		}).
 		Complete(r)
+}
+
+// shootWakeUpPredicate returns a predicate that only passes when a Shoot
+// transitions from hibernated to awake (status.isHibernated: true → false).
+// CreateFunc returns false to prevent the mapping function from running for
+// every existing Shoot during cache sync at startup (see controller-runtime#3466).
+func shootWakeUpPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(_ event.CreateEvent) bool {
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldShoot, ok := e.ObjectOld.(*gardencorev1beta1.Shoot)
+			if !ok {
+				return false
+			}
+
+			newShoot, ok := e.ObjectNew.(*gardencorev1beta1.Shoot)
+			if !ok {
+				return false
+			}
+
+			return oldShoot.Status.IsHibernated && !newShoot.Status.IsHibernated
+		},
+		DeleteFunc: func(_ event.DeleteEvent) bool {
+			return false
+		},
+	}
+}
+
+// mapShootToTerminals enqueues reconcile requests for all Terminals
+// referencing the given Shoot (via host or target credentials). Uses the
+// TerminalShootRef field index for efficient lookup.
+func (r *TerminalReconciler) mapShootToTerminals(ctx context.Context, obj client.Object) []reconcile.Request {
+	shoot, ok := obj.(*gardencorev1beta1.Shoot)
+	if !ok {
+		return nil
+	}
+
+	terminalList := &extensionsv1alpha1.TerminalList{}
+	if err := r.List(ctx, terminalList, client.MatchingFields{
+		TerminalShootRef: client.ObjectKeyFromObject(shoot).String(),
+	}); err != nil {
+		log.FromContext(ctx).Error(err, "failed to list terminals for shoot", "shoot", client.ObjectKeyFromObject(shoot))
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(terminalList.Items))
+	for _, t := range terminalList.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKeyFromObject(&t),
+		})
+	}
+
+	return requests
 }
 
 func (r *TerminalReconciler) getConfig() *extensionsv1alpha1.ControllerManagerConfiguration {
@@ -179,18 +282,15 @@ func (r *TerminalReconciler) handleRequest(ctx context.Context, req ctrl.Request
 	}
 
 	result, err := r.handleTerminal(ctx, t)
-	if updateErr := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
-		if err != nil {
+	if err != nil {
+		if updateErr := r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
 			terminal.Status.LastError = lastError(err.Error())
 			terminal.Status.LastOperation = reconcileError(lastOperationType, err.Error())
-		} else {
-			terminal.Status.LastError = nil
-			terminal.Status.LastOperation = reconcileSucceeded(lastOperationType, "Terminal has been successfully reconciled.")
-		}
 
-		return nil
-	}); client.IgnoreNotFound(updateErr) != nil {
-		return ctrl.Result{}, errors.Join(updateErr, err)
+			return nil
+		}); client.IgnoreNotFound(updateErr) != nil {
+			return ctrl.Result{}, errors.Join(updateErr, err)
+		}
 	}
 
 	return result, err
@@ -201,8 +301,8 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 
 	cfg := r.getConfig()
 
-	hostClientSet, hostClientSetErr := gardenclient.NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials, cfg.HonourServiceAccountRefHostCluster, cfg.Controllers.Terminal.TokenRequestExpirationSeconds, r.Scheme)
-	targetClientSet, targetClientSetErr := gardenclient.NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials, cfg.HonourServiceAccountRefTargetCluster, cfg.Controllers.Terminal.TokenRequestExpirationSeconds, r.Scheme)
+	hostClientSet, hostClientSetErr := r.newClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials, cfg.HonourServiceAccountRefHostCluster, cfg.Controllers.Terminal.TokenRequestExpirationSeconds)
+	targetClientSet, targetClientSetErr := r.newClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials, cfg.HonourServiceAccountRefTargetCluster, cfg.Controllers.Terminal.TokenRequestExpirationSeconds)
 
 	if !t.DeletionTimestamp.IsZero() {
 		return r.deleteTerminal(ctx, t, hostClientSetErr, targetClientSetErr, targetClientSet, hostClientSet)
@@ -217,7 +317,9 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 			return r.deleteTerminalDueToMissingResources(ctx, t)
 		}
 
-		return ctrl.Result{}, hostClientSetErr
+		if !isShootHibernatedError(hostClientSetErr) {
+			return ctrl.Result{}, hostClientSetErr
+		}
 	}
 
 	if targetClientSetErr != nil {
@@ -229,7 +331,23 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 			return r.deleteTerminalDueToMissingResources(ctx, t)
 		}
 
-		return ctrl.Result{}, targetClientSetErr
+		if !isShootHibernatedError(targetClientSetErr) {
+			return ctrl.Result{}, targetClientSetErr
+		}
+	}
+
+	if isShootHibernatedError(hostClientSetErr) || isShootHibernatedError(targetClientSetErr) {
+		r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventHibernated,
+			"Reconciliation is waiting for a referenced shoot to wake from hibernation")
+
+		if err := r.patchTerminalOperationProcessing(ctx, t,
+			extensionsv1alpha1.LastOperationTypeReconcile,
+			"Terminal reconciliation is waiting for a referenced shoot to wake from hibernation.",
+		); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{RequeueAfter: shootHibernationRequeueAfter}, nil
 	}
 
 	if err := r.ensureAdmissionWebhookConfigured(ctx, gardenClientSet, t); err != nil {
@@ -246,7 +364,7 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 		// the needed labels will be set eventually, requeue won't change that
 		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Transient problem - %s. Skipping...", err.Error())
 
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, r.patchTerminalOperationError(ctx, t, extensionsv1alpha1.LastOperationTypeReconcile, err.Error())
 	}
 
 	annotationSet, err := t.NewAnnotationsSet()
@@ -254,7 +372,7 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 		// the needed annotations will be set eventually, requeue won't change that
 		r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventReconcileError, "Transient problem - %s. Skipping...", err.Error())
 
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, r.patchTerminalOperationError(ctx, t, extensionsv1alpha1.LastOperationTypeReconcile, err.Error())
 	}
 
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciling, "Reconciling Terminal state")
@@ -266,7 +384,7 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventReconciled, "Reconciled Terminal state")
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, r.patchTerminalOperationSucceeded(ctx, t, extensionsv1alpha1.LastOperationTypeReconcile, "Terminal has been successfully reconciled.")
 }
 
 func (r *TerminalReconciler) ensureFinalizer(ctx context.Context, t *extensionsv1alpha1.Terminal) error {
@@ -316,6 +434,9 @@ func (r *TerminalReconciler) deleteTerminal(ctx context.Context, t *extensionsv1
 		if ok, cause := isResourceNoLongerAvailableError(hostClientSetErr); ok {
 			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleting,
 				"Host cluster credentials no longer available due to %s during deletion, continuing cleanup: %s", cause, hostClientSetErr.Error())
+		} else if isShootHibernatedError(hostClientSetErr) {
+			r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting,
+				"Host cluster cleanup is deferred because the referenced shoot is hibernated")
 		} else {
 			return ctrl.Result{}, hostClientSetErr
 		}
@@ -325,12 +446,15 @@ func (r *TerminalReconciler) deleteTerminal(ctx context.Context, t *extensionsv1
 		if ok, cause := isResourceNoLongerAvailableError(targetClientSetErr); ok {
 			r.recordEventAndLog(ctx, t, corev1.EventTypeWarning, extensionsv1alpha1.EventDeleting,
 				"Target cluster credentials no longer available due to %s during deletion, continuing cleanup: %s", cause, targetClientSetErr.Error())
+		} else if isShootHibernatedError(targetClientSetErr) {
+			r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting,
+				"Target cluster cleanup is deferred because the referenced shoot is hibernated")
 		} else {
 			return ctrl.Result{}, targetClientSetErr
 		}
 	}
 
-	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Deleting external dependencies")
+	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting, "Processing external dependency deletion")
 	// our finalizer is present, so lets handle our external dependency
 
 	if deletionErrors := r.deleteExternalDependency(ctx, targetClientSet, hostClientSet, t); deletionErrors != nil {
@@ -342,6 +466,20 @@ func (r *TerminalReconciler) deleteTerminal(ctx context.Context, t *extensionsv1
 		}
 
 		return ctrl.Result{}, errors.New(strings.Join(errStrings, "\n"))
+	}
+
+	if isShootHibernatedError(hostClientSetErr) || isShootHibernatedError(targetClientSetErr) {
+		r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleting,
+			"External dependency deletion is waiting for deferred shoot cleanup")
+
+		if err := r.patchTerminalOperationProcessing(ctx, t,
+			extensionsv1alpha1.LastOperationTypeDelete,
+			"Terminal deletion is waiting for a referenced shoot to wake from hibernation.",
+		); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{RequeueAfter: shootHibernationRequeueAfter}, nil
 	}
 
 	r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventDeleted, "Deleted external dependencies")
@@ -376,6 +514,46 @@ func isResourceNoLongerAvailableError(err error) (bool, string) {
 	}
 
 	return false, ""
+}
+
+func isShootHibernatedError(err error) bool {
+	return errors.Is(err, errShootHibernated)
+}
+
+func (r *TerminalReconciler) newClientSetFromClusterCredentials(ctx context.Context, gardenClientSet *gardenclient.ClientSet, credentials extensionsv1alpha1.ClusterCredentials, honourServiceAccountRef *bool, expirationSeconds *int64) (*gardenclient.ClientSet, error) {
+	hibernated, err := r.isShootRefHibernated(ctx, credentials.ShootRef)
+	if err != nil {
+		return nil, err
+	}
+
+	if hibernated {
+		return nil, errShootHibernated
+	}
+
+	return gardenclient.NewClientSetFromClusterCredentials(ctx, gardenClientSet, credentials, honourServiceAccountRef, expirationSeconds, r.Scheme)
+}
+
+// isShootRefHibernated checks whether the given ShootRef points to a Shoot that
+// is currently hibernated. Missing Shoot resources are not considered
+// hibernated, so the normal client creation path can surface the underlying
+// credential/resource error.
+func (r *TerminalReconciler) isShootRefHibernated(ctx context.Context, ref *extensionsv1alpha1.ShootRef) (bool, error) {
+	if ref == nil {
+		return false, nil
+	}
+
+	shoot := &gardencorev1beta1.Shoot{}
+
+	key := types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}
+	if err := r.Get(ctx, key, shoot); err != nil {
+		if kErros.IsNotFound(err) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("failed to read shoot %s for hibernation check: %w", key.String(), err)
+	}
+
+	return shoot.Status.IsHibernated, nil
 }
 
 // deleteTerminalDueToMissingResources triggers deletion of a terminal when referenced resources are no longer available.
@@ -791,6 +969,33 @@ func (r *TerminalReconciler) patchTerminalStatus(ctx context.Context, t *extensi
 	}
 
 	return r.Status().Patch(ctx, terminal, patch)
+}
+
+func (r *TerminalReconciler) patchTerminalOperationProcessing(ctx context.Context, t *extensionsv1alpha1.Terminal, operationType extensionsv1alpha1.LastOperationType, description string) error {
+	return r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.LastError = nil
+		terminal.Status.LastOperation = reconcileProcessing(operationType, description)
+
+		return nil
+	})
+}
+
+func (r *TerminalReconciler) patchTerminalOperationSucceeded(ctx context.Context, t *extensionsv1alpha1.Terminal, operationType extensionsv1alpha1.LastOperationType, description string) error {
+	return r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.LastError = nil
+		terminal.Status.LastOperation = reconcileSucceeded(operationType, description)
+
+		return nil
+	})
+}
+
+func (r *TerminalReconciler) patchTerminalOperationError(ctx context.Context, t *extensionsv1alpha1.Terminal, operationType extensionsv1alpha1.LastOperationType, description string) error {
+	return r.patchTerminalStatus(ctx, t, func(terminal *extensionsv1alpha1.Terminal) error {
+		terminal.Status.LastError = lastError(description)
+		terminal.Status.LastOperation = reconcileError(operationType, description)
+
+		return nil
+	})
 }
 
 func (r *TerminalReconciler) createOrUpdateAccessServiceAccount(ctx context.Context, targetClientSet *gardenclient.ClientSet, t *extensionsv1alpha1.Terminal, labelSet *labels.Set, annotationSet *helpers.Set) (*corev1.ServiceAccount, error) {
