@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientcmdv1 "k8s.io/client-go/tools/clientcmd/api/v1"
@@ -36,14 +38,49 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
 	extensionsv1alpha1 "github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
 	"github.com/gardener/terminal-controller-manager/internal/helpers"
 )
+
+// TerminalShootRef is the field index key used to look up Terminal resources by
+// their referenced Shoot (both host and target credentials).
+const TerminalShootRef = "terminal-shoot-ref"
+
+// IndexTerminalByShootRef returns an IndexerFunc that indexes Terminal resources
+// by the Shoot references in their host and target credentials.
+func IndexTerminalByShootRef(obj client.Object) []string {
+	t, ok := obj.(*extensionsv1alpha1.Terminal)
+	if !ok {
+		return nil
+	}
+
+	var keys []string
+
+	addKey := func(ref *extensionsv1alpha1.ShootRef) {
+		if ref == nil {
+			return
+		}
+
+		key := (types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}).String()
+		if slices.Contains(keys, key) {
+			return
+		}
+
+		keys = append(keys, key)
+	}
+
+	addKey(t.Spec.Host.Credentials.ShootRef)
+	addKey(t.Spec.Target.Credentials.ShootRef)
+
+	return keys
+}
 
 // TerminalReconciler reconciles a Terminal object
 type TerminalReconciler struct {
@@ -76,11 +113,71 @@ func (r *TerminalReconciler) SetupWithManager(mgr ctrl.Manager, config extension
 				return false
 			},
 		})).
+		Watches(
+			&gardencorev1beta1.Shoot{},
+			handler.EnqueueRequestsFromMapFunc(r.mapShootToTerminals),
+			builder.WithPredicates(shootWakeUpPredicate()),
+		).
 		Named("main").
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: config.MaxConcurrentReconciles,
 		}).
 		Complete(r)
+}
+
+// shootWakeUpPredicate returns a predicate that only passes when a Shoot
+// transitions from hibernated to awake (status.isHibernated: true → false).
+// CreateFunc returns false to prevent the mapping function from running for
+// every existing Shoot during cache sync at startup (see controller-runtime#3466).
+func shootWakeUpPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(_ event.CreateEvent) bool {
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldShoot, ok := e.ObjectOld.(*gardencorev1beta1.Shoot)
+			if !ok {
+				return false
+			}
+
+			newShoot, ok := e.ObjectNew.(*gardencorev1beta1.Shoot)
+			if !ok {
+				return false
+			}
+
+			return oldShoot.Status.IsHibernated && !newShoot.Status.IsHibernated
+		},
+		DeleteFunc: func(_ event.DeleteEvent) bool {
+			return false
+		},
+	}
+}
+
+// mapShootToTerminals enqueues reconcile requests for all Terminals
+// referencing the given Shoot (via host or target credentials). Uses the
+// TerminalShootRef field index for efficient lookup.
+func (r *TerminalReconciler) mapShootToTerminals(ctx context.Context, obj client.Object) []reconcile.Request {
+	shoot, ok := obj.(*gardencorev1beta1.Shoot)
+	if !ok {
+		return nil
+	}
+
+	terminalList := &extensionsv1alpha1.TerminalList{}
+	if err := r.List(ctx, terminalList, client.MatchingFields{
+		TerminalShootRef: client.ObjectKeyFromObject(shoot).String(),
+	}); err != nil {
+		log.FromContext(ctx).Error(err, "failed to list terminals for shoot", "shoot", client.ObjectKeyFromObject(shoot))
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(terminalList.Items))
+	for _, t := range terminalList.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKeyFromObject(&t),
+		})
+	}
+
+	return requests
 }
 
 func (r *TerminalReconciler) getConfig() *extensionsv1alpha1.ControllerManagerConfiguration {
@@ -200,6 +297,22 @@ func (r *TerminalReconciler) handleTerminal(ctx context.Context, t *extensionsv1
 	gardenClientSet := r.ClientSet
 
 	cfg := r.getConfig()
+
+	// Skip reconciliation (not deletion) if any referenced shoot is hibernated.
+	// The Shoot wake-up watch will re-enqueue the Terminal when the shoot comes back.
+	if t.DeletionTimestamp.IsZero() {
+		hibernated, shootKey, err := r.isAnyReferencedShootHibernated(ctx, t)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		if hibernated {
+			r.recordEventAndLog(ctx, t, corev1.EventTypeNormal, extensionsv1alpha1.EventHibernated,
+				"Referenced shoot %s is hibernated, waiting for wake-up", shootKey.String())
+
+			return ctrl.Result{}, nil
+		}
+	}
 
 	hostClientSet, hostClientSetErr := gardenclient.NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Host.Credentials, cfg.HonourServiceAccountRefHostCluster, cfg.Controllers.Terminal.TokenRequestExpirationSeconds, r.Scheme)
 	targetClientSet, targetClientSetErr := gardenclient.NewClientSetFromClusterCredentials(ctx, gardenClientSet, t.Spec.Target.Credentials, cfg.HonourServiceAccountRefTargetCluster, cfg.Controllers.Terminal.TokenRequestExpirationSeconds, r.Scheme)
@@ -376,6 +489,47 @@ func isResourceNoLongerAvailableError(err error) (bool, string) {
 	}
 
 	return false, ""
+}
+
+// isAnyReferencedShootHibernated checks whether any Shoot referenced by the
+// Terminal's host or target credentials is currently hibernated. Returns true
+// and the shoot namespaced name if a hibernated shoot is found. Missing shoots
+// are not considered hibernated; other read errors are returned.
+func (r *TerminalReconciler) isAnyReferencedShootHibernated(ctx context.Context, t *extensionsv1alpha1.Terminal) (bool, types.NamespacedName, error) {
+	refs := []*extensionsv1alpha1.ShootRef{
+		t.Spec.Host.Credentials.ShootRef,
+		t.Spec.Target.Credentials.ShootRef,
+	}
+	seen := sets.New[types.NamespacedName]()
+
+	for _, ref := range refs {
+		if ref == nil {
+			continue
+		}
+
+		key := types.NamespacedName{Namespace: ref.Namespace, Name: ref.Name}
+		if seen.Has(key) {
+			continue
+		}
+
+		seen.Insert(key)
+
+		shoot := &gardencorev1beta1.Shoot{}
+
+		if err := r.Get(ctx, key, shoot); err != nil {
+			if kErros.IsNotFound(err) {
+				continue
+			}
+
+			return false, types.NamespacedName{}, fmt.Errorf("failed to read shoot %s for hibernation check: %w", key.String(), err)
+		}
+
+		if shoot.Status.IsHibernated {
+			return true, key, nil
+		}
+	}
+
+	return false, types.NamespacedName{}, nil
 }
 
 // deleteTerminalDueToMissingResources triggers deletion of a terminal when referenced resources are no longer available.

@@ -157,6 +157,7 @@ func New(mutator admission.Handler, validator admission.Handler) Environment {
 			ControlPlaneStopTimeout:  2 * time.Minute,
 		},
 		GardenerAPIServer: &gardenenvtest.GardenerAPIServer{
+			Args:        []string{"--disable-admission-plugins=DeletionConfirmation,ResourceReferenceManager,ExtensionValidator,ShootQuotaValidator,ShootValidator,ShootTolerationRestriction,ShootDNS,ShootMutator"},
 			StopTimeout: 2 * time.Minute,
 		},
 	}
