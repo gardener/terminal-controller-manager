@@ -633,7 +633,7 @@ func (r *TerminalReconciler) deleteExternalDependency(ctx context.Context, targe
 		lastErrors = append(lastErrors, hostErr)
 	}
 
-	if len(lastErrors) >= 0 {
+	if len(lastErrors) > 0 {
 		return lastErrors
 	}
 
