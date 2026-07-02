@@ -24,11 +24,14 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	toolscache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -89,6 +92,17 @@ func main() {
 			BindAddress:    fmt.Sprintf("%s:%d", cmConfig.Server.Metrics.BindAddress, cmConfig.Server.Metrics.Port),
 			CertDir:        metricsServerCertDir,
 			FilterProvider: filters.WithAuthenticationAndAuthorization,
+		},
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&gardencorev1beta1.Shoot{}: {
+					// Transform strips Shoot objects down to the minimum fields needed
+					// by the terminal controller. Only metadata and status.isHibernated
+					// are preserved in the cache. If you need additional Shoot fields,
+					// add them here — otherwise cache reads return zero values silently.
+					Transform: transformShoot(),
+				},
+			},
 		},
 		LeaderElection:                ptr.Deref(cmConfig.LeaderElection.LeaderElect, true),
 		LeaderElectionResourceLock:    cmConfig.LeaderElection.ResourceLock,
@@ -183,6 +197,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = mgr.GetFieldIndexer().IndexField(ctx, &v1alpha1.Terminal{}, controllers.TerminalShootRef, controllers.IndexTerminalByShootRef); err != nil {
+		setupLog.Error(err, "unable to add terminal shoot ref field indexer")
+		os.Exit(1)
+	}
+
 	setupLog.Info("starting manager")
 
 	if err := mgr.Start(ctx); err != nil {
@@ -268,6 +287,29 @@ func readFile(configFile string, cfg *v1alpha1.ControllerManagerConfiguration) e
 	}
 
 	return json.Unmarshal(jsonData, cfg)
+}
+
+func transformShoot() toolscache.TransformFunc {
+	return func(obj interface{}) (interface{}, error) {
+		shoot, ok := obj.(*gardencorev1beta1.Shoot)
+		if !ok {
+			return obj, nil
+		}
+
+		stripped := &gardencorev1beta1.Shoot{
+			TypeMeta: shoot.TypeMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            shoot.Name,
+				Namespace:       shoot.Namespace,
+				ResourceVersion: shoot.ResourceVersion,
+			},
+			Status: gardencorev1beta1.ShootStatus{
+				IsHibernated: shoot.Status.IsHibernated,
+			},
+		}
+
+		return stripped, nil
+	}
 }
 
 func validateConfig(cfg *v1alpha1.ControllerManagerConfiguration) error {
