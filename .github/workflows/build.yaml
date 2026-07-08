@@ -17,7 +17,7 @@ on:
 
 jobs:
   prepare:
-    uses: gardener/cc-utils/.github/workflows/prepare.yaml@v1 # zizmor: ignore[unpinned-uses] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
+    uses: gardener/cc-utils/.github/workflows/prepare.yaml@v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
     with:
       mode: ${{ inputs.mode }}
     permissions:
@@ -33,7 +33,7 @@ jobs:
       id-token: write
     secrets:
       dockerhub-auth-token: ${{ secrets.dockerhub-auth-token }}
-    uses: gardener/cc-utils/.github/workflows/oci-ocm.yaml@v1 # zizmor: ignore[unpinned-uses] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
+    uses: gardener/cc-utils/.github/workflows/oci-ocm.yaml@v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
     strategy:
       matrix:
         args:
@@ -86,7 +86,7 @@ jobs:
           task: ["check-generate", "lint", "go-test"]
       steps:
         - name: Trusted Checkout
-          uses: gardener/cc-utils/.github/actions/trusted-checkout@v1 # zizmor: ignore[unpinned-uses] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
+          uses: gardener/cc-utils/.github/actions/trusted-checkout@v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
 
         - name: Set up Go
           uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6.5.0
@@ -96,7 +96,7 @@ jobs:
 
         - name: Setup Git Identity
           if: matrix.task == 'check-generate'
-          uses: gardener/cc-utils/.github/actions/setup-git-identity@v1 # zizmor: ignore[unpinned-uses] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
+          uses: gardener/cc-utils/.github/actions/setup-git-identity@v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
 
         - name: Run ${{ matrix.task }}
           shell: bash
@@ -107,7 +107,7 @@ jobs:
             tar czf /tmp/blobs.d/logs.tar.gz -C/tmp/blobs.d logs.txt
         - name: add-reports-to-component-descriptor
           if: ${{ matrix.task == 'go-test' }}
-          uses: gardener/cc-utils/.github/actions/export-ocm-fragments@v1 # zizmor: ignore[unpinned-uses] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
+          uses: gardener/cc-utils/.github/actions/export-ocm-fragments@v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
           with:
             blobs-directory: /tmp/blobs.d
             ocm-resources: |
@@ -122,7 +122,7 @@ jobs:
                     - test
 
   verify-sast:
-    uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@v1 # zizmor: ignore[unpinned-uses] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
+    uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
     permissions:
       contents: read
     with:
