@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gardener/gardener/pkg/api/indexer"
@@ -19,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -43,6 +45,7 @@ import (
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/controllers"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
+	internalvalidation "github.com/gardener/terminal-controller-manager/internal/validation"
 	"github.com/gardener/terminal-controller-manager/webhooks"
 )
 
@@ -252,6 +255,16 @@ func readControllerManagerConfiguration(configFile string) (*v1alpha1.Controller
 		HonourServiceAccountRefTargetCluster: ptr.To(true),
 		HonourProjectMemberships:             ptr.To(true),
 		HonourCleanupProjectMembership:       ptr.To(false),
+		AllowedAPIServerServiceRefs: []v1alpha1.AllowedAPIServerServiceRef{
+			{
+				Name:      "kubernetes",
+				Namespace: "default",
+			},
+			{
+				Name:             "kube-apiserver",
+				UseHostNamespace: true,
+			},
+		},
 
 		LeaderElection: &componentbaseconfigv1alpha1.LeaderElectionConfiguration{
 			LeaderElect:       ptr.To(true),
@@ -326,6 +339,50 @@ func validateConfig(cfg *v1alpha1.ControllerManagerConfiguration) error {
 	if cfg.Controllers.Terminal.MaxConcurrentReconcilesPerNamespace > cfg.Controllers.Terminal.MaxConcurrentReconciles {
 		fldPath := field.NewPath("controllers", "terminal", "maxConcurrentReconcilesPerNamespace")
 		return field.Invalid(fldPath, cfg.Controllers.Terminal.MaxConcurrentReconcilesPerNamespace, "must not be greater than maxConcurrentReconciles")
+	}
+
+	for i, u := range cfg.AllowedAPIServerURLs {
+		fldPath := field.NewPath("allowedAPIServerURLs").Index(i)
+		if u == "" {
+			return field.Required(fldPath, "URL must not be empty")
+		}
+
+		if err := internalvalidation.ValidateHTTPSURL(u, fldPath); err != nil {
+			return err
+		}
+	}
+
+	seenServiceRefs := make(map[v1alpha1.AllowedAPIServerServiceRef]struct{}, len(cfg.AllowedAPIServerServiceRefs))
+	for i, serviceRef := range cfg.AllowedAPIServerServiceRefs {
+		fldPath := field.NewPath("allowedAPIServerServiceRefs").Index(i)
+
+		if serviceRef.Name == "" {
+			return field.Required(fldPath.Child("name"), "name must not be empty")
+		}
+
+		if errs := utilvalidation.IsDNS1035Label(serviceRef.Name); len(errs) > 0 {
+			return field.Invalid(fldPath.Child("name"), serviceRef.Name, strings.Join(errs, ", "))
+		}
+
+		if serviceRef.UseHostNamespace {
+			if serviceRef.Namespace != "" {
+				return field.Forbidden(fldPath.Child("namespace"), "must not be set when useHostNamespace is true")
+			}
+		} else {
+			if serviceRef.Namespace == "" {
+				return field.Required(fldPath.Child("namespace"), "must be set when useHostNamespace is false")
+			}
+
+			if errs := utilvalidation.IsDNS1123Subdomain(serviceRef.Namespace); len(errs) > 0 {
+				return field.Invalid(fldPath.Child("namespace"), serviceRef.Namespace, strings.Join(errs, ", "))
+			}
+		}
+
+		if _, ok := seenServiceRefs[serviceRef]; ok {
+			return field.Duplicate(fldPath, serviceRef)
+		}
+
+		seenServiceRefs[serviceRef] = struct{}{}
 	}
 
 	return nil

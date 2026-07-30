@@ -333,5 +333,19 @@ func DefaultConfiguration() *dashboardv1alpha1.ControllerManagerConfiguration {
 		HonourServiceAccountRefTargetCluster: ptr.To(true),
 		HonourProjectMemberships:             ptr.To(true),
 		HonourCleanupProjectMembership:       ptr.To(true),
+		AllowedAPIServerURLs: []string{
+			"https://kubernetes.default.svc.cluster.local:443",
+			"https://api.cluster.example.com/k8s/clusters/c-12345",
+		},
+		AllowedAPIServerServiceRefs: []dashboardv1alpha1.AllowedAPIServerServiceRef{
+			{
+				Name:      "kubernetes",
+				Namespace: "default",
+			},
+			{
+				Name:             "kube-apiserver",
+				UseHostNamespace: true,
+			},
+		},
 	}
 }

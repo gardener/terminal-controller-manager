@@ -9,6 +9,7 @@
 !internal/*.go
 !internal/gardenclient/*.go
 !internal/helpers/*.go
+!internal/validation/*.go
 !webhooks/*.go
 !main.go
 !go.mod

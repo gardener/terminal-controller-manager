@@ -314,6 +314,21 @@ type LastError struct {
 // ErrorCode is a string alias.
 type ErrorCode string
 
+// AllowedAPIServerServiceRef describes an API server service reference accepted by the validating webhook.
+type AllowedAPIServerServiceRef struct {
+	// Name is the name of the Service.
+	Name string `json:"name"`
+	// Namespace is the exact namespace accepted for the Service.
+	// It is mutually exclusive with UseHostNamespace.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+	// UseHostNamespace accepts a namespace-less service reference whose namespace is defaulted
+	// to the Terminal's spec.host.namespace by the controller.
+	// It is mutually exclusive with Namespace.
+	// +optional
+	UseHostNamespace bool `json:"useHostNamespace,omitempty"`
+}
+
 // ControllerManagerConfiguration defines the configuration for the Gardener controller manager.
 type ControllerManagerConfiguration struct {
 	// +optional
@@ -347,6 +362,23 @@ type ControllerManagerConfiguration struct {
 	// Defaults to false.
 	// +optional
 	HonourCleanupProjectMembership *bool `json:"honourCleanupProjectMembership,omitempty"`
+
+	// AllowedAPIServerURLs is the list of API server URLs that terminals are allowed to target.
+	// The validating webhook applies this exact-match allowlist to
+	// `spec.target.apiServer.server`.
+	// If no API server override is specified, the controller resolves the server from the
+	// referenced credentials without applying this allowlist.
+	// If omitted or empty, all explicit API server URLs are denied.
+	// +optional
+	AllowedAPIServerURLs []string `json:"allowedAPIServerURLs,omitempty"`
+
+	// AllowedAPIServerServiceRefs is the list of API server service references that terminals
+	// are allowed to target through `spec.target.apiServer.serviceRef` or the deprecated
+	// `spec.target.apiServerServiceRef`.
+	// If omitted, dashboard-compatible defaults are used. An explicitly empty list denies all
+	// service references. Custom entries replace the defaults.
+	// +optional
+	AllowedAPIServerServiceRefs []AllowedAPIServerServiceRef `json:"allowedAPIServerServiceRefs,omitempty"`
 
 	// LeaderElection defines the configuration of leader election client.
 	// +optional
