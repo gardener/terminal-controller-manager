@@ -27,8 +27,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/validate/content"
 	"k8s.io/apimachinery/pkg/api/validation"
-	"k8s.io/apimachinery/pkg/api/validation/path"
 	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
@@ -240,7 +240,7 @@ func validateDNS1035Label(value string, fldPath *field.Path) error {
 // * https://github.com/openshift/origin/blob/388478c40e751c4295dcb9a44dd69e5ac65d0e3b/pkg/api/helpers.go
 // Source: https://github.com/kubernetes/kubernetes/blob/df11db1c0f08fab3c0baee1e5ce6efbf816af7f1/pkg/apis/rbac/validation/validation.go#L28C1-L34C2
 func ValidateRBACName(name string) []string {
-	return path.IsValidPathSegmentName(name)
+	return content.IsPathSegmentName(name)
 }
 
 func validateRBACName(value string, fldPath *field.Path) error {
