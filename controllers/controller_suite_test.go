@@ -109,6 +109,9 @@ var _ = BeforeSuite(func() {
 	err = indexer.AddProjectNamespace(ctx, e.K8sManager.GetFieldIndexer())
 	Expect(err).ToNot(HaveOccurred())
 
+	err = e.K8sManager.GetFieldIndexer().IndexField(ctx, &dashboardv1alpha1.Terminal{}, TerminalShootRef, IndexTerminalByShootRef)
+	Expect(err).ToNot(HaveOccurred())
+
 	e.Start(ctx)
 })
 

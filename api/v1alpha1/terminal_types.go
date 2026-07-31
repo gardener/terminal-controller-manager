@@ -579,6 +579,8 @@ const (
 	EventDeleted = "Deleted"
 	// EventDeleteError indicates that a Delete operation failed.
 	EventDeleteError = "DeleteError"
+	// EventHibernated indicates that reconciliation was skipped because a referenced shoot is hibernated.
+	EventHibernated = "Hibernated"
 
 	// BindingKindClusterRoleBinding will result in a ClusterRoleBinding
 	BindingKindClusterRoleBinding BindingKind = "ClusterRoleBinding"
