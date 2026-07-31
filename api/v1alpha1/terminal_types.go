@@ -69,10 +69,6 @@ type TerminalList struct {
 	Items           []Terminal `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&Terminal{}, &TerminalList{})
-}
-
 // HostCluster defines the desired state of the resources related to the host cluster
 type HostCluster struct {
 	// ClusterCredentials define the credentials to the host cluster

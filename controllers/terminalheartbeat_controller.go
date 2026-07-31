@@ -114,6 +114,6 @@ func (r *TerminalHeartbeatReconciler) deleteTerminal(ctx context.Context, t *ext
 }
 
 func (r *TerminalHeartbeatReconciler) recordEventAndLog(ctx context.Context, t *extensionsv1alpha1.Terminal, eventType, reason, messageFmt string, args ...interface{}) {
-	r.Recorder.Eventf(t, eventType, reason, messageFmt, args)
+	r.Recorder.Eventf(t, eventType, reason, messageFmt, args...)
 	log.FromContext(ctx).Info(fmt.Sprintf(messageFmt, args...))
 }
