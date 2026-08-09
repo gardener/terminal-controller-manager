@@ -3,8 +3,8 @@ module github.com/gardener/terminal-controller-manager
 go 1.26.4
 
 require (
-	github.com/gardener/gardener v1.148.1
-	github.com/gardener/gardener/pkg/apis v1.148.1
+	github.com/gardener/gardener v1.148.2
+	github.com/gardener/gardener/pkg/apis v1.148.2
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
@@ -135,6 +135,7 @@ require (
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
+	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/spdystream v0.5.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
