@@ -1145,10 +1145,10 @@ var _ = Describe("Validating Webhook", func() {
 					BeforeEach(func() {
 						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
 							Name:      "valid-service",
-							Namespace: "Invalid_Namespace",
+							Namespace: "team.platform",
 						}
 					})
-					AssertFailedBehavior("spec.target.apiServerServiceRef.namespace: Invalid value: \"Invalid_Namespace\"")
+					AssertFailedBehavior("spec.target.apiServerServiceRef.namespace: Invalid value: \"team.platform\"")
 				})
 
 				Context("apiServer serviceRef namespace", func() {
@@ -1156,11 +1156,11 @@ var _ = Describe("Validating Webhook", func() {
 						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
 							ServiceRef: &corev1.ObjectReference{
 								Name:      "valid-service",
-								Namespace: "Invalid_Namespace",
+								Namespace: "team.platform",
 							},
 						}
 					})
-					AssertFailedBehavior("spec.target.apiServer.serviceRef.namespace: Invalid value: \"Invalid_Namespace\"")
+					AssertFailedBehavior("spec.target.apiServer.serviceRef.namespace: Invalid value: \"team.platform\"")
 				})
 
 				Context("apiServerServiceRef not in allowed list - deprecated", func() {

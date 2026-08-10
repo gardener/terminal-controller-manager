@@ -121,7 +121,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	if err := validateDNS1123Subdomain(*t.Spec.Target.Namespace, fldPath); err != nil {
+	if err := validateDNS1123Label(*t.Spec.Target.Namespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -130,7 +130,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	if err := validateDNS1123Subdomain(*t.Spec.Host.Namespace, fldPath); err != nil {
+	if err := validateDNS1123Label(*t.Spec.Host.Namespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -139,7 +139,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	if err := validateDNS1123Subdomain(t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
+	if err := validateDNS1123Label(t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -202,8 +202,8 @@ func validateRequiredField(val *string, fldPath *field.Path) error {
 	return nil
 }
 
-func validateDNS1123Subdomain(value string, fldPath *field.Path) error {
-	if errs := utilvalidation.IsDNS1123Subdomain(value); len(errs) > 0 {
+func validateDNS1123Label(value string, fldPath *field.Path) error {
+	if errs := utilvalidation.IsDNS1123Label(value); len(errs) > 0 {
 		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
 	}
 
@@ -372,7 +372,7 @@ func (h *TerminalValidator) validateAPIServerFields(t *v1alpha1.Terminal) error 
 		}
 
 		if t.Spec.Target.APIServerServiceRef.Namespace != "" {
-			if err := validateDNS1123Subdomain(t.Spec.Target.APIServerServiceRef.Namespace, apiServerServiceRefFldPath.Child("namespace")); err != nil {
+			if err := validateDNS1123Label(t.Spec.Target.APIServerServiceRef.Namespace, apiServerServiceRefFldPath.Child("namespace")); err != nil {
 				return err
 			}
 		}
@@ -392,7 +392,7 @@ func (h *TerminalValidator) validateAPIServerFields(t *v1alpha1.Terminal) error 
 			}
 
 			if t.Spec.Target.APIServer.ServiceRef.Namespace != "" {
-				if err := validateDNS1123Subdomain(t.Spec.Target.APIServer.ServiceRef.Namespace, serviceRefFldPath.Child("namespace")); err != nil {
+				if err := validateDNS1123Label(t.Spec.Target.APIServer.ServiceRef.Namespace, serviceRefFldPath.Child("namespace")); err != nil {
 					return err
 				}
 			}
@@ -516,7 +516,7 @@ func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, h
 			return err
 		}
 
-		if err := validateDNS1123Subdomain(cred.ShootRef.Namespace, fldPath.Child("shootRef", "namespace")); err != nil {
+		if err := validateDNS1123Label(cred.ShootRef.Namespace, fldPath.Child("shootRef", "namespace")); err != nil {
 			return err
 		}
 	}
@@ -534,7 +534,7 @@ func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, h
 			return err
 		}
 
-		if err := validateDNS1123Subdomain(cred.ServiceAccountRef.Namespace, fldPath.Child("serviceAccountRef", "namespace")); err != nil {
+		if err := validateDNS1123Label(cred.ServiceAccountRef.Namespace, fldPath.Child("serviceAccountRef", "namespace")); err != nil {
 			return err
 		}
 	}

@@ -132,11 +132,11 @@ var _ = Describe("Controller Manager Configuration", func() {
 			Expect(validateConfig(cfg)).To(MatchError(ContainSubstring("allowedAPIServerServiceRefs[0].name: Invalid value")))
 		})
 
-		It("requires an explicit namespace to be a DNS-1123 subdomain", func() {
+		It("requires an explicit namespace to be a DNS-1123 label", func() {
 			cfg.AllowedAPIServerServiceRefs = []v1alpha1.AllowedAPIServerServiceRef{
 				{
 					Name:      "kubernetes",
-					Namespace: "Invalid_Namespace",
+					Namespace: "team.platform",
 				},
 			}
 

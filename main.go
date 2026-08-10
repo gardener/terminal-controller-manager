@@ -373,7 +373,7 @@ func validateConfig(cfg *v1alpha1.ControllerManagerConfiguration) error {
 				return field.Required(fldPath.Child("namespace"), "must be set when useHostNamespace is false")
 			}
 
-			if errs := utilvalidation.IsDNS1123Subdomain(serviceRef.Namespace); len(errs) > 0 {
+			if errs := utilvalidation.IsDNS1123Label(serviceRef.Namespace); len(errs) > 0 {
 				return field.Invalid(fldPath.Child("namespace"), serviceRef.Namespace, strings.Join(errs, ", "))
 			}
 		}
