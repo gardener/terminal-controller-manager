@@ -310,11 +310,44 @@ var _ = Describe("Validating Webhook", func() {
 					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
 						ServiceRef: &corev1.ObjectReference{
 							Name:      "kubernetes",
-							Namespace: "kube-system",
+							Namespace: "default",
 						},
 					}
 				})
 				It("should accept valid namespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("valid apiServer serviceRef using the host namespace", func() {
+				BeforeEach(func() {
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						ServiceRef: &corev1.ObjectReference{
+							Name: "kube-apiserver",
+						},
+					}
+				})
+				It("should accept the namespace-less dashboard service reference for a dynamic host namespace", func() {
+					Expect(terminalCreationError).To(Not(HaveOccurred()))
+				})
+			})
+
+			Context("valid custom exact apiServer serviceRef", func() {
+				BeforeEach(func() {
+					cmConfig.AllowedAPIServerServiceRefs = []dashboardv1alpha1.AllowedAPIServerServiceRef{
+						{
+							Name:      "custom-apiserver",
+							Namespace: "custom-namespace",
+						},
+					}
+					terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+						ServiceRef: &corev1.ObjectReference{
+							Name:      "custom-apiserver",
+							Namespace: "custom-namespace",
+						},
+					}
+				})
+				It("should accept a custom exact service reference", func() {
 					Expect(terminalCreationError).To(Not(HaveOccurred()))
 				})
 			})
@@ -1112,10 +1145,10 @@ var _ = Describe("Validating Webhook", func() {
 					BeforeEach(func() {
 						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
 							Name:      "valid-service",
-							Namespace: "Invalid_Namespace",
+							Namespace: "team.platform",
 						}
 					})
-					AssertFailedBehavior("spec.target.apiServerServiceRef.namespace: Invalid value: \"Invalid_Namespace\"")
+					AssertFailedBehavior("spec.target.apiServerServiceRef.namespace: Invalid value: \"team.platform\"")
 				})
 
 				Context("apiServer serviceRef namespace", func() {
@@ -1123,11 +1156,100 @@ var _ = Describe("Validating Webhook", func() {
 						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
 							ServiceRef: &corev1.ObjectReference{
 								Name:      "valid-service",
-								Namespace: "Invalid_Namespace",
+								Namespace: "team.platform",
 							},
 						}
 					})
-					AssertFailedBehavior("spec.target.apiServer.serviceRef.namespace: Invalid value: \"Invalid_Namespace\"")
+					AssertFailedBehavior("spec.target.apiServer.serviceRef.namespace: Invalid value: \"team.platform\"")
+				})
+
+				Context("apiServerServiceRef not in allowed list - deprecated", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
+							Name:      "attacker",
+							Namespace: "default",
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServerServiceRef: Forbidden: service reference is not in the configured list of allowed API server service references")
+				})
+
+				Context("apiServer serviceRef not in allowed list", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							ServiceRef: &corev1.ObjectReference{
+								Name:      "attacker",
+								Namespace: "default",
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.serviceRef: Forbidden: service reference is not in the configured list of allowed API server service references")
+				})
+
+				Context("apiServer host-namespace serviceRef with an explicit namespace", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							ServiceRef: &corev1.ObjectReference{
+								Name:      "kube-apiserver",
+								Namespace: hostNamespace,
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.serviceRef: Forbidden: service reference is not in the configured list of allowed API server service references")
+				})
+
+				Context("apiServer serviceRef with an explicitly empty allowlist", func() {
+					BeforeEach(func() {
+						cmConfig.AllowedAPIServerServiceRefs = []dashboardv1alpha1.AllowedAPIServerServiceRef{}
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							ServiceRef: &corev1.ObjectReference{
+								Name:      "kubernetes",
+								Namespace: "default",
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.serviceRef: Forbidden: service reference is not in the configured list of allowed API server service references")
+				})
+
+				Context("apiServer serviceRef and deprecated apiServerServiceRef", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
+							Name:      "kubernetes",
+							Namespace: "default",
+						}
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							ServiceRef: &corev1.ObjectReference{
+								Name:      "kubernetes",
+								Namespace: "kube-system",
+							},
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.serviceRef: Forbidden: must not be set when spec.target.apiServerServiceRef is set")
+				})
+
+				Context("apiServer server and serviceRef", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							ServiceRef: &corev1.ObjectReference{
+								Name:      "kubernetes",
+								Namespace: "default",
+							},
+							Server: "https://kubernetes.default.svc.cluster.local:443",
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.server: Forbidden: must not be set together with an API server service reference")
+				})
+
+				Context("apiServer server and deprecated apiServerServiceRef", func() {
+					BeforeEach(func() {
+						terminal.Spec.Target.APIServerServiceRef = &corev1.ObjectReference{
+							Name:      "kubernetes",
+							Namespace: "default",
+						}
+						terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+							Server: "https://kubernetes.default.svc.cluster.local:443",
+						}
+					})
+					AssertFailedBehavior("spec.target.apiServer.server: Forbidden: must not be set together with an API server service reference")
 				})
 
 				Context("apiServer server field validation - invalid URLs", func() {
@@ -1174,6 +1296,35 @@ var _ = Describe("Validating Webhook", func() {
 							}
 						})
 						AssertFailedBehavior("spec.target.apiServer.server: Invalid value: \"https://\": URL must have a host")
+					})
+
+					Context("URL not in allowed list", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "https://attacker.example.com",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Forbidden: URL is not in the configured list of allowed API server URLs")
+					})
+
+					Context("URL with an empty allowed list", func() {
+						BeforeEach(func() {
+							cmConfig.AllowedAPIServerURLs = []string{}
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								Server: "https://kubernetes.default.svc.cluster.local:443",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Forbidden: URL is not in the configured list of allowed API server URLs")
+					})
+
+					Context("URL almost matches an allowed entry but differs in path", func() {
+						BeforeEach(func() {
+							terminal.Spec.Target.APIServer = &dashboardv1alpha1.APIServer{
+								// allowed entry has trailing port :443; this one does not.
+								Server: "https://kubernetes.default.svc.cluster.local",
+							}
+						})
+						AssertFailedBehavior("spec.target.apiServer.server: Forbidden: URL is not in the configured list of allowed API server URLs")
 					})
 				})
 

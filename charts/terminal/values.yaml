@@ -69,6 +69,20 @@ global:
             #     ...
             #     -----END RSA PRIVATE KEY-----
         honourServiceAccountRefHostCluster: false # recommended to be disabled for virtual-garden setup
+        # allowedAPIServerURLs is the list of API server URLs that terminals are allowed to
+        # target through an explicit apiServer.server value. Entries are matched exactly.
+        # If no API server override is specified, the server is resolved from the referenced credentials.
+        # An omitted or empty list denies all explicit API server URLs.
+        allowedAPIServerURLs: []
+        # - https://api.garden.example.com
+        # allowedAPIServerServiceRefs structurally restricts API server service references.
+        # Omit this field to use these dashboard-compatible defaults, set it to [] to deny all
+        # service references, or provide a custom list to replace the defaults.
+        # allowedAPIServerServiceRefs:
+        # - name: kubernetes
+        #   namespace: default
+        # - name: kube-apiserver
+        #   useHostNamespace: true
       resources:
         requests:
           cpu: 100m
@@ -103,4 +117,3 @@ global:
     createNamespace: true
     # createCRD indicates if the CRDs should be created
     createCRD: true
-

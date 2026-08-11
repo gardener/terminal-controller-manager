@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +38,7 @@ import (
 
 	"github.com/gardener/terminal-controller-manager/api/v1alpha1"
 	"github.com/gardener/terminal-controller-manager/internal/gardenclient"
+	internalvalidation "github.com/gardener/terminal-controller-manager/internal/validation"
 )
 
 // Supported roles for project members, based on Gardener's core types
@@ -121,7 +121,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	if err := validateDNS1123Subdomain(*t.Spec.Target.Namespace, fldPath); err != nil {
+	if err := validateDNS1123Label(*t.Spec.Target.Namespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -130,7 +130,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	if err := validateDNS1123Subdomain(*t.Spec.Host.Namespace, fldPath); err != nil {
+	if err := validateDNS1123Label(*t.Spec.Host.Namespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -139,7 +139,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	if err := validateDNS1123Subdomain(t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
+	if err := validateDNS1123Label(t.Spec.Target.KubeconfigContextNamespace, fldPath); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -155,7 +155,7 @@ func (h *TerminalValidator) validatingTerminalFn(ctx context.Context, t *v1alpha
 		return false, err.Error(), nil
 	}
 
-	if err := validateAPIServerFields(t); err != nil {
+	if err := h.validateAPIServerFields(t); err != nil {
 		return false, err.Error(), nil
 	}
 
@@ -202,8 +202,8 @@ func validateRequiredField(val *string, fldPath *field.Path) error {
 	return nil
 }
 
-func validateDNS1123Subdomain(value string, fldPath *field.Path) error {
-	if errs := utilvalidation.IsDNS1123Subdomain(value); len(errs) > 0 {
+func validateDNS1123Label(value string, fldPath *field.Path) error {
+	if errs := utilvalidation.IsDNS1123Label(value); len(errs) > 0 {
 		return field.Invalid(fldPath, value, strings.Join(errs, ", "))
 	}
 
@@ -355,64 +355,65 @@ func ValidateCAData(caData []byte) error {
 	return nil
 }
 
-// validateURL validates that the provided string is a valid URL with https scheme.
-func validateURL(value string, fldPath *field.Path) error {
-	if value == "" {
-		return nil // optional
-	}
+func (h *TerminalValidator) validateAPIServerFields(t *v1alpha1.Terminal) error {
+	var (
+		apiServerServiceRef        *corev1.ObjectReference
+		apiServerServiceRefFldPath *field.Path
+	)
 
-	u, err := url.Parse(value)
-	if err != nil {
-		return field.Invalid(fldPath, value, fmt.Sprintf("must be a valid URL: %v", err))
-	}
-
-	if u.Scheme != "https" {
-		return field.Invalid(fldPath, value, "URL scheme must be https")
-	}
-
-	if u.Host == "" {
-		return field.Invalid(fldPath, value, "URL must have a host")
-	}
-
-	return nil
-}
-
-func validateAPIServerFields(t *v1alpha1.Terminal) error {
 	if t.Spec.Target.APIServerServiceRef != nil {
-		if err := validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name")); err != nil {
+		apiServerServiceRefFldPath = field.NewPath("spec", "target", "apiServerServiceRef")
+		if err := validateRequiredField(&t.Spec.Target.APIServerServiceRef.Name, apiServerServiceRefFldPath.Child("name")); err != nil {
 			return err
 		}
 
-		if err := validateDNS1035Label(t.Spec.Target.APIServerServiceRef.Name, field.NewPath("spec", "target", "apiServerServiceRef", "name")); err != nil {
+		if err := validateDNS1035Label(t.Spec.Target.APIServerServiceRef.Name, apiServerServiceRefFldPath.Child("name")); err != nil {
 			return err
 		}
 
 		if t.Spec.Target.APIServerServiceRef.Namespace != "" {
-			if err := validateDNS1123Subdomain(t.Spec.Target.APIServerServiceRef.Namespace, field.NewPath("spec", "target", "apiServerServiceRef", "namespace")); err != nil {
+			if err := validateDNS1123Label(t.Spec.Target.APIServerServiceRef.Namespace, apiServerServiceRefFldPath.Child("namespace")); err != nil {
 				return err
 			}
 		}
+
+		apiServerServiceRef = t.Spec.Target.APIServerServiceRef
 	}
 
 	if t.Spec.Target.APIServer != nil {
 		if t.Spec.Target.APIServer.ServiceRef != nil {
-			if err := validateRequiredField(&t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name")); err != nil {
+			serviceRefFldPath := field.NewPath("spec", "target", "apiServer", "serviceRef")
+			if err := validateRequiredField(&t.Spec.Target.APIServer.ServiceRef.Name, serviceRefFldPath.Child("name")); err != nil {
 				return err
 			}
 
-			if err := validateDNS1035Label(t.Spec.Target.APIServer.ServiceRef.Name, field.NewPath("spec", "target", "apiServer", "serviceRef", "name")); err != nil {
+			if err := validateDNS1035Label(t.Spec.Target.APIServer.ServiceRef.Name, serviceRefFldPath.Child("name")); err != nil {
 				return err
 			}
 
 			if t.Spec.Target.APIServer.ServiceRef.Namespace != "" {
-				if err := validateDNS1123Subdomain(t.Spec.Target.APIServer.ServiceRef.Namespace, field.NewPath("spec", "target", "apiServer", "serviceRef", "namespace")); err != nil {
+				if err := validateDNS1123Label(t.Spec.Target.APIServer.ServiceRef.Namespace, serviceRefFldPath.Child("namespace")); err != nil {
 					return err
 				}
 			}
+
+			if apiServerServiceRef != nil {
+				return field.Forbidden(serviceRefFldPath, "must not be set when spec.target.apiServerServiceRef is set")
+			}
+
+			apiServerServiceRef = t.Spec.Target.APIServer.ServiceRef
+			apiServerServiceRefFldPath = serviceRefFldPath
 		}
 
-		if err := validateURL(t.Spec.Target.APIServer.Server, field.NewPath("spec", "target", "apiServer", "server")); err != nil {
-			return err
+		serverFldPath := field.NewPath("spec", "target", "apiServer", "server")
+		if t.Spec.Target.APIServer.Server != "" {
+			if err := internalvalidation.ValidateHTTPSURL(t.Spec.Target.APIServer.Server, serverFldPath); err != nil {
+				return err
+			}
+		}
+
+		if t.Spec.Target.APIServer.Server != "" && apiServerServiceRef != nil {
+			return field.Forbidden(serverFldPath, "must not be set together with an API server service reference")
 		}
 
 		if err := ValidateCAData(t.Spec.Target.APIServer.CAData); err != nil {
@@ -420,7 +421,50 @@ func validateAPIServerFields(t *v1alpha1.Terminal) error {
 		}
 	}
 
+	if apiServerServiceRef != nil {
+		return h.validateAllowedAPIServerServiceRef(apiServerServiceRef, apiServerServiceRefFldPath)
+	}
+
+	if t.Spec.Target.APIServer != nil {
+		return h.validateAllowedAPIServerURL(t.Spec.Target.APIServer.Server, field.NewPath("spec", "target", "apiServer", "server"))
+	}
+
 	return nil
+}
+
+// validateAllowedAPIServerURL ensures that a non-empty API server URL matches one of the
+// URLs configured in `AllowedAPIServerURLs`. An empty value is always allowed - it indicates
+// that the controller should resolve the API server from the referenced credentials.
+func (h *TerminalValidator) validateAllowedAPIServerURL(server string, fldPath *field.Path) error {
+	if server == "" {
+		return nil
+	}
+
+	for _, allowed := range h.getConfig().AllowedAPIServerURLs {
+		if server == allowed {
+			return nil
+		}
+	}
+
+	return field.Forbidden(fldPath, "URL is not in the configured list of allowed API server URLs")
+}
+
+func (h *TerminalValidator) validateAllowedAPIServerServiceRef(serviceRef *corev1.ObjectReference, fldPath *field.Path) error {
+	for _, allowed := range h.getConfig().AllowedAPIServerServiceRefs {
+		if serviceRef.Name != allowed.Name {
+			continue
+		}
+
+		if allowed.UseHostNamespace && serviceRef.Namespace == "" {
+			return nil
+		}
+
+		if !allowed.UseHostNamespace && serviceRef.Namespace == allowed.Namespace {
+			return nil
+		}
+	}
+
+	return field.Forbidden(fldPath, "service reference is not in the configured list of allowed API server service references")
 }
 
 func toAuthZExtraValue(authNVal map[string]authenticationv1.ExtraValue) map[string]authorizationv1.ExtraValue {
@@ -472,7 +516,7 @@ func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, h
 			return err
 		}
 
-		if err := validateDNS1123Subdomain(cred.ShootRef.Namespace, fldPath.Child("shootRef", "namespace")); err != nil {
+		if err := validateDNS1123Label(cred.ShootRef.Namespace, fldPath.Child("shootRef", "namespace")); err != nil {
 			return err
 		}
 	}
@@ -490,7 +534,7 @@ func validateCredential(cred v1alpha1.ClusterCredentials, fldPath *field.Path, h
 			return err
 		}
 
-		if err := validateDNS1123Subdomain(cred.ServiceAccountRef.Namespace, fldPath.Child("serviceAccountRef", "namespace")); err != nil {
+		if err := validateDNS1123Label(cred.ServiceAccountRef.Namespace, fldPath.Child("serviceAccountRef", "namespace")); err != nil {
 			return err
 		}
 	}
