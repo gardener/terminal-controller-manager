@@ -3,9 +3,11 @@
 aliases:
   terminal-controller-manager-reviewers:
   - grolu
+  - chrisstiefel
   - petersutter
   - julestree
   terminal-controller-manager-approvers:
   - grolu
+  - chrisstiefel
   - petersutter
   - julestree
