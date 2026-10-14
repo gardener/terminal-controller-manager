@@ -9,11 +9,14 @@ SYSTEM_ARCH                := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/
 TOOLS_BIN_DIR              := $(TOOLS_DIR)/bin/$(SYSTEM_NAME)-$(SYSTEM_ARCH)
 CONTROLLER_GEN             := $(TOOLS_BIN_DIR)/controller-gen
 GOSEC                      := $(TOOLS_BIN_DIR)/gosec
+GOLANGCI_LINT              := $(TOOLS_BIN_DIR)/golangci-lint
 SETUP_ENVTEST              := $(TOOLS_BIN_DIR)/setup-envtest
 
 # default tool versions
 # renovate: datasource=github-releases depName=securego/gosec
 GOSEC_VERSION ?= v2.28.0
+# renovate: datasource=github-releases depName=golangci/golangci-lint
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 # tool versions from go.mod
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
@@ -51,7 +54,7 @@ clean-tools-bin:
 	rm -f $(TOOLS_BIN_DIR)/{*,.version_*}
 
 .PHONY: create-tools-bin
-create-tools-bin: $(CONTROLLER_GEN) $(GOSEC) $(SETUP_ENVTEST)
+create-tools-bin: $(CONTROLLER_GEN) $(GOSEC) $(SETUP_ENVTEST) $(GOLANGCI_LINT)
 
 
 #########################################
@@ -62,7 +65,10 @@ $(CONTROLLER_GEN): $(call tool_version_file,$(CONTROLLER_GEN),$(CONTROLLER_GEN_V
 	go build -o $(CONTROLLER_GEN) sigs.k8s.io/controller-tools/cmd/controller-gen
 
 $(GOSEC): $(call tool_version_file,$(GOSEC),$(GOSEC_VERSION))
-	@GOSEC_VERSION=$(GOSEC_VERSION) $(TOOLS_PKG_PATH)/install-gosec.sh
+	@GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
+
+$(GOLANGCI_LINT): $(call tool_version_file,$(GOLANGCI_LINT),$(GOLANGCI_LINT_VERSION))
+	@GOBIN=$(abspath $(TOOLS_BIN_DIR)) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 $(SETUP_ENVTEST): $(call tool_version_file,$(SETUP_ENVTEST),$(CONTROLLER_RUNTIME_VERSION))
 	curl -Lo $(SETUP_ENVTEST) https://github.com/kubernetes-sigs/controller-runtime/releases/download/$(CONTROLLER_RUNTIME_VERSION)/setup-envtest-$(SYSTEM_NAME)-$(SYSTEM_ARCH)

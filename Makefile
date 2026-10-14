@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+export INVOKED_FROM_MAKE=true
+
 REPO_ROOT      := $(shell git rev-parse --show-toplevel)
 VERSION        := $(shell cat "$(REPO_ROOT)/VERSION")
 
@@ -92,7 +94,7 @@ check-generate: ## Verify if code generation is up-to-date by running generate a
 	@hack/check-generate.sh $(REPO_ROOT)
 
 .PHONY: lint
-lint: ## Run golangci-lint against code.
+lint: $(GOLANGCI_LINT) ## Run golangci-lint against code.
 	@./hack/golangci-lint.sh
 
 .PHONY: sast
