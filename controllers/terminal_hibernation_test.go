@@ -596,9 +596,14 @@ var _ = Describe("Shoot Hibernation", func() {
 					Namespace: shootNamespace,
 				},
 				Spec: gardencorev1beta1.ShootSpec{
-					SecretBindingName: ptr.To("secretbinding"),
-					CloudProfileName:  ptr.To("cloudprofile1"),
-					Region:            "eu-central-1",
+					// Gardener controllers do not run in this test environment, so the referenced
+					// CredentialsBinding and CloudProfile do not need to exist.
+					CredentialsBindingName: ptr.To("secretbinding"),
+					CloudProfile: &gardencorev1beta1.CloudProfileReference{
+						Kind: "CloudProfile",
+						Name: "cloudprofile1",
+					},
+					Region: "eu-central-1",
 					Provider: gardencorev1beta1.Provider{
 						Type: "foo-provider",
 						Workers: []gardencorev1beta1.Worker{
