@@ -4,13 +4,35 @@ on:
     inputs:
       next-version:
         type: choice
+        required: true
         options:
           - bump-minor
           - bump-patch
 
 
 jobs:
+  validate-release-input:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Validate next version
+        env:
+          NEXT_VERSION: ${{ inputs.next-version }}
+        run: |
+          set -eu
+
+          case "${NEXT_VERSION}" in
+            bump-minor|bump-patch)
+              ;;
+            *)
+              echo "::error title=Invalid next-version::Select bump-minor or bump-patch when dispatching the release workflow."
+              exit 1
+              ;;
+          esac
+
   build:
+    needs:
+      - validate-release-input
     uses: ./.github/workflows/build.yaml
     secrets:
       dockerhub-auth-token: ${{ secrets.DOCKERHUB_RO_AUTH }}
