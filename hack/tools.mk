@@ -14,9 +14,9 @@ SETUP_ENVTEST              := $(TOOLS_BIN_DIR)/setup-envtest
 
 # default tool versions
 # renovate: datasource=github-releases depName=securego/gosec
-GOSEC_VERSION ?= v2.28.0
+GOSEC_VERSION ?= v2.30.0
 # renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION ?= v2.12.2
+GOLANGCI_LINT_VERSION ?= v2.15.0
 
 # tool versions from go.mod
 CONTROLLER_GEN_VERSION ?= $(call version_gomod,sigs.k8s.io/controller-tools)
