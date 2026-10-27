@@ -6,6 +6,7 @@ on:
         type: choice
         required: true
         options:
+          - select-version-bump
           - bump-minor
           - bump-patch
 
