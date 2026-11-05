@@ -3,8 +3,8 @@ module github.com/gardener/terminal-controller-manager
 go 1.26.8
 
 require (
-	github.com/gardener/gardener v1.154.1
-	github.com/gardener/gardener/pkg/apis v1.154.1
+	github.com/gardener/gardener v1.154.2
+	github.com/gardener/gardener/pkg/apis v1.154.2
 	github.com/go-logr/logr v1.4.4
 	github.com/onsi/ginkgo/v2 v2.33.0
 	github.com/onsi/gomega v1.44.0
