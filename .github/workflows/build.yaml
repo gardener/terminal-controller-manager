@@ -17,7 +17,7 @@ on:
 
 jobs:
   prepare:
-    uses: gardener/cc-utils/.github/workflows/prepare.yaml@bce63f62928717a11f610ec8022af9feb497d5df # v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
+    uses: gardener/cc-utils/.github/workflows/prepare.yaml@d478850afa1a7e0f9deb710e4d44eb0a2d8dce07 # 1.2881.0 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
     with:
       mode: ${{ inputs.mode }}
     permissions:
@@ -33,7 +33,7 @@ jobs:
       id-token: write
     secrets:
       dockerhub-auth-token: ${{ secrets.dockerhub-auth-token }}
-    uses: gardener/cc-utils/.github/workflows/oci-ocm.yaml@bce63f62928717a11f610ec8022af9feb497d5df # v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
+    uses: gardener/cc-utils/.github/workflows/oci-ocm.yaml@d478850afa1a7e0f9deb710e4d44eb0a2d8dce07 # 1.2881.0 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
     strategy:
       matrix:
         args:
@@ -86,7 +86,7 @@ jobs:
           task: ["check-generate", "lint", "go-test"]
       steps:
         - name: Trusted Checkout
-          uses: gardener/cc-utils/.github/actions/trusted-checkout@bce63f62928717a11f610ec8022af9feb497d5df # v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
+          uses: gardener/cc-utils/.github/actions/trusted-checkout@d478850afa1a7e0f9deb710e4d44eb0a2d8dce07 # 1.2881.0 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
 
         - name: Set up Go
           uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
@@ -96,7 +96,7 @@ jobs:
 
         - name: Setup Git Identity
           if: matrix.task == 'check-generate'
-          uses: gardener/cc-utils/.github/actions/setup-git-identity@bce63f62928717a11f610ec8022af9feb497d5df # v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
+          uses: gardener/cc-utils/.github/actions/setup-git-identity@d478850afa1a7e0f9deb710e4d44eb0a2d8dce07 # 1.2881.0 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
 
         - name: Run ${{ matrix.task }}
           shell: bash
@@ -107,7 +107,7 @@ jobs:
             tar czf /tmp/blobs.d/logs.tar.gz -C/tmp/blobs.d logs.txt
         - name: add-reports-to-component-descriptor
           if: ${{ matrix.task == 'go-test' }}
-          uses: gardener/cc-utils/.github/actions/export-ocm-fragments@bce63f62928717a11f610ec8022af9feb497d5df # v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
+          uses: gardener/cc-utils/.github/actions/export-ocm-fragments@d478850afa1a7e0f9deb710e4d44eb0a2d8dce07 # 1.2881.0 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org action; intentionally allowed for now, planned to pin to a version in the future
           with:
             blobs-directory: /tmp/blobs.d
             ocm-resources: |
@@ -122,7 +122,7 @@ jobs:
                     - test
 
   verify-sast:
-    uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@bce63f62928717a11f610ec8022af9feb497d5df # v1 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
+    uses: gardener/cc-utils/.github/workflows/sastlint-ocm.yaml@d478850afa1a7e0f9deb710e4d44eb0a2d8dce07 # 1.2881.0 # zizmor: ignore[unpinned-uses,ref-confusion] -- same-org reusable workflow; intentionally allowed for now, planned to pin to a version in the future
     permissions:
       contents: read
     with:
